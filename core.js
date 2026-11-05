@@ -37,31 +37,40 @@
   };
   const isLost = (s) => s === ST.CANCEL || s === ST.NOSHOW;
 
-  // ---------- Sample clinic (synthetic) ----------
+  // ---------- Sample clinic (synthetic, sized like Innovación Clínica: ~€75k/month, 4 rooms, 7 dentists, 4 hygienists) ----------
   const PROFS = {
     imp: [{ name: 'Dra. Vega', cab: 'Gabinete 1' }],
-    gen: [{ name: 'Dr. Sol', cab: 'Gabinete 2' }, { name: 'Dra. Prado', cab: 'Gabinete 5' }],
+    gen: [{ name: 'Dr. Sol', cab: 'Gabinete 2' }, { name: 'Dra. Prado', cab: 'Gabinete 2' }, { name: 'Dr. Lobo', cab: 'Gabinete 1' }, { name: 'Dra. Núñez', cab: 'Gabinete 2', from: dn(2026, 2, 1) }],
     orto: [{ name: 'Dra. Ruiz', cab: 'Gabinete 3' }],
-    endo: [{ name: 'Dr. Marín', cab: 'Gabinete 4' }],
-    hyg: [{ name: 'Hig. Lara', cab: 'Gabinete 5' }, { name: 'Hig. Paula', cab: 'Gabinete 3' }]
+    endo: [{ name: 'Dr. Marín', cab: 'Gabinete 3' }],
+    hyg: [{ name: 'Hig. Lara', cab: 'Gabinete 4' }, { name: 'Hig. Paula', cab: 'Gabinete 4' }, { name: 'Hig. Irene', cab: 'Gabinete 4' }, { name: 'Hig. Marta', cab: 'Gabinete 3' }]
   };
-  const CABS = ['Gabinete 1', 'Gabinete 2', 'Gabinete 3', 'Gabinete 4', 'Gabinete 5'];
+  const CABS = ['Gabinete 1', 'Gabinete 2', 'Gabinete 3', 'Gabinete 4'];
+  // cost: direct material / laboratory cost per treatment in 2023 euros (rises about 6% a year).
   const T = {
-    limp: { name: 'LIMPIEZA', cat: 'Higiene', price: 50, role: 'hyg' },
-    emp: { name: 'EMPASTE COMPOSITE', cat: 'Conservadora', price: 60, role: 'gen', tooth: true },
-    endo: { name: 'ENDODONCIA', cat: 'Endodoncia', price: 180, role: 'endo', tooth: true },
-    ext: { name: 'EXTRACCIÓN', cat: 'Cirugía', price: 50, role: 'gen', tooth: true },
-    cordal: { name: 'EXTRACCIÓN CORDAL', cat: 'Cirugía', price: 90, role: 'imp', tooth: true },
-    corona: { name: 'CORONA ZIRCONIO', cat: 'Prótesis', price: 380, role: 'gen', tooth: true },
-    imp: { name: 'IMPLANTE', cat: 'Implantología', price: 900, role: 'imp', tooth: true },
-    cimp: { name: 'CORONA SOBRE IMPLANTE', cat: 'Implantología', price: 500, role: 'imp', tooth: true },
-    ferula: { name: 'FÉRULA DE DESCARGA', cat: 'Prótesis', price: 260, role: 'gen' },
-    ortoIni: { name: 'ORTODONCIA · COLOCACIÓN', cat: 'Ortodoncia', price: 800, role: 'orto' },
-    ortoRev: { name: 'REVISIÓN ORTODONCIA', cat: 'Ortodoncia', price: 60, role: 'orto' },
-    ortoFin: { name: 'ORTODONCIA · RETIRADA', cat: 'Ortodoncia', price: 300, role: 'orto' },
-    blanq: { name: 'BLANQUEAMIENTO', cat: 'Estética', price: 300, role: 'gen' },
-    protRem: { name: 'PRÓTESIS REMOVIBLE', cat: 'Prótesis', price: 750, role: 'gen' },
-    cur: { name: 'CURETAJE POR CUADRANTE', cat: 'Periodoncia', price: 70, role: 'hyg' }
+    limp: { name: 'LIMPIEZA', cat: 'Higiene', price: 50, cost: 3, role: 'hyg' },
+    emp: { name: 'EMPASTE COMPOSITE', cat: 'Conservadora', price: 60, cost: 8, role: 'gen', tooth: true },
+    endo: { name: 'ENDODONCIA', cat: 'Endodoncia', price: 180, cost: 20, role: 'endo', tooth: true },
+    ext: { name: 'EXTRACCIÓN', cat: 'Cirugía', price: 50, cost: 5, role: 'gen', tooth: true },
+    cordal: { name: 'EXTRACCIÓN CORDAL', cat: 'Cirugía', price: 90, cost: 10, role: 'imp', tooth: true },
+    corona: { name: 'CORONA ZIRCONIO', cat: 'Prótesis', price: 380, cost: 130, role: 'gen', tooth: true },
+    imp: { name: 'IMPLANTE', cat: 'Implantología', price: 900, cost: 260, role: 'imp', tooth: true },
+    cimp: { name: 'CORONA SOBRE IMPLANTE', cat: 'Implantología', price: 500, cost: 170, role: 'imp', tooth: true },
+    ferula: { name: 'FÉRULA DE DESCARGA', cat: 'Prótesis', price: 260, cost: 70, role: 'gen' },
+    ortoIni: { name: 'ORTODONCIA · COLOCACIÓN', cat: 'Ortodoncia', price: 800, cost: 220, role: 'orto' },
+    ortoRev: { name: 'REVISIÓN ORTODONCIA', cat: 'Ortodoncia', price: 60, cost: 4, role: 'orto' },
+    ortoFin: { name: 'ORTODONCIA · RETIRADA', cat: 'Ortodoncia', price: 300, cost: 60, role: 'orto' },
+    blanq: { name: 'BLANQUEAMIENTO', cat: 'Estética', price: 300, cost: 45, role: 'gen' },
+    protRem: { name: 'PRÓTESIS REMOVIBLE', cat: 'Prótesis', price: 750, cost: 230, role: 'gen' },
+    cur: { name: 'CURETAJE POR CUADRANTE', cat: 'Periodoncia', price: 70, cost: 5, role: 'hyg' }
+  };
+  // Events in the sample history that mirror the 2026 decisions described in the report.
+  const EVENTS = {
+    promoFrom: dn(2026, 3, 1), promoTo: dn(2026, 6, 30), // orthodontics and implant offer: 15% off
+    reviewsFrom: dn(2026, 4, 1), // Google reviews incentive
+    newDentist: dn(2026, 2, 1), // Dra. Núñez joins
+    endoCut: dn(2026, 9, 1), // endodontist reduces hours
+    referralEnd: dn(2026, 9, 1) // a referral agreement ends: fewer new patients
   };
 
   function simulate(seed) {
@@ -74,12 +83,14 @@
     const workday = (d) => { const w = weekday(d); return w === 5 ? d + 2 + ri(0, 4) : w === 6 ? d + 1 + ri(0, 4) : d; };
     const tooth = () => [1, 2, 3, 4][ri(0, 3)] * 10 + ri(1, 8);
     const payMethod = () => { const x = r(); return x < 0.6 ? 'Tarjeta' : x < 0.9 ? 'Efectivo' : 'Transferencia'; };
+    const inflation = (d) => 1 + 0.06 * Math.max(0, (d - dn(2023, 1, 1)) / 365);
+    const inPromo = (d) => d >= EVENTS.promoFrom && d <= EVENTS.promoTo;
 
     function pickProf(role, d) {
-      if (role === 'endo' && d >= dn(2026, 9, 1) && r() < 0.7) role = 'gen'; // endodontist cuts hours from Sep 2026
-      const list = PROFS[role];
+      if (role === 'endo' && d >= EVENTS.endoCut && r() < 0.7) role = 'gen';
+      const list = PROFS[role].filter((p) => !p.from || d >= p.from);
       const pr = list[ri(0, list.length - 1)];
-      const cab = r() < 0.9 ? pr.cab : CABS[ri(0, CABS.length - 1)];
+      const cab = r() < 0.92 ? pr.cab : CABS[ri(0, CABS.length - 1)];
       return { name: pr.name, cab };
     }
     function outcome(p, d) {
@@ -94,8 +105,10 @@
       appts.push({ pid: p.id, day: d, prof: pr.name, cab: pr.cab, desc, type, status: st });
       return { st, pr };
     }
-    function makePlan(hint) {
-      const x = hint === 'orto' && r() < 0.6 ? 0.65 : hint === 'imp' && r() < 0.5 ? 0.55 : r();
+    function makePlan(hint, d) {
+      const promo = inPromo(d);
+      let x = hint === 'orto' && r() < 0.6 ? 0.65 : hint === 'imp' && r() < 0.5 ? 0.55 : r();
+      if (promo && r() < 0.18) x = r() < 0.5 ? 0.55 : 0.65; // the offer pulls demand to implants and orthodontics
       const S = (t, g1, g2) => ({ t, gap: ri(g1, g2), tooth: T[t].tooth ? tooth() : null });
       const s = [];
       if (x < 0.36) { if (r() < 0.4) s.push(S('limp', 0, 0)); const n = ri(1, 3); for (let i = 0; i < n; i++) s.push(S('emp', 7, 16)); }
@@ -116,14 +129,16 @@
     }
     function runPlan(p, d0, steps) {
       const planId = planSeq++;
-      const total = steps.reduce((a, x) => a + T[x.t].price, 0);
+      const disc = (t) => (inPromo(d0) && (T[t].cat === 'Implantología' || T[t].cat === 'Ortodoncia') ? 0.85 : 1);
+      const priceOf = (x) => Math.round(T[x.t].price * disc(x.t));
+      const total = steps.reduce((a, x) => a + priceOf(x), 0);
       const my = steps.map((x) => {
-        const L = { pid: p.id, plan: planId, accept: d0, name: T[x.t].name, cat: T[x.t].cat, price: T[x.t].price, status: 'Pendiente', done: null, prof: null, cab: null, tooth: x.tooth };
+        const L = { pid: p.id, plan: planId, accept: d0, name: T[x.t].name, cat: T[x.t].cat, price: priceOf(x), cost: null, status: 'Pendiente', done: null, prof: null, cab: null, tooth: x.tooth };
         lines.push(L); return L;
       });
       let scheme = 'session';
-      if (total >= 1200) { const y = r(); scheme = y < 0.42 ? 'fin' : y < 0.72 ? 'acuenta' : 'session'; }
-      else if (total >= 400 && r() < 0.15) scheme = 'acuenta';
+      if (total >= 600) { const y = r(); scheme = y < 0.62 ? 'fin' : y < 0.82 ? 'acuenta' : 'session'; }
+      else if (total >= 300 && r() < 0.2) scheme = 'acuenta';
       let credit = 0;
       if (scheme === 'fin') { credit = total; pays.push({ pid: p.id, day: workday(d0 + ri(0, 6)), amount: total, method: 'Financiación', concept: 'PAGO A CUENTA · FINANCIACIÓN' }); }
       if (scheme === 'acuenta') { credit = Math.round(total * 0.5 / 10) * 10; pays.push({ pid: p.id, day: d0, amount: credit, method: r() < 0.5 ? 'Transferencia' : 'Tarjeta', concept: 'PAGO A CUENTA' }); }
@@ -136,8 +151,8 @@
           if (d > END) return;
           const { st, pr } = addAppt(p, d, t.role, t.name + (st0.tooth ? ' ' + st0.tooth : ''), 'Tratamiento');
           if (st === ST.DONE) {
-            const L = my[i]; L.status = 'Realizado'; L.done = d; L.prof = pr.name; L.cab = pr.cab;
-            let due = t.price; const use = Math.min(credit, due); credit -= use; due -= use;
+            const L = my[i]; L.status = 'Realizado'; L.done = d; L.prof = pr.name; L.cab = pr.cab; L.cost = Math.round(t.cost * inflation(d));
+            let due = L.price; const use = Math.min(credit, due); credit -= use; due -= use;
             if (due > 0 && r() > 0.02) pays.push({ pid: p.id, day: d, amount: due, method: payMethod(), concept: t.name });
             break;
           }
@@ -154,11 +169,11 @@
         d = workday(d);
         const { st, pr } = addAppt(p, d, 'hyg', 'REVISIÓN Y LIMPIEZA', 'Revisión');
         if (st === ST.DONE) {
-          lines.push({ pid: p.id, plan: planSeq++, accept: d, name: T.limp.name, cat: T.limp.cat, price: T.limp.price, status: 'Realizado', done: d, prof: pr.name, cab: pr.cab, tooth: null });
+          lines.push({ pid: p.id, plan: planSeq++, accept: d, name: T.limp.name, cat: T.limp.cat, price: T.limp.price, cost: Math.round(T.limp.cost * inflation(d)), status: 'Realizado', done: d, prof: pr.name, cab: pr.cab, tooth: null });
           pays.push({ pid: p.id, day: d, amount: T.limp.price, method: payMethod(), concept: 'LIMPIEZA' });
-          if (r() < 0.22) runPlan(p, d, makePlan());
+          if (r() < (inPromo(d) ? 0.26 : 0.2)) runPlan(p, d, makePlan(null, d));
         }
-        if (r() > 0.74) return;
+        if (r() > 0.8) return;
         d += ri(150, 360);
       }
     }
@@ -169,23 +184,26 @@
 
     // Existing patient base
     let id = 10000;
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < 4300; i++) {
       const p = newPatient(id++, dn(2008, 1, 1) + ri(0, START - dn(2008, 1, 1) - 1));
       recalls(p, START + ri(0, 365));
     }
-    // New patients each month
+    // New patients each month (about 50 first visits a month in 2026)
     const SEASON = [1.1, 1.05, 1.05, 0.95, 1, 0.95, 0.85, 0.55, 1.15, 1.05, 1, 0.8];
     for (let k = mk(START); k < mk(END); k++) {
-      const drop = k >= mk(dn(2026, 9, 1)) ? 0.7 : 1; // referral agreement ended in Sep 2026
-      const n = Math.round(60 * SEASON[k % 12] * drop * (0.9 + r() * 0.2));
+      const d1 = mkStart(k);
+      const trend = 0.9 + 0.1 * Math.min(1, Math.max(0, (d1 - START) / 900)); // slow growth
+      const reviews = d1 >= EVENTS.reviewsFrom && d1 < EVENTS.referralEnd ? 1.08 : 1;
+      const drop = d1 >= EVENTS.referralEnd ? 0.65 : 1;
+      const n = Math.round(52 * SEASON[k % 12] * trend * reviews * drop * (0.9 + r() * 0.2));
       for (let i = 0; i < n; i++) {
-        let d = workday(mkStart(k) + ri(0, 27));
+        let d = workday(d1 + ri(0, 27));
         const p = newPatient(id++, d);
         const x = r(), role = x < 0.15 ? 'orto' : x < 0.35 ? 'imp' : 'gen';
         let { st } = addAppt(p, d, role, 'PRIMERA VISITA', 'Primera visita');
         if (st !== ST.DONE && (st === ST.REBOOKED || r() < 0.5)) { d = workday(d + ri(5, 15)); ({ st } = addAppt(p, d, role, 'PRIMERA VISITA', 'Primera visita')); }
         if (st !== ST.DONE) continue;
-        if (r() < 0.64) runPlan(p, d, makePlan(role));
+        if (r() < (inPromo(d) ? 0.72 : 0.64)) runPlan(p, d, makePlan(role, d));
         recalls(p, d + ri(180, 380));
       }
     }
@@ -200,7 +218,7 @@
       source: 'sample', label: label || 'Sample data', asOf,
       patients: full.patients.filter((p) => p.first <= asOf).map((p) => ({ id: p.id, first: p.first, age: p.age })),
       appts: full.appts.filter((a) => a.day <= H).map((a) => (a.day > asOf ? Object.assign({}, a, { status: ST.FUTURE }) : a)),
-      lines: full.lines.filter((l) => l.accept <= asOf).map((l) => (l.done != null && l.done > asOf ? Object.assign({}, l, { status: 'Pendiente', done: null, prof: null, cab: null }) : l)),
+      lines: full.lines.filter((l) => l.accept <= asOf).map((l) => (l.done != null && l.done > asOf ? Object.assign({}, l, { status: 'Pendiente', done: null, prof: null, cab: null, cost: null }) : l)),
       pays: full.pays.filter((p) => p.day <= asOf)
     };
     ds.simulatedCalls = simulateCallEffects(ds, decisions);
@@ -222,7 +240,7 @@
         const L = ds.lines[idx];
         if (day > ds.asOf) { ds.appts.push({ pid, day, prof: 'Dr. Sol', cab: 'Gabinete 2', desc: L.name, type: 'Tratamiento', status: ST.FUTURE }); n++; continue; }
         ds.appts.push({ pid, day, prof: 'Dr. Sol', cab: 'Gabinete 2', desc: L.name, type: 'Tratamiento', status: attends ? ST.DONE : ST.NOSHOW });
-        if (attends) ds.lines[idx] = Object.assign({}, L, { status: 'Realizado', done: day, prof: 'Dr. Sol', cab: 'Gabinete 2' });
+        if (attends) ds.lines[idx] = Object.assign({}, L, { status: 'Realizado', done: day, prof: 'Dr. Sol', cab: 'Gabinete 2', cost: Math.round(L.price * 0.27) });
         n++;
       }
     }
@@ -238,6 +256,10 @@
     ds.pays.forEach((p) => get(p.pid).pays.push(p));
     by.forEach((x) => { x.appts.sort((a, b) => a.day - b.day); x.pays.sort((a, b) => a.day - b.day); });
     ds.by = by;
+    ds.hasPatientDates = ds.patients.some((p) => p.first != null);
+    const profs = new Set(); ds.lines.forEach((l) => l.prof && profs.add(l.prof));
+    ds.profs = Array.from(profs).sort();
+    ds.lineCats = Array.from(new Set(ds.lines.map((l) => l.cat).filter(Boolean))).sort();
     ds.lastMonth = mk(ds.asOf + 1) - 1; // latest complete month
     ds.firstMonth = Math.max(mk(Math.min.apply(null, ds.appts.map((a) => a.day).concat([ds.asOf]))), ds.lastMonth - 35);
     const cabs = new Set(); ds.lines.forEach((l) => l.cab && cabs.add(l.cab)); ds.appts.forEach((a) => a.cab && cabs.add(a.cab));
@@ -247,11 +269,60 @@
 
   // ---------- KPI engine (deterministic; the assistant only reads these) ----------
   const inMonth = (d, k) => d != null && d >= mkStart(k) && d <= mkEnd(k);
-  function production(ds, k, cab) {
-    let s = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && (!cab || l.cab === cab)) s += l.price; return s;
+  function production(ds, k, cab, prof, line) {
+    let s = 0;
+    for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && (!cab || l.cab === cab) && (!prof || l.prof === prof) && (!line || l.cat === line)) s += l.price;
+    return s;
   }
   function collections(ds, k) { let s = 0; for (const p of ds.pays) if (inMonth(p.day, k)) s += p.amount; return s; }
-  function firstVisits(ds, k) { let n = 0; for (const a of ds.appts) if (a.type === 'Primera visita' && a.status === ST.DONE && inMonth(a.day, k)) n++; return n; }
+  // New patients: patient files opened in the month (MN "Fecha Alta"). Falls back to labelled first-visit
+  // appointments when the patient table has no registration dates.
+  function firstVisits(ds, k) {
+    let n = 0;
+    if (ds.hasPatientDates) { for (const p of ds.patients) if (inMonth(p.first, k)) n++; return n; }
+    for (const a of ds.appts) if (a.type === 'Primera visita' && a.status === ST.DONE && inMonth(a.day, k)) n++;
+    return n;
+  }
+  const isHygienist = (name) => /^hig/i.test(String(name || ''));
+  // Direct cost (materials and laboratory) of treatment done in the month; null when the data has no costs.
+  function directCost(ds, k, filter) {
+    let c = 0, any = false;
+    for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && (!filter || filter(l))) { if (l.cost != null) { c += l.cost; any = true; } }
+    return any ? c : null;
+  }
+  function marginPct(ds, k, filter) {
+    let p = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && (!filter || filter(l))) p += l.price;
+    const c = directCost(ds, k, filter);
+    return c == null || !p ? null : (p - c) / p;
+  }
+  function productionBy(ds, k, field) {
+    const m = new Map();
+    for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && l[field]) m.set(l[field], (m.get(l[field]) || 0) + l.price);
+    return m;
+  }
+  // Treatment lines (categories) over k1..k2: count, production, margin, and change against the same months a year earlier.
+  function treatmentLines(ds, k1, k2) {
+    const cur = new Map(), prev = new Map();
+    const add = (m, l) => { const x = m.get(l.cat) || { line: l.cat, count: 0, production: 0, cost: 0, hasCost: false }; x.count++; x.production += l.price; if (l.cost != null) { x.cost += l.cost; x.hasCost = true; } m.set(l.cat, x); };
+    for (const l of ds.lines) {
+      if (l.done == null || !l.cat) continue;
+      if (l.done >= mkStart(k1) && l.done <= mkEnd(k2)) add(cur, l);
+      else if (l.done >= mkStart(k1 - 12) && l.done <= mkEnd(k2 - 12)) add(prev, l);
+    }
+    return Array.from(cur.values()).map((x) => {
+      const p = prev.get(x.line);
+      return { line: x.line, count: x.count, production: x.production, marginPct: x.hasCost && x.production ? (x.production - x.cost) / x.production : null, productionLastYear: p ? p.production : 0, change: p && p.production ? x.production / p.production - 1 : null };
+    }).sort((a, b) => b.production - a.production);
+  }
+  // How much of what managers need is actually recorded in the loaded data (last three months).
+  function dataQuality(ds) {
+    const k1 = ds.lastMonth - 2, a0 = mkStart(k1), a1 = Math.min(mkEnd(ds.lastMonth), ds.asOf);
+    let past = 0, withOutcome = 0, cancelled = 0;
+    for (const a of ds.appts) { if (a.day < a0 || a.day > a1) continue; past++; if (a.status !== ST.FUTURE) withOutcome++; if (a.status === ST.CANCEL || a.status === ST.REBOOKED || a.status === ST.NOSHOW) cancelled++; }
+    let lines = 0, withProf = 0, withCost = 0;
+    for (const l of ds.lines) { if (l.done == null || l.done < a0 || l.done > a1) continue; lines++; if (l.prof) withProf++; if (l.cost != null) withCost++; }
+    return { appointments: past, outcomeRecorded: past ? withOutcome / past : null, cancellationsRecorded: cancelled, treatmentsDone: lines, professionalRecorded: lines ? withProf / lines : null, costRecorded: lines ? withCost / lines : null, patientDates: !!ds.hasPatientDates };
+  }
   function visitStats(ds, k1, k2, filter) {
     const o = { total: 0, done: 0, lost: 0, noShow: 0, cancelled: 0, rebooked: 0 };
     const a0 = mkStart(k1), a1 = mkEnd(k2);
@@ -310,8 +381,10 @@
     const endDay = Math.min(mkEnd(k), ds.asOf);
     const bal = balances(ds, endDay), balPrev = balances(ds, mkEnd(prev));
     const vs = visitStats(ds, k, k), vsPrev = visitStats(ds, prev, prev);
+    const prod = production(ds, k), cost = directCost(ds, k);
     return {
-      month: mkLabel(k), production: production(ds, k), productionPrevMonth: production(ds, prev), productionSameMonthLastYear: production(ds, ly),
+      month: mkLabel(k), production: prod, productionPrevMonth: production(ds, prev), productionSameMonthLastYear: production(ds, ly),
+      directCost: cost, margin: cost == null ? null : prod - cost, marginPct: marginPct(ds, k), marginPctSameMonthLastYear: marginPct(ds, ly),
       collections: collections(ds, k), collectionsPrevMonth: collections(ds, prev),
       unearnedRevenue: bal.unearned, unearnedPatients: bal.patientsUnearned, unearnedPrevMonthEnd: balPrev.unearned,
       receivable: bal.receivable, receivablePatients: bal.patientsReceivable,
@@ -463,11 +536,17 @@
   function learnFromDecisions(ds, decisions) {
     const byKind = {};
     const fu = { decisions: 0, observed: 0, continued: 0, callsRecorded: 0, booked: 0, reached: { n: 0, continued: 0 }, notReached: { n: 0, continued: 0 } };
+    const expectations = [];
     for (const d of decisions || []) {
       const s = byKind[d.kind] || (byKind[d.kind] = { decided: 0, accepted: 0, rejected: 0, reviewed: 0, worked: 0, partly: 0, improvements: [] });
       s.decided++;
       if (d.decision === 'Rejected') { s.rejected++; continue; }
       s.accepted++;
+      // Managers' own expectations against what happened (for decisions logged with an expected change).
+      if (d.expected && d.expected.pct && d.metric && d.metric.type !== 'prepaid_ids') {
+        const ev = evalDecision(ds, d);
+        if (ev.change != null && ev.afterMonths >= 1) expectations.push({ title: d.title, expected: d.expected.pct, achieved: ev.change, afterMonths: ev.afterMonths });
+      }
       if (d.outcome) {
         s.reviewed++;
         if (d.outcome.verdict === 'Worked') s.worked++; else if (d.outcome.verdict === 'Partly') s.partly++;
@@ -497,7 +576,9 @@
     fu.bookedRate = fu.callsRecorded ? fu.booked / fu.callsRecorded : null;
     fu.reachedRate = fu.reached.n ? fu.reached.continued / fu.reached.n : null;
     fu.notReachedRate = fu.notReached.n ? fu.notReached.continued / fu.notReached.n : null;
-    return { byKind, followUp: fu };
+    const ratios = expectations.map((e) => e.achieved / e.expected);
+    const exp = { n: expectations.length, items: expectations, avgRealised: ratios.length ? avg(ratios) : null };
+    return { byKind, followUp: fu, expectations: exp };
   }
   // Predicted vs observed for the patients on a follow-up decision (model monitoring).
   function followUpCheck(ds, d) {
@@ -538,22 +619,7 @@
         metric: { type: 'prepaid_ids', ids: top.map((r) => r.patient), label: 'Paid but unfinished treatment of these ' + top.length + ' patients', fmt: 'eur', better: 'down' }
       });
     }
-    // 2. Lost visits concentrated on one weekday
-    const wd = lostByWeekday(ds, k - 2, k), all = visitStats(ds, k - 2, k);
-    const worst = wd.slice().sort((a, b) => b.lostRate - a.lostRate)[0];
-    const others = visitStats(ds, k - 2, k, (a) => weekday(a.day) !== worst.wd);
-    if (worst.total >= 60 && worst.lostRate >= others.lostRate * 1.3) {
-      const excess = Math.round((worst.lostRate - others.lostRate) * worst.total / 3);
-      recs.push({
-        id: 'lost:' + worst.wd + ':' + tag, kind: 'lost', priority: 2,
-        title: 'Cut lost visits on ' + worst.weekday + 's',
-        evidence: 'From ' + mkLabel(k - 2, true) + ' to ' + mkLabel(k, true) + ', ' + pct(worst.lostRate) + ' of ' + worst.weekday + ' visits were lost (no-show or cancelled without a new date), against ' + pct(others.lostRate) + ' on other days. That is about ' + excess + ' extra lost visits a month.',
-        action: 'Confirm every ' + worst.weekday + ' appointment by WhatsApp or phone on the previous Friday, and offer the slot to a waiting patient when someone cancels.',
-        impact: 'Bringing ' + worst.weekday + 's to the average of other days would recover about ' + excess + ' visits a month.',
-        metric: { type: 'lost_weekday', wd: worst.wd, label: 'Lost-visit rate on ' + worst.weekday + 's (latest month)', fmt: 'pct', better: 'down' }
-      });
-    }
-    // 3. First visits falling
+    // 2. Marketing: new patients falling
     const fvRecent = avg([firstVisits(ds, k), firstVisits(ds, k - 1)]);
     const fvPrior = avg([2, 3, 4, 5, 6, 7].map((i) => firstVisits(ds, k - i)));
     if (fvPrior > 0 && fvRecent <= fvPrior * 0.88) {
@@ -561,41 +627,86 @@
       let val = 0; for (const l of ds.lines) { const f = firstDay.get(l.pid); if (f != null && l.accept <= f + 183) val += l.price; }
       const perPatient = firstDay.size ? val / firstDay.size : 0;
       recs.push({
-        id: 'acq:' + tag, kind: 'acq', priority: 3,
-        title: 'First visits are falling',
-        evidence: firstVisits(ds, k) + ' first visits in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
-        action: 'Review where new patients come from (referrals, insurers, website, word of mouth) and restart the channel that dropped.',
-        impact: 'Each new patient accepted about ' + eur(perPatient) + ' of treatment on average in their first six months.',
-        metric: { type: 'first_visits', label: 'First visits (latest month)', fmt: 'int', better: 'up' }
+        id: 'acq:' + tag, kind: 'acq', priority: 2,
+        title: 'New patients are falling',
+        evidence: firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
+        action: 'Check where new patients came from in the last months (referrals, reviews, website, insurers) and decide which channel to reinforce. Log the marketing action here with the number of new patients you expect.',
+        impact: 'Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
+        metric: { type: 'new_patients', label: 'New patients per month', fmt: 'int', better: 'up' }
       });
     }
-    // 4. A treatment room producing less than usual
-    let worstCab = null;
-    for (const c of ds.cabs) {
-      const recent = avg([production(ds, k, c), production(ds, k - 1, c)]);
-      const prior = avg([2, 3, 4, 5, 6, 7].map((i) => production(ds, k - i, c)));
-      if (prior > 2000) { const ch = recent / prior - 1; if (!worstCab || ch < worstCab.ch) worstCab = { c, ch, recent, prior }; }
+    // 3. Hiring and dentist performance
+    const dentists = ds.profs.filter((p) => !isHygienist(p));
+    let worstDentist = null;
+    for (const p of dentists) {
+      const recent = avg([production(ds, k, null, p), production(ds, k - 1, null, p)]);
+      const prior = avg([2, 3, 4, 5, 6, 7].map((i) => production(ds, k - i, null, p)));
+      const lastYear = avg([production(ds, k - 12, null, p), production(ds, k - 13, null, p)]);
+      // Flag only drops against both the recent past and the same months last year, so a promotion or season does not trigger it.
+      if (prior >= 2000) {
+        const ch = recent / prior - 1, chLy = lastYear ? recent / lastYear - 1 : ch;
+        if (chLy <= -0.25 && (!worstDentist || ch < worstDentist.ch)) worstDentist = { p, ch, recent, prior };
+      }
     }
-    if (worstCab && worstCab.ch <= -0.15) {
+    if (worstDentist && worstDentist.ch <= -0.25) {
       recs.push({
-        id: 'cab:' + worstCab.c + ':' + tag, kind: 'cab', priority: 4,
-        title: worstCab.c + ' is producing less than usual',
-        evidence: worstCab.c + ' produced ' + eur(worstCab.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(worstCab.prior) + ' a month in the six months before (' + pct(worstCab.ch) + ').',
-        action: 'Check the ' + worstCab.c + ' schedule: free hours, absences and which professionals use it. Give idle hours to the professionals with the longest waiting lists.',
-        impact: 'Returning to its usual level would add about ' + eur(worstCab.prior - worstCab.recent) + ' of production a month.',
-        metric: { type: 'cab_prod', cab: worstCab.c, label: worstCab.c + ' production (latest month)', fmt: 'eur', better: 'up' }
+        id: 'dentist:' + worstDentist.p + ':' + tag, kind: 'dentist', priority: 3,
+        title: worstDentist.p + ' is producing much less than usual',
+        evidence: worstDentist.p + ' produced ' + eur(worstDentist.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(worstDentist.prior) + ' a month in the six months before (' + pct(worstDentist.ch) + ').',
+        action: 'The CEO and owner-dentist review ' + worstDentist.p + "'s hours and patient flow and decide whether to change the rota or find cover for the lost hours.",
+        impact: 'Returning to the usual level would add about ' + eur(worstDentist.prior - worstDentist.recent) + ' of production a month.',
+        metric: { type: 'dentist_production', prof: worstDentist.p, label: 'Production of ' + worstDentist.p + ' per month', fmt: 'eur', better: 'up' }
       });
     }
-    // 5. Treatment done but not paid
-    const bal = balances(ds, ds.asOf);
-    if (bal.receivable > 2500) {
+    // A dentist who joined in the last 12 months: is the hire paying off?
+    for (const p of dentists) {
+      let firstDone = null; for (const l of ds.lines) if (l.prof === p && l.done != null && (firstDone == null || l.done < firstDone)) firstDone = l.done;
+      if (firstDone == null || firstDone < ds.asOf - 365 || firstDone > ds.asOf - 120) continue;
+      const months = []; for (let i = mk(firstDone) + 1; i <= k; i++) months.push(production(ds, i, null, p));
+      const own = avg(months.slice(-3));
+      const others = dentists.filter((q) => q !== p).map((q) => avg([0, 1, 2].map((i) => production(ds, k - i, null, q))));
+      const othersAvg = avg(others);
       recs.push({
-        id: 'ar:' + tag, kind: 'ar', priority: 5,
-        title: 'Collect treatment that was done but not paid',
-        evidence: bal.patientsReceivable + ' patients owe a total of ' + eur(bal.receivable) + ' for treatment already done.',
-        action: 'Accounting sends a reminder to each patient and reception asks for payment at their next visit.',
-        impact: 'Collecting half would bring in about ' + eur(bal.receivable / 2) + '.',
-        metric: { type: 'receivable', label: 'Treatment done but not paid', fmt: 'eur', better: 'down' }
+        id: 'hire:' + p + ':' + tag, kind: 'dentist', priority: 3,
+        title: 'Review the new dentist: ' + p,
+        evidence: p + ' started in ' + mkLabel(mk(firstDone)) + '. In the last three months ' + p + ' produced ' + eur(own) + ' a month; the other dentists averaged ' + eur(othersAvg) + '.',
+        action: 'Compare this production with ' + p + "'s salary and hours, and decide whether to keep, extend or change the role. Log the decision with the production you expect.",
+        impact: 'Gives the hiring decision a measured result instead of perceived demand.',
+        metric: { type: 'dentist_production', prof: p, label: 'Production of ' + p + ' per month', fmt: 'eur', better: 'up' }
+      });
+    }
+    // 4. Treatment lines to promote: high margin but falling volume
+    const tl = treatmentLines(ds, k - 2, k).filter((x) => x.production >= 3000 && x.marginPct != null && x.change != null);
+    // The line where the most margin (in euros) was lost against last year.
+    const lostMargin = (x) => (x.productionLastYear - x.production) * x.marginPct;
+    const cand = tl.filter((x) => x.change <= -0.1).sort((a, b) => lostMargin(b) - lostMargin(a))[0];
+    if (cand) {
+      recs.push({
+        id: 'line:' + cand.line + ':' + tag, kind: 'line', priority: 4,
+        title: 'Consider promoting ' + cand.line,
+        evidence: cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
+        action: 'Decide whether to promote ' + cand.line + ' (an offer, financing campaign or coordinator follow-up of open quotes). Log it here with the production you expect.',
+        impact: 'Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
+        metric: { type: 'line_production', line: cand.line, label: cand.line + ' production per month', fmt: 'eur', better: 'up' }
+      });
+    }
+    // 5. Cost and margin: margin after materials and lab falling
+    const m3 = avg([0, 1, 2].map((i) => marginPct(ds, k - i)).filter((x) => x != null));
+    const m3ly = avg([12, 13, 14].map((i) => marginPct(ds, k - i)).filter((x) => x != null));
+    if (m3 && m3ly && m3ly - m3 >= 0.015) {
+      const costShare = (i, cat) => { let p = 0, c = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, i) && l.cat === cat && l.cost != null) { p += l.price; c += l.cost; } return p ? c / p : null; };
+      let worstCat = null;
+      for (const cat of ds.lineCats) {
+        const now = avg([0, 1, 2].map((i) => costShare(k - i, cat)).filter((x) => x != null)), then = avg([12, 13, 14].map((i) => costShare(k - i, cat)).filter((x) => x != null));
+        if (now && then && (!worstCat || now - then > worstCat.d)) worstCat = { cat, d: now - then, now, then };
+      }
+      recs.push({
+        id: 'margin:' + tag, kind: 'margin', priority: 5,
+        title: 'Margin after materials and lab is falling',
+        evidence: 'Over ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
+        action: 'The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
+        impact: 'Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.',
+        metric: { type: 'margin_pct', label: 'Margin after materials and lab', fmt: 'pct', better: 'up' }
       });
     }
     // Order by track record: kinds whose past decisions worked rise, kinds usually rejected sink.
@@ -610,14 +721,67 @@
     }
     return recs.sort((a, b) => b.score - a.score || a.priority - b.priority);
   }
+  // ---------- Metrics a decision can be measured by ----------
+  // Monthly metrics are compared before and after the decision; "prepaid_ids" is a point-in-time amount.
+  const METRICS = {
+    production: { label: 'Production per month', fmt: 'eur', better: 'up' },
+    collections: { label: 'Collections per month', fmt: 'eur', better: 'up' },
+    new_patients: { label: 'New patients per month', fmt: 'int', better: 'up' },
+    margin_pct: { label: 'Margin after materials and lab', fmt: 'pct', better: 'up' },
+    line_production: { label: 'Production of a treatment line per month', fmt: 'eur', better: 'up', param: 'line' },
+    line_count: { label: 'Treatments done in a line per month', fmt: 'int', better: 'up', param: 'line' },
+    dentist_production: { label: 'Production of a dentist per month', fmt: 'eur', better: 'up', param: 'prof' },
+    unearned: { label: 'Paid, not yet done (end of month)', fmt: 'eur', better: 'down' }
+  };
+  function monthlyValue(ds, m, k) {
+    switch (m.type) {
+      case 'production': return production(ds, k);
+      case 'collections': return collections(ds, k);
+      case 'new_patients': case 'first_visits': return firstVisits(ds, k);
+      case 'margin_pct': return marginPct(ds, k);
+      case 'line_production': return production(ds, k, null, null, m.line);
+      case 'line_count': { let n = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && l.cat === m.line) n++; return n; }
+      case 'dentist_production': return production(ds, k, null, m.prof);
+      case 'unearned': return balances(ds, Math.min(mkEnd(k), ds.asOf)).unearned;
+      default: return null;
+    }
+  }
+  function prepaidOf(ds, ids) {
+    const set = new Set(ids); let s = 0;
+    ds.by.forEach((x, pid) => { if (!set.has(pid)) return; let paid = 0, done = 0; for (const p of x.pays) paid += p.amount; for (const l of x.lines) if (l.done != null) done += l.price; s += Math.max(0, paid - done); });
+    return s;
+  }
+  // Current value shown on a recommendation card.
   function evalMetric(ds, m) {
-    const k = ds.lastMonth;
-    if (m.type === 'prepaid_ids') { const set = new Set(m.ids); let s = 0; ds.by.forEach((x, pid) => { if (!set.has(pid)) return; let paid = 0, done = 0; for (const p of x.pays) paid += p.amount; for (const l of x.lines) if (l.done != null) done += l.price; s += Math.max(0, paid - done); }); return s; }
-    if (m.type === 'lost_weekday') return visitStats(ds, k, k, (a) => weekday(a.day) === m.wd).lostRate;
-    if (m.type === 'first_visits') return firstVisits(ds, k);
-    if (m.type === 'cab_prod') return production(ds, k, m.cab);
-    if (m.type === 'receivable') return balances(ds, ds.asOf).receivable;
-    return null;
+    if (m.type === 'prepaid_ids') return prepaidOf(ds, m.ids);
+    return monthlyValue(ds, m, ds.lastMonth);
+  }
+  // Before/after for a decision: the three full months before the decision month against the full months
+  // after it, with the same months a year earlier for seasonality.
+  function evalDecision(ds, d) {
+    const m = d.metric;
+    if (m.type === 'prepaid_ids') {
+      return { kind: 'point', before: d.baseline ? d.baseline.value : null, after: prepaidOf(ds, m.ids), afterMonths: Math.max(0, mk(ds.asOf) - mk(fromIso(d.decidedOn))) };
+    }
+    const k0 = mk(fromIso(d.decidedOn));
+    const vals = (a, b) => { const out = []; for (let i = a; i <= b; i++) { const v = monthlyValue(ds, m, i); if (v != null) out.push(v); } return out; };
+    const before = avg(vals(k0 - 3, k0 - 1));
+    const afterArr = vals(k0 + 1, ds.lastMonth);
+    const after = afterArr.length ? avg(afterArr) : null;
+    const lastYear = afterArr.length ? avg(vals(k0 + 1 - 12, ds.lastMonth - 12)) : null;
+    const beforeLastYear = avg(vals(k0 - 15, k0 - 13));
+    const change = after == null || !before ? null : m.fmt === 'pct' ? after - before : after / before - 1;
+    const changeLastYear = lastYear == null || !beforeLastYear ? null : m.fmt === 'pct' ? lastYear - beforeLastYear : lastYear / beforeLastYear - 1;
+    return { kind: 'monthly', before, after, afterMonths: afterArr.length, lastYear, beforeLastYear, change, changeLastYear, beforeFrom: mkLabel(k0 - 3, true), beforeTo: mkLabel(k0 - 1, true), afterFrom: afterArr.length ? mkLabel(k0 + 1, true) : null, afterTo: afterArr.length ? mkLabel(ds.lastMonth, true) : null };
+  }
+  function metricLabel(m) {
+    if (m.label) return m.label;
+    const base = METRICS[m.type];
+    if (!base) return m.type;
+    if (m.type === 'line_production') return m.line + ' production per month';
+    if (m.type === 'line_count') return m.line + ' treatments done per month';
+    if (m.type === 'dentist_production') return 'Production of ' + m.prof + ' per month';
+    return base.label;
   }
 
   // ---------- Import (MN Program / Excel exports) ----------
@@ -704,16 +868,20 @@
     collections: 'Collections: money received in the month (card, cash, transfer, financing), by payment date.',
     unearned: 'Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.',
     receivable: 'Done but not paid: for each patient, value of treatment done minus payments, counted when positive.',
-    firstVisits: 'First visits: attended appointments of type "Primera visita" in the month.',
-    lostVisits: 'Lost visits: no-shows plus cancellations without a new date, as a share of all appointments in the period. Cancellations with a new date (refijadas) are not lost.',
-    cabinet: 'Production by treatment room: production of treatment done in each room (gabinete).',
+    newPatients: 'New patients: patient files opened in the month (MN "Fecha Alta"). Used instead of first visits because MN has no consistent first-visit label yet.',
+    margin: 'Margin after materials and lab: production minus the direct cost of materials and laboratory work for the treatment done in the month, as a share of production. It is not net profit: salaries, rent and other overheads are not deducted.',
+    treatmentLines: 'Treatment lines: treatment categories (implants, orthodontics, prosthodontics…), with treatments done, production, margin after materials and lab, and change against the same months last year.',
+    dentist: 'Production by dentist: production of treatment done by each professional.',
+    lostVisits: 'Lost visits: no-shows plus cancellations without a new date. Only measurable once reception records appointment outcomes; today MN entries rarely carry a status.',
+    decisionEvaluation: 'Decision evaluation: for monthly metrics, the average of the three full months before the decision month against the average of the full months after it, shown next to the same months a year earlier to separate the decision from seasonality. This is a before/after comparison, not proof of cause.',
     risk: 'Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.'
   };
 
   const IC = {
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
-    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, eur, pct
+    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, eur, pct,
+    METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);

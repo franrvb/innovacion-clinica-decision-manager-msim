@@ -1,225 +1,220 @@
 # Decision – Data – Model loop and technical design
 
-Innovación Clínica Decision Manager · MSIM Group 7 · working document for the report and presentation.
+Innovación Clínica Decision Manager · MSIM Group 7 · working document for the report and presentation. Aligned with report Draft 2 (sections 2–3, 5 Nov 2026).
 
-Status labels used below:
+Status labels:
 - **Built**: works in the current prototype (`core.js`, `index.html`).
-- **To build**: not yet in the code (production items only).
+- **To build**: production items outside the prototype.
+- **Needs process change**: the app supports it, but the clinic's MN data only allows it once reception follows the recording standard in report section 2.6.
+
+Clinic facts used throughout (report Draft 2): about €75,000 revenue a month (about €1 million a year), net margin down from 17% to 12%, 17 staff (7 dentists on a rota, 4 hygienists, 2 receptionists, 1 treatment coordinator, 3 managers), 4 treatment rooms, about 40% of treatments financed, about 50 first visits a month. Primary user: the CEO. Budget: at most €1,000 a year.
 
 ---
 
 ## 1. The loop in one picture
 
-The loop runs once a month (the management cycle), with a weekly sub-cycle for treatment follow-up.
+The loop follows the managers' monthly cycle. The app is a management layer **on top of** MN Program, which stays the system of record.
 
 ```
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 1. DATA IN      Monthly MN Program export (appointments, treatments,     │
- │                 payments, patients) → import, clean, normalise           │
+ │ 1. DATA IN      MN Program exports (agenda, patients, payments, invoices)│
+ │                 + accountant's Excel (pending production, costs)         │
+ │                 → import, clean, map free text, pseudonymise             │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 2. MODEL        KPI engine · risk model (retrained on this import) ·     │
- │                 recommendation rules · assistant (explains, never acts)  │
+ │ 2. MODEL        Agreed KPI definitions · risk model (retrained on each   │
+ │                 import) · recommendation rules · assistant (explains)    │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 3. DECISION     Manager accepts / changes / rejects each recommendation, │
- │                 names an owner and a review date → DECISION LOG          │
- │                 (stores the metric's baseline value at decision time)    │
+ │ 3. DECISION     The CEO (with owner-dentist / accountant) either answers │
+ │                 a recommendation or LOGS A DECISION of their own:        │
+ │                 what, why, metric, expected change, owner, review date   │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 4. ACTION       Staff carry it out in their normal work (calls, bookings │
- │                 and payments are recorded in MN Program as usual)        │
+ │ 4. ACTION       Carried out in the clinic's normal way (offers, rota,    │
+ │                 calls, supplier talks); recorded in MN as usual          │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 5. OUTCOME      Next export → app re-measures each decision's metric,    │
- │                 manager records Worked / Partly / Did not work           │
+ │ 5. OUTCOME      Next import → the app compares the metric before and     │
+ │                 after the decision, next to the same months a year       │
+ │                 earlier; the manager records Worked / Partly / Did not   │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
- │ 6. LEARNING     New outcomes become training labels (risk model);        │
- │                 decision results recalibrate expected effects and        │
- │                 recommendation priorities  ──────────► back to step 2    │
+ │ 6. LEARNING     Outcomes retrain the risk model, replace assumed effects │
+ │                 with measured ones, reorder recommendations, and show    │
+ │                 managers how realistic their expectations were ──► 2     │
  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-Why this is a closed loop and not a one-way dashboard: every recommendation carries a measurable metric, every decision stores that metric's value at the moment of deciding, and the next import measures it again. Decisions therefore produce data, that data is used to judge the decision and to retrain the model, and the improved model produces the next recommendations.
+Why it is closed: every decision (recommended or the managers' own) is stored with a metric, its value before the decision and the change the manager expected. The next import measures the same metric again. That result is used to judge the decision, to retrain the model and to calibrate the next expectations. This directly addresses root cause 4 in the report ("no decision record").
 
 ---
 
-## 2. DECISION: what the app supports, and who decides
+## 2. DECISION: the six decisions the app supports
 
-The app **never acts on its own**. It calculates, ranks and recommends; a person decides; staff act in their normal tools. This keeps clinical and commercial judgement with people and keeps the app out of patient contact.
+The app **never acts**. It calculates, ranks and recommends; managers decide; staff act in their normal tools. Daily cabinet scheduling and clinical decisions are out of scope (report section 2.6).
 
-| Decision | Who decides | Who executes | Frequency | Management level | What the app provides |
-|---|---|---|---|---|---|
-| D1. Which patients with accepted, unfinished treatment to contact, and in what order | Manager (dentist can veto on clinical grounds) | Reception | Weekly | Operational / managerial | Risk score per patient, expected loss, reasons, ranked call list (top 25) |
-| D2. Whether to change appointment-confirmation policy on a weekday with many lost visits | Manager | Reception | Monthly | Managerial | Lost-visit rate by weekday and professional, excess lost visits per month |
-| D3. Whether to act on falling first visits (acquisition channels) | Director | Director / marketing | Monthly–quarterly | Strategic | First visits vs 6-month average, average accepted value per new patient |
-| D4. Whether to reassign hours in a treatment room producing below its usual level | Manager | Manager / professionals | Monthly | Managerial | Production by room vs 6-month average |
-| D5. Whether to chase treatment done but not paid | Manager / accounting | Accounting, reception | Monthly | Operational | Total and number of patients owing |
+| # | Decision (report Table 2.2) | Who decides | Frequency | Level | What the app provides | How it is measured |
+|---|---|---|---|---|---|---|
+| D1 | Pricing, discounts and promotions (e.g. 2026 orthodontics and implant offer) | CEO, owner-dentist, accountant | A few times a year | Strategic | Treatment-line production and margin; decision log | Production of the promoted line, before vs after |
+| D2 | Marketing actions (e.g. €2 per Google review) | CEO | Ad hoc | Managerial | New patients vs 6-month average; value of a new patient; recommendation when they fall | New patients per month, before vs after |
+| D3 | Hiring and dentist performance (e.g. new dentist in 2026) | CEO, owner-dentist | 1–2 a year | Strategic | Production by dentist; recommendation when a dentist drops, and a review of any dentist hired in the last 12 months | Production of that dentist |
+| D4 | Treatment lines to promote | CEO, owner-dentist | Ad hoc | Strategic | Lines with production, margin and change vs last year; recommendation for the line losing most margin | Production of that line |
+| D5 | Follow-up of paid, unfinished treatments | CEO, treatment coordinator, reception | Continuous (weekly list) | Operational / managerial | Risk score per patient, ranked call list, call-result recording | Paid-but-unfinished amount of the listed patients; continuation rate |
+| D6 | Cost and margin control | Accountant, CEO | Monthly | Managerial | Margin after materials and lab, and which line's cost share rose most | Margin %, before vs after |
 
-**What the app decides automatically** (Built): which KPIs to show, how to rank patients by risk, which recommendations to raise and with what evidence. **What remains human** (Built): accepting, changing or rejecting; naming an owner; choosing the review date; judging whether the result counts as success.
+**Two ways a decision enters the log** (Built):
+1. **Answering a recommendation**: Accept, Change (own wording) or Reject (reason required).
+2. **Logging a decision of their own** ("Log a decision"): what was decided, type (D1–D6), date (can be in the past, to record 2026 decisions already taken), metric (clinic-wide, per treatment line or per dentist), **expected change**, owner, review date, why.
 
-**When the model is uncertain or wrong:**
-- Every risk score shows its reasons (e.g. "No appointment booked · No visit in 223 days"), so a manager can see why a patient is ranked high. (Built)
-- Patients with no activity for over a year are reported separately as "dormant" and not scored, because the model was not trained on them. (Built)
-- The manager can change or reject any recommendation; a rejection requires a reason, which is stored. (Built)
-- At each retraining the model is compared with a simple rule ("no appointment booked and no visit in 60 days") on the latest held-out month. If the model does not beat the rule, the app falls back to the rule (with stall rates estimated from the training period) and says so on the Overview. (Built)
-- Patients called in the last 30 days are left out of the next call list, so the same patients are not called again before their outcome is known. (Built)
+**When the model is uncertain or wrong** (Built):
+- Every risk score shows its reasons; dormant patients (no activity for over a year) are reported apart and not scored.
+- At every retraining the risk model is compared with a simple rule; if it does not beat it, the app uses the rule and says so.
+- Recommendations require the same drop against the previous six months **and** the same months last year before flagging a dentist, so a promotion or season does not trigger them.
+- Every evaluation is shown next to the same months a year earlier and labelled "before/after, not proof of cause".
 
 ---
 
 ## 3. DATA: what is captured, how, and where it is stored
 
-### 3.1 Operational data (from MN Program)
+### 3.1 Sources and what they really contain
 
-| Table | Fields used | Used for |
+What the September–October 2026 agenda export and the October Historial test showed (report section 2.5): appointment status, cancellation and "performed" fields are essentially unused (0 cancellations, 4 of 1,503 performed); descriptions are free text (857 variants); MN's Historial records only part of the treatments and holds no pending (accepted, not done) lines; the professional field is often empty. The app therefore uses the sources the clinic keeps reliably:
+
+| Need | Source | Status |
 |---|---|---|
-| Appointments | patient number, date, status, professional, room, type/description | Lost visits, first visits, days since last visit, booked future appointment |
-| Treatment plan lines | patient number, plan number, date accepted, treatment, amount, status, date done, professional, room | Production, treatment mix, room production, pending treatment, risk model labels |
-| Payments | patient number, payment date, amount, payment method, concept | Collections, paid-not-done (unearned revenue), financing flag |
-| Patients (optional) | patient number, registration date, age | First-visit cohorts, new-patient value |
+| Appointments, last and next visit per patient, data quality | MN **Agenda** export (date, patient number, professional, description, status) | Export being configured |
+| New patients | MN **Pacientes** export: Fecha Alta (new files), plus Total cobrado / facturado per patient | Template designed |
+| Collections, payments on account, financing | MN **Control de Cobros** export (date, patient number, amount, payment method, concept) | Next |
+| Production by treatment, line and dentist | MN **Facturas** and payment concepts, mapped to treatment lines with keyword rules and an LLM-assisted classifier for the rest (about 23% cannot be classified by keywords) | Next |
+| Paid but not yet done | **Accountant's pending-production Excel** | To request |
+| Material and lab costs | **Accountant's cost Excel** | To request |
+| Appointment outcomes, first-visit label | Reception recording standard | Needs process change |
 
-**Collection** (Built): a manager exports the lists from MN Program to Excel/CSV (MN has an Excel button on each list) and drops them into the app's Import window. The app:
-1. recognises each table from its column headers (Spanish or English, accents ignored);
-2. converts dates (Excel serial numbers, `dd/mm/yyyy`, ISO) and Spanish number formats (`1.234,50 €`);
-3. maps MN agenda states to four outcomes: attended (*Realizada*, *En consulta*, *En sala de espera*), cancelled and rebooked (*Cancelada refijada*), lost (*Cancelada no refijada*, *No llegó*, *No contesta*), future (*Programada*, *sin confirmar*);
-4. reports missing tables and the date the data runs to.
+**Collection and cleaning** (Built in the importer, column names to be adjusted to the real exports):
+1. Tables are recognised from their headers (Spanish or English, accents ignored).
+2. Dates (Excel serials, `dd/mm/yyyy`, ISO) and Spanish amounts (`1.234,50 €`) are normalised.
+3. MN agenda states map to attended / rebooked / lost / future.
+4. Missing tables and the data date are reported; a **Data quality** card shows what share of the needed fields is actually recorded.
 
-**Storage** (Built): imported data stays in the browser's memory; it is not uploaded. Patients are identified only by number. In production this becomes an EU-hosted database with role-based access and encryption (To build, outside prototype scope).
+**Privacy and storage** (Built): exports are made with templates that leave out names, NIF, phones, addresses and clinical notes; patient numbers are replaced by codes on the clinic's computer before analysis; imported data stays in the browser and is not uploaded; the assistant only receives figures and patient codes. The repository blocks `.xlsx`/`.csv` files. The clinic's data protection officer reviews the design (report 2.6).
 
-**Why MN alone cannot produce these figures:** in MN, payments are entered "a cuenta" with free-text concepts and appointments carry free-text descriptions; neither is linked to the treatment-plan line. The app reconstructs the link per patient (payments received minus value of treatment done), which is how "paid, not yet done" and the risk features are computed.
+**Cadence**: managers decide monthly; data can be imported whenever needed (daily export is possible; monthly is enough for these decisions).
 
-### 3.2 Decision data (generated by the app itself)
+### 3.2 Decision data (generated by the app)
 
-Every decision creates a record in the **decision log** (Built). Fields as stored:
+Every decision is a record in the **decision log**, stored in a shared database (collection `decisions`) so the three managers see the same log across imports and app versions (Built).
 
 | Field | Meaning |
 |---|---|
-| `recId`, `kind`, `title` | Which recommendation it answers (follow-up, lost visits, new patients, rooms, collections) |
-| `decision` | Accepted / Modified / Rejected |
-| `action` | The action as approved (the manager's own wording if changed) |
-| `note` | Reason for rejection (mandatory) or comment |
-| `owner` | Person responsible |
-| `decidedOn`, `reviewDay`, `decidedAt` | Data date at decision, review date (2 weeks / 1 month / 2 months later), timestamp |
-| `metric` | How success is measured: type, parameters (e.g. the 25 patient numbers), label, unit, whether lower or higher is better |
-| `baseline` | Metric value and data date at the moment of deciding |
-| `predictions` | Follow-up decisions only: each listed patient's predicted risk at decision time (for model monitoring) |
-| `expectedRate` | The response rate the recommendation assumed or had learned when it was made |
-| `calls` | Follow-up decisions only: per patient, the call result (Booked / Declined / No answer) and date |
-| `source` | Sample or imported data, so decisions on synthetic data never mix with real ones |
-| `outcome` | At review: metric value on the new data, verdict (Worked / Partly / Did not work), note |
+| `manual` | Logged by a manager (true) or answering a recommendation |
+| `recId`, `kind`, `title`, `action` | What was decided and which of D1–D6 it belongs to |
+| `decision`, `note` | Accepted / Modified / Rejected, and why (mandatory for rejections) |
+| `owner`, `decidedOn`, `reviewDay`, `decidedAt` | Who is responsible, decision date (may be in the past), review date, timestamp |
+| `metric` | What measures it: type, line or dentist, unit, whether higher or lower is better |
+| `expected` | The change the manager expected (e.g. +15% new patients) |
+| `baseline` | Metric before the decision (average of the three previous months, or the amount at decision time) |
+| `predictions`, `calls`, `expectedRate` | Follow-up lists only: predicted risk per patient, call results, assumed response rate |
+| `source` | Sample or imported data, so they never mix |
+| `outcome` | At review: value after, change, verdict (Worked / Partly / Did not work), note |
 
-**Storage** (Built): a shared database (collection `decisions`) attached to the app, so all managers see the same log and it survives new imports and new versions of the app.
+### 3.3 Outcome data
 
-### 3.3 Outcome data (generated by the clinic's normal work)
-
-Staff carry out decisions in their usual way: reception books the patient in MN, accounting registers the payment in MN. No double entry is needed: the effect appears in the **next export** (new attended appointments, treatment lines marked done, new payments). The app then re-measures each open decision's metric on the new data (Built).
-
-To learn *which* patients were actually contacted, reception records each call result on the decision's call list in the Decisions tab: one drop-down per patient (Booked / Declined / No answer), saved immediately to the decision log (Built). With sample data, the simulation lets 75% of "Booked" patients attend and complete their next pending treatment, so the loop can be demonstrated; with real data the effect comes from the next MN export.
+Decisions are carried out in the clinic's normal way and show up in the **next export** (new patients, production by line or dentist, payments). Follow-up calls are recorded in the app, one drop-down per patient (Booked / Declined / No answer). With sample data, "Booked" patients are simulated to come back (75% attend) so the loop can be demonstrated.
 
 ---
 
-## 4. MODEL: how data becomes decisions, and how outcomes improve the model
+## 4. MODEL: from data to decisions, and back
 
-The "model" layer has four parts. Only one of them learns statistically; the others are deliberately deterministic so that money figures are exact and auditable.
+Four parts. Only the risk model learns statistically; the rest is deterministic so that money figures are exact and auditable. The LLM never computes a number.
 
-### 4.1 KPI engine (Built, deterministic)
+### 4.1 KPI engine with agreed definitions (Built)
 
 | KPI | Definition |
 |---|---|
-| Production | Value of treatment marked done in the month (earned revenue) |
+| Production | Value of treatment done in the month (earned revenue) |
+| Margin after materials and lab | (Production − direct material and lab cost) ÷ production. Not net profit |
 | Collections | Money received in the month, by payment date |
-| Paid, not yet done | Per patient: payments − value of treatment done, summed where positive |
-| Done, not paid | Per patient: value done − payments, summed where positive |
-| First visits | Attended appointments of type *Primera visita* |
-| Lost visits | (No-shows + cancellations without new date) ÷ all past appointments |
-| Production by room | Production of treatment done in each *gabinete* |
-| Treatment mix / top patients | Count and value of treatments done; patients ranked by value done in 12 months |
+| Paid, not yet done | Per patient: payments − value done, summed where positive (customer advances, account 438) |
+| New patients | Patient files opened in the month (Fecha Alta), until first visits are labelled consistently |
+| Production by dentist | Production of treatment done by each professional |
+| Treatment lines | Count, production, margin and change vs same months last year per category |
+| Top patients | Patients ranked by value done in 12 months |
+| Data quality | Share of appointments with an outcome, treatments with professional and cost, etc. |
 
-A large language model never computes these numbers; it only reads them.
+### 4.2 Risk model for D5 (Built)
 
-### 4.2 Risk model (Built): who is likely to abandon treatment
+- **Question:** for a patient with accepted treatment not yet done, the probability that nothing is completed in the next 90 days.
+- **Inputs (7):** days since last visit; appointment booked in the next 3 weeks; lost visits in 12 months; share of the plan done; financed; size of pending treatment (log); called by the clinic in the last 30 days.
+- **Algorithm:** logistic regression by gradient descent (600 iterations, learning rate 0.8, L2 0.001): fast enough to retrain in the browser, explainable, outputs a probability that can be multiplied by money.
+- **Training:** 13 monthly snapshots of the clinic's own history; 12 train, the latest fully observed one tests (rolling-origin backtest).
+- **Checks shown to managers:** AUC vs the simple rule; stall rate of the riskiest 20%; calibration (predicted vs observed). Sample data: AUC ≈ 0.84 vs 0.73 for the rule.
+- **With real MN data** the plan-related inputs come from the accountant's pending-production Excel and payments on account; "lost visits" is only available once outcomes are recorded (Needs process change). The fallback rule keeps the list usable meanwhile.
 
-- **Question:** for a patient with accepted treatment not yet done, what is the probability that **no treatment is completed in the next 90 days**?
-- **Population:** patients with pending accepted treatment, excluding dormant ones (no attended visit, no new acceptance and nothing booked for over a year).
-- **Inputs (7 features):**
-  1. days since last attended visit (capped at 365)
-  2. appointment booked in the next 3 weeks (yes/no)
-  3. lost visits in the last 12 months (capped at 5)
-  4. share of the plan's value already done
-  5. treatment financed (yes/no)
-  6. size of pending treatment (log scale)
-  7. called by the clinic in the last 30 days (yes/no), taken from call results in the decision log
-- **Algorithm:** logistic regression trained by gradient descent (600 iterations, learning rate 0.8, L2 penalty 0.001). Chosen because it is fast enough to retrain in the browser in under a second, its weights can be explained to managers, and it outputs a probability that can be multiplied by money.
-- **Training data — built from the clinic's own history:** the app replays the past as 13 monthly "snapshots" (each taken 90 + 30·j days before the export date). For each snapshot it computes every eligible patient's features *as they were then* and the label *what happened in the next 90 days*. Twelve snapshots train the model; the most recent fully observed one tests it. This is a rolling-origin backtest: the model is always evaluated on a period it has not seen.
-- **Quality checks shown to managers:** AUC of the model vs AUC of the simple rule; stall rate among the 20% highest-risk patients vs all patients; calibration (average predicted risk vs observed stall rate, overall and for the riskiest 20%). On the synthetic sample data: AUC ≈ 0.86 vs ≈ 0.76 for the rule; predicted 49% vs observed 51% overall, 83% vs 83% for the riskiest 20%. Real figures will come from the MN export.
-- **Retraining:** on every import, and again whenever call results in the decision log change.
-- **Output:** probability, tier (High ≥ 60%, Medium ≥ 30%, Low), expected loss = probability × pending value, and plain-language reasons. Recommendation D1 takes the 25 high-risk patients with the most money already paid.
+### 4.3 Recommendation rules, one per decision (Built)
 
-### 4.3 Recommendation engine (Built): rules over KPIs and model output
-
-| Rule | Trigger (current thresholds) | Metric used to judge the decision |
+| Rule | Trigger | Metric |
 |---|---|---|
-| R1 Follow-up | Any High-risk patients; list the top 25 by amount paid | Paid-but-unfinished value of those 25 patients (lower is better) |
-| R2 Lost visits | A weekday's lost rate ≥ 1.3 × other days, with ≥ 60 appointments in 3 months | That weekday's lost rate (lower is better) |
-| R3 New patients | First visits in last 2 months ≤ 88% of the previous 6-month average | First visits per month (higher is better) |
-| R4 Rooms | A room's production in last 2 months ≥ 15% below its 6-month average (rooms over €2,000/month) | That room's monthly production (higher is better) |
-| R5 Collections | Done-not-paid total above €2,500 | Done-not-paid total (lower is better) |
+| D5 Follow-up | High-risk patients (≥ 60%) not called in the last 30 days; top 25 by amount paid | Paid-but-unfinished amount of those 25 |
+| D2 Marketing | New patients in the last 2 months ≤ 88% of the previous 6-month average | New patients per month |
+| D3 Dentist drop | A dentist's last 2 months ≥ 25% below both the previous 6 months and the same months last year (dentists above €2,000/month) | That dentist's production |
+| D3 New hire | A dentist whose first treatment was 4–12 months ago: production vs the other dentists | That dentist's production |
+| D4 Treatment lines | Lines down ≥ 10% vs last year; pick the one losing most margin in euros | That line's production |
+| D6 Cost and margin | Margin over the last 3 months ≥ 1.5 points below the same months last year; names the line whose cost share rose most | Margin % |
 
-Each recommendation states its evidence, a suggested action, an expected effect, and the metric it will be judged by.
+D1 (pricing and promotions) has no automatic trigger: promotions are logged by managers and evaluated like any other decision; the D4 rule suggests where a promotion could pay.
 
-### 4.4 Assistant (Built): explains, does not decide
+### 4.4 Decision evaluation (Built)
 
-An LLM (Claude, through the claude.ai artifact runtime) answers managers' questions. It can only call 10 read-only functions of the app (overview, monthly series, production by room, treatment mix, lost visits breakdown, top patients, risk list, recommendations, decision log, definitions). Rules in its instructions: every figure must come from a function, state period and definition, present causes as hypotheses, patients by number only. It cannot write data, change decisions or contact anyone, and asks the viewer's permission before first use.
+For monthly metrics: average of the **three full months before** the decision month against the average of the **full months after** it, shown next to the **same months a year earlier** (to separate the decision from seasonality) and next to the **expected change**. Example on sample data: the March 2026 orthodontics and implant offer (expected +20%) shows implant production +17% while the same months a year earlier were +2%; the April Google reviews incentive (expected +15%) shows new patients −21% against −15% a year earlier, so the incentive did not offset the autumn drop.
 
-Why an LLM here rather than more dashboards: managers' questions vary ("why did October drop?", "who should we call first?") and need combining several figures and explaining them in plain Spanish. Tool calling keeps the numbers exact while the model handles language. It is optional: all figures remain usable if the assistant is unavailable.
+### 4.5 Assistant (Built)
 
-### 4.5 How the model improves from decisions and outcomes
+An LLM (Claude, through the claude.ai artifact runtime) answers managers' questions by calling 13 read-only functions of the app (overview, monthly series, production by dentist or room, treatment lines, treatment mix, lost visits, top patients, risk, recommendations, decisions with before/after, learning, data quality, definitions). Every figure must come from a function; patients appear by code only; it cannot write data or contact anyone.
 
-| # | Feedback mechanism | Data it uses | What improves | Status |
+### 4.6 How the model improves from decisions and outcomes
+
+| # | Mechanism | Data it uses | What improves | Status |
 |---|---|---|---|---|
-| L1 | **Retraining at every import** | New appointments, treatments done and payments since the last export | The risk model's weights adapt to the clinic's latest behaviour; recent outcomes become new labelled examples | Built |
-| L2 | **Outcome measurement per decision** | Decision log baseline + next import | Shows whether each decision moved its metric; manager records the verdict | Built |
-| L3 | **Decision scorecard** | Decision log | Acceptance and success rates show managers which kinds of recommendation are worth acting on | Built |
-| L4 | **Model monitoring and fallback** | Held-out month at every retraining; predictions saved on each follow-up decision vs what happened to those patients | Calibration and model-vs-rule check on every import; per decision, "expected X of 25 not to continue, so far Y have not"; automatic fallback to the simple rule if the model stops beating it | Built |
-| L5 | **Learned expected effects and ordering** | Outcomes of past accepted decisions | Once ≥ 10 patients from earlier call lists are at least 4 weeks old, the follow-up recommendation uses the measured continuation rate instead of the "one in three" assumption. Recommendations are ordered by each kind's success rate (Worked = 1, Partly = 0.5); kinds rejected in ≥ 60% of ≥ 3 decisions move down | Built |
-| L6 | **Learning who responds to a call** | Call results per patient (Booked / Declined / No answer) | Compares continuation for patients reached by phone vs no answer; feeds "called in last 30 days" into the risk model as a feature, which gets a weight once calls have a known 90-day outcome; called patients are not re-listed for 30 days | Built |
-| L7 | **Rule tuning from rejections** | Rejection reasons in the log | Managers review recurring reasons monthly and adjust thresholds (e.g. ignore hygiene rooms in R4) | Process (human), supported by the stored reasons |
-
-The Decisions tab shows a "What the app has learned" panel summarising L4–L6, and the assistant can read it (`get_learning`).
-
-Example from the sample data: on 3 Nov the manager accepts a call list of 25 patients and reception records 15 Booked, 5 Declined, 5 No answer. On the 3 Dec import the app reports that 36% of those patients continued treatment (45% of those reached by phone, 0% of those who did not answer); the model had expected 18 of 25 not to continue and 16 have not so far; the next follow-up recommendation uses the measured 36% for its expected effect and leaves those 25 patients out.
+| L1 | Retraining at every import | New appointments, treatments, payments | Risk model weights | Built |
+| L2 | Before/after per decision | Decision log + next import | Each decision gets a measured result and a verdict | Built |
+| L3 | Track record per decision type | Decision log | Recommendations of types that worked are listed first; types usually rejected move down | Built |
+| L4 | Model monitoring and fallback | Held-out month; predictions saved on follow-up decisions | Calibration, "expected X of 25, observed Y", automatic fallback to the rule | Built |
+| L5 | Learned effects | Results of past follow-up lists | The measured continuation rate replaces the "one in three" assumption | Built |
+| L6 | Who responds to a call | Call results per patient | Reached vs no answer comparison; "called" feature in the risk model; called patients not re-listed for 30 days | Built |
+| L7 | Calibrating managers' expectations | Expected vs measured change on logged decisions | Shows how realistic past expectations were (e.g. "measured change was on average −28% of what was expected"), countering hindsight and outcome bias (report refs [8][9]) | Built |
+| L8 | Rule tuning from rejections | Rejection reasons | Managers adjust thresholds monthly | Process (human) |
 
 ---
 
-## 5. System architecture (prototype)
+## 5. Architecture (prototype)
 
 ```
- MN Program ──Excel/CSV export──► Browser app (single page)
-                                   ├─ Import: SheetJS parser → table detection → normalisation
-                                   ├─ core.js: KPI engine · risk model (train + score) · rules
-                                   ├─ UI: Overview · Recommendations · Decisions (SVG charts)
-                                   ├─ Decision log ──► shared database (collection "decisions")
-                                   └─ Assistant ──tool calls──► same core.js functions
-                                                  └──► Claude (LLM) via claude.ai runtime
+ MN Program ──Excel exports (templates without identifiers)──┐
+ Accountant's Excel (pending production, costs) ─────────────┤
+                                                             ▼
+                 Pseudonymisation script on the clinic's computer
+                                                             ▼
+ Browser app (single page) ─ Import: SheetJS → table detection → normalisation
+   ├─ core.js: KPI engine · risk model (train + score) · rules · before/after
+   ├─ UI: Overview · Recommendations · Decisions (log, call lists, learning)
+   ├─ Decision log ──► shared database (collection "decisions")
+   └─ Assistant ──tool calls──► core.js functions; Claude via claude.ai runtime
 ```
 
-- **Technology:** plain HTML/CSS/JavaScript, no server; `core.js` holds all logic and is unit-testable in Node; SheetJS reads Excel/CSV; charts are hand-drawn SVG.
-- **Performance:** on a clinic-sized dataset (≈57,000 appointments, 51,000 treatment lines, 44,000 payments over 3.5 years) simulation + import + retraining takes well under a second in the browser.
-- **Privacy by design:** no names needed; files are read locally; the LLM receives only aggregated figures and patient numbers; the repository blocks `.xlsx`/`.csv` files.
-- **Production path:** scheduled export from MN (or MN's API if available) to an EU-hosted database; staff login with roles; audit trail on the decision log; same `core.js` running server-side.
+Plain HTML/JS, no server; `core.js` is unit-testable in Node. Running cost: within the €1,000/year budget (no licence beyond the AI usage). Production path: scheduled exports to an EU-hosted store, logins for the three managers, audit trail on the log.
 
 ---
 
-## 6. Honest limits to state in the report
+## 6. Honest limits
 
-- Prototype figures come from **synthetic data** until the MN export is imported; model quality on real data is unknown until then.
-- "Paid, not yet done" is calculated **per patient**, not per treatment line, because MN does not link payments to treatments.
-- The app measures *whether the metric changed*, not *whether the decision caused it*. The reached-vs-no-answer comparison (L6) is a first comparison group but not a randomised one: patients who answer may differ from those who do not. A stronger test would call alternating halves of the list in alternate weeks.
-- In the sample data, the effect of a "Booked" call is simulated (75% attend); it demonstrates the mechanism, not the real effect size.
-- Imports are manual and monthly; this is adequate latency for managerial decisions, not for daily operations.
+- Prototype figures come from **synthetic data** sized like the clinic until the real exports are imported.
+- MN's appointment outcomes, cancellations and performed flags are almost never recorded; lost-visit KPIs and some risk inputs depend on the recording standard.
+- Pending production comes from the accountant's Excel until treatment plans and payments are linked.
+- Before/after comparisons show association, not cause; the same-months-last-year figure and the reached-vs-no-answer comparison are partial controls.
+- With sample data, the effect of "Booked" calls and the 2026 events (promotion, reviews incentive, new dentist, endodontist's reduced hours, fewer referrals from September) are simulated to demonstrate the loop.

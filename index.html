@@ -348,22 +348,31 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     });
     return s + '</svg>';
   }
-  const KIND = { risk: 'Treatment follow-up', lost: 'Lost visits', acq: 'New patients', cab: 'Treatment rooms', ar: 'Collections' };
+  // The six management decisions in the report (section 2.2).
+  const KIND = { risk: 'Follow-up of paid treatments', acq: 'Marketing', pricing: 'Pricing and promotions', dentist: 'Hiring and dentist performance', line: 'Treatment lines', margin: 'Cost and margin' };
 
-  // ---------- Views ----------
+  function hbars(rows, max, valFmt) {
+    return '<div class="hbars">' + rows.map((x) => '<div class="hbar"><span>' + esc(x.label) + '</span><span class="track"><span class="fill' + (x.hot ? ' hot' : '') + '" style="width:' + (100 * Math.max(0, x.v) / max).toFixed(1) + '%;display:block"></span></span><span class="v">' + valFmt(x.v) + (x.sub != null ? '<small>' + x.sub + '</small>' : '') + '</span></div>').join('') + '</div>';
+  }
+
   function viewOverview() {
     const ds = S.ds, k = S.k, o = IC.overview(ds, k);
     const prevLbl = IC.mkLabel(k - 1, true), lyLbl = IC.mkLabel(k - 12, true) + ' ' + Math.floor((k - 12) / 12);
     const rows = []; for (let i = ds.lastMonth - 11; i <= ds.lastMonth; i++) rows.push({ k: i, label: IC.mkLabel(i), short: IC.mkLabel(i, true), p: IC.production(ds, i), c: IC.collections(ds, i) });
-    const cabs = ds.cabs.map((c) => { const v = IC.production(ds, k, c); const prior = [1, 2, 3, 4, 5, 6].map((i) => IC.production(ds, k - i, c)); const a = prior.reduce((x, y) => x + y, 0) / 6; return { c, v, a }; }).filter((x) => x.v || x.a);
-    const cabMax = Math.max(1, ...cabs.map((x) => Math.max(x.v, x.a)));
-    const wd = IC.lostByWeekday(ds, k - 2, k), wdMax = Math.max(0.01, ...wd.map((w) => w.lostRate)), vs3 = IC.visitStats(ds, k - 2, k);
-    const avgOthers = vs3.lostRate;
-    const mix = IC.treatmentMix(ds, k, k).slice(0, 8);
+    const avg6 = (f) => [1, 2, 3, 4, 5, 6].reduce((a, i) => a + f(k - i), 0) / 6;
+    // Dentists individually, hygienists as one group
+    const profRows = ds.profs.filter((p) => !IC.isHygienist(p)).map((p) => { const v = IC.production(ds, k, null, p), a = avg6((i) => IC.production(ds, i, null, p)); return { label: p, v, a, hot: a > 0 && v < a * 0.75 }; });
+    const hyg = ds.profs.filter(IC.isHygienist);
+    if (hyg.length) { const v = hyg.reduce((s, p) => s + IC.production(ds, k, null, p), 0), a = avg6((i) => hyg.reduce((s, p) => s + IC.production(ds, i, null, p), 0)); profRows.push({ label: 'Hygienists (' + hyg.length + ')', v, a, hot: a > 0 && v < a * 0.75 }); }
+    profRows.sort((x, y) => y.v - x.v);
+    const profMax = Math.max(1, ...profRows.map((x) => Math.max(x.v, x.a)));
+    const lines = IC.treatmentLines(ds, k, k);
     const top = IC.topPatients(ds, k - 11, k, 8);
     const risk = S.risk.slice(0, 8), high = S.risk.filter((r) => r.tier === 'High');
-    const m = S.model;
+    const m = S.model, dq = IC.dataQuality(ds);
     const synthetic = ds.source === 'sample';
+    const pc = (x) => x == null ? '—' : Math.round(x * 100) + '%';
+    const marginCmp = o.marginPct != null && o.marginPctSameMonthLastYear != null ? (function () { const d = (o.marginPct - o.marginPctSameMonthLastYear) * 100; return '<span class="' + (Math.abs(d) < 0.5 ? 'flat' : d > 0 ? 'good' : 'bad') + '">' + (d >= 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1).replace('.', ',') + ' pts</span> vs ' + esc(lyLbl); })() : '';
 
     return '' +
     '<div class="page-head"><div><h1>' + esc(IC.mkLabel(k)) + '</h1><p class="sub">Data up to ' + esc(IC.dayLabel(ds.asOf)) + ' · ' + esc(ds.label) + '</p></div>' +
@@ -371,9 +380,9 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 
     '<section class="tiles">' +
       '<div class="tile"><span class="lbl">Production</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">Margin after materials and lab</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? 'No cost data in this import' : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
       '<div class="tile"><span class="lbl">Paid, not yet done</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + ' patients · ' + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, 'vs end of ' + prevLbl) + '</span></div>' +
-      '<div class="tile"><span class="lbl">First visits</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, 'vs 6-month average (' + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
-      '<div class="tile"><span class="lbl">Lost visits</span><span class="val">' + pct1(o.lostRate) + '</span><span class="cmp">' + o.lostVisits + ' of ' + o.visits + ' appointments · ' + prevLbl + ' ' + pct1(o.lostRatePrevMonth) + '</span></div>' +
+      '<div class="tile"><span class="lbl">New patients</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, 'vs 6-month average (' + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
     '</section>' +
 
     '<section class="card"><h2>Production and collections, last 12 months</h2><p class="def">Production is treatment done (earned). Collections is money received. Select a bar to change month.</p>' +
@@ -394,18 +403,24 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     '</section>' +
 
     '<div class="grid2">' +
-      '<section class="card"><h2>Production by treatment room</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Grey figure: average of the six months before.</p>' +
-        (cabs.length ? '<div class="hbars">' + cabs.map((x) => '<div class="hbar"><span>' + esc(x.c) + '</span><span class="track"><span class="fill' + (x.a && x.v < x.a * 0.85 ? ' hot' : '') + '" style="width:' + (100 * x.v / cabMax).toFixed(1) + '%;display:block"></span></span><span class="v">' + eur(x.v) + '<small>' + eur(x.a) + '</small></span></div>').join('') + '</div>' : '<p class="sub">The data has no treatment room information.</p>') +
+      '<section class="card"><h2>Production by dentist</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Grey figure: average of the six months before. Red: more than 25% below it.</p>' +
+        (profRows.length ? hbars(profRows.map((x) => ({ label: x.label, v: x.v, hot: x.hot, sub: eur(x.a) })), profMax, eur) : '<p class="sub">The data has no professional recorded on treatments.</p>') +
       '</section>' +
-      '<section class="card"><h2>Lost visits by weekday</h2><p class="def">' + esc(IC.mkLabel(k - 2, true) + '–' + IC.mkLabel(k, true)) + '. No-shows plus cancellations without a new date.</p>' +
-        '<div class="hbars">' + wd.map((w) => '<div class="hbar"><span>' + esc(w.weekday) + '</span><span class="track"><span class="fill' + (w.lostRate > avgOthers * 1.3 ? ' hot' : '') + '" style="width:' + (100 * w.lostRate / wdMax).toFixed(1) + '%;display:block"></span></span><span class="v">' + pct1(w.lostRate) + '<small>' + w.lost + '/' + w.total + '</small></span></div>').join('') + '</div>' +
-        '<p class="note">In ' + esc(IC.mkLabel(k)) + ': ' + o.noShows + ' no-shows, ' + o.cancelledNotRebooked + ' cancelled without a new date, ' + o.cancelledRebooked + ' cancelled and rebooked (not counted as lost).</p>' +
-      '</section>' +
-      '<section class="card"><h2>Most performed treatments</h2><p class="def">' + esc(IC.mkLabel(k)) + ', by number of treatments done.</p>' +
-        (mix.length ? '<div class="tbl-wrap"><table><thead><tr><th>Treatment</th><th class="r">Done</th><th class="r">Value</th></tr></thead><tbody>' + mix.map((x) => '<tr><td>' + esc(x.treatment) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No treatment done this month.</p>') +
+      '<section class="card"><h2>Treatment lines</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Margin is what remains after materials and lab. Change is against ' + esc(lyLbl) + '.</p>' +
+        (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>Line</th><th class="r">Done</th><th class="r">Production</th><th class="r">Margin</th><th class="r">vs last year</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r">' + pc(x.marginPct) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No treatment done this month.</p>') +
       '</section>' +
       '<section class="card"><h2>Patients who brought most revenue</h2><p class="def">Production in the 12 months to ' + esc(IC.mkLabel(k)) + '.</p>' +
         (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th class="r">Treatment done</th></tr></thead><tbody>' + top.map((x) => '<tr><td class="pid">Nº ' + x.patient + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No data.</p>') +
+      '</section>' +
+      '<section class="card"><h2>Data quality</h2><p class="def">How much of what managers need is recorded, last three months. Low values mean MN entries need the reception recording standard.</p>' +
+        '<div class="tbl-wrap"><table><tbody>' +
+          '<tr><td>Appointments with an outcome (attended, cancelled, no-show)</td><td class="r">' + pc(dq.outcomeRecorded) + '</td></tr>' +
+          '<tr><td>Cancellations and no-shows recorded</td><td class="r">' + dq.cancellationsRecorded + '</td></tr>' +
+          '<tr><td>Treatments with the professional recorded</td><td class="r">' + pc(dq.professionalRecorded) + '</td></tr>' +
+          '<tr><td>Treatments with material and lab cost</td><td class="r">' + pc(dq.costRecorded) + '</td></tr>' +
+          '<tr><td>New patients counted from registration dates</td><td class="r">' + (dq.patientDates ? 'Yes' : 'No') + '</td></tr>' +
+        '</tbody></table></div>' +
+        (synthetic ? '<p class="note">The sample data assumes the recording standard is in place. The September–October 2026 MN export had 0 cancellations and 4 of 1,503 appointments marked as done.</p>' : '') +
       '</section>' +
     '</div>';
   }
@@ -456,11 +471,79 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       if (fu.reachedRate != null && fu.notReachedRate != null) t += ' Reached by phone: ' + pc(fu.reachedRate) + '. No answer: ' + pc(fu.notReachedRate) + '.';
       items.push(t);
     } else if (fu && fu.decisions) items.push('Follow-up results are measured four weeks after each call list; until then recommendations use a stated assumption.');
+    const ex = S.learned && S.learned.expectations;
+    if (ex && ex.n) {
+      const r = ex.avgRealised;
+      items.push('Your expectations: across ' + ex.n + ' logged decision' + (ex.n > 1 ? 's' : '') + ' with an expected result and at least a month of data, the measured change was on average ' + Math.round(r * 100) + '% of what was expected' + (r < 0.8 ? '. Expectations have been optimistic; consider smaller targets or a different action.' : r > 1.2 ? '. Results have beaten expectations.' : '.'));
+    }
     if (m) items.push(m.useRule ? 'Risk model: the simple rule is in use because the model did not beat it on the latest test.' : 'Risk model retrained on data up to ' + IC.dayLabel(S.ds.asOf) + (m.calls.trainingCases ? ', including ' + m.calls.trainingCases + ' cases with a recorded call.' : '. Call results join its training data once their 90-day outcome is known.'));
     const kinds = S.learned ? Object.entries(S.learned.byKind).filter(([, s]) => s.reviewed) : [];
     if (kinds.length) items.push('Recommendation order now reflects past results: ' + kinds.map(([k, s]) => (KIND[k] || k) + ' ' + s.worked + '/' + s.reviewed + ' worked').join(', ') + '.');
     if (!items.length) return '';
     return '<section class="card"><h2>What the app has learned</h2><ul class="learned">' + items.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></section>';
+  }
+
+  // Metric options for a manager's own decision: clinic-wide metrics, then per treatment line and per dentist.
+  function metricOptions() {
+    const ds = S.ds, o = (v, l) => '<option value="' + esc(v) + '">' + esc(l) + '</option>';
+    let h = '<optgroup label="Clinic">' + ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
+    if (ds.lineCats.length) h += '<optgroup label="Treatment line">' + ds.lineCats.map((c) => o('line_production|' + c, c + ' production per month')).join('') + '</optgroup>';
+    const dents = ds.profs.filter((p) => !IC.isHygienist(p));
+    if (dents.length) h += '<optgroup label="Dentist">' + dents.map((p) => o('dentist_production|' + p, 'Production of ' + p + ' per month')).join('') + '</optgroup>';
+    return h;
+  }
+  function logForm() {
+    const kinds = Object.keys(KIND).filter((k) => k !== 'risk');
+    return '<section class="card form-card"><h2>Log a decision</h2><p class="def">Record a decision you have taken, what you expect, and how to measure it. The app compares the three months before with the months after.</p><div class="form">' +
+      '<label>What did you decide?<input id="lTitle" placeholder="e.g. Pay receptionists €2 per Google review"></label>' +
+      '<div class="row"><label>Type of decision<select id="lKind">' + kinds.map((k) => '<option value="' + k + '">' + esc(KIND[k]) + '</option>').join('') + '</select></label>' +
+      '<label>Date decided<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label></div>' +
+      '<div class="row"><label>Measure it by<select id="lMetric">' + metricOptions() + '</select></label>' +
+      '<label>Expected change (%)<input id="lExpected" type="number" step="1" placeholder="e.g. 10 for +10%"></label></div>' +
+      '<div class="row"><label>Who is responsible<input id="lOwner" placeholder="e.g. CEO"></label><label>Check the result in<select id="lReview"><option value="30">1 month</option><option value="61" selected>2 months</option><option value="91">3 months</option></select></label></div>' +
+      '<label>Why (optional)<textarea id="lWhy" rows="2"></textarea></label>' +
+      '<div class="actions"><button class="btn primary" data-logsave="1">Save decision</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div></section>';
+  }
+  const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' pts' : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
+  function evaluationHtml(d) {
+    const ev = IC.evalDecision(S.ds, d), f = d.metric.fmt, better = d.metric.better === 'down' ? -1 : 1;
+    const cls = (ch) => ch == null || Math.abs(ch) < 0.005 ? 'flat' : ch * better > 0 ? 'good' : 'bad';
+    if (ev.kind === 'point') {
+      const ch = ev.before ? ev.after / ev.before - 1 : null;
+      return '<span>At decision: <b>' + fmt(ev.before, f) + '</b></span><span>Now: <b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ch) + '">' + fmtChange(ch, 'eur') + '</span>';
+    }
+    let h = '<span>Before (' + esc(ev.beforeFrom + '–' + ev.beforeTo) + '): <b>' + fmt(ev.before, f) + '</b></span>';
+    if (!ev.afterMonths) return h + '<span>After: measured from the first full month after the decision.</span>';
+    h += '<span>After (' + esc(ev.afterFrom + (ev.afterTo !== ev.afterFrom ? '–' + ev.afterTo : '')) + '): <b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ev.change) + '">' + fmtChange(ev.change, f) + '</span>';
+    if (d.expected && d.expected.pct != null) h += '<span>Expected: ' + fmtChange(d.expected.pct, f) + '</span>';
+    if (ev.changeLastYear != null) h += '<span class="note">Same months a year earlier: ' + fmtChange(ev.changeLastYear, f) + '</span>';
+    return h;
+  }
+
+  function viewDecisions() {
+    const ds = S.ds, all = relevant(), hidden = S.decisions.length - all.length;
+    const list = all.slice().sort((a, b) => String(b.decidedOn).localeCompare(String(a.decidedOn)) || String(b.decidedAt).localeCompare(String(a.decidedAt)));
+    const acc = list.filter((d) => d.decision !== 'Rejected'), rej = list.length - acc.length;
+    const reviewed = acc.filter((d) => d.outcome), worked = reviewed.filter((d) => d.outcome.verdict === 'Worked').length;
+    const logging = S.open && S.open.log;
+    const head = '<div class="page-head"><div><h1>Decisions</h1><p class="sub">What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ' + esc(IC.dayLabel(ds.asOf)) + ').</p></div>' + (logging ? '' : '<button class="btn primary" data-log="1">Log a decision</button>') + '</div>';
+    const score = '<div class="score"><div><b>' + list.length + '</b><span>decisions</span></div><div><b>' + acc.length + '</b><span>accepted or changed</span></div><div><b>' + rej + '</b><span>rejected</span></div><div><b>' + reviewed.length + '</b><span>results recorded</span></div><div><b>' + worked + '</b><span>worked</span></div></div>';
+    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + (hidden ? ' ' + hidden + ' decisions taken on other data are not shown.' : '') + (ds.source === 'sample' ? ' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.' : '') + ' ' + esc(IC.DEFINITIONS.decisionEvaluation) + '</p>';
+    const form = logging ? logForm() : '';
+    if (!list.length) return head + form + score + '<div class="empty">No decisions yet. Log a decision you have taken, or decide on a recommendation.</div>' + where;
+    return head + form + score + viewLearned() + list.map((d) => {
+      const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
+      const open = S.open && S.open.decId === d.id;
+      let foot = '';
+      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(d.outcome.verdict) + '</span> recorded with data up to ' + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
+      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>Did it work?<select id="fVerdict"><option>Worked</option><option>Partly</option><option>Did not work</option></select></label><label>What happened (optional)<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">Save result</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
+      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">Record result</button>' + (due ? '<span class="pill medium">Review due</span>' : '') + '</div>';
+      const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
+      return '<article class="rec"><span class="kind">' + esc(KIND[d.kind] || d.kind) + (d.manual ? ' · logged by a manager' : ' · from a recommendation') + '</span><h2>' + esc(d.title) + '</h2>' +
+        '<p class="decided-line">' + decisionLine(d) + '</p>' +
+        '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? 'Proposed action' : 'Action') + '</dt><dd>' + esc(d.action) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? 'Reason' : 'Why') + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
+        (d.decision !== 'Rejected' ? '<dt>' + esc(IC.metricLabel(d.metric)) + '</dt><dd class="dec-metric">' + evaluationHtml(d) + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
+    }).join('') + where;
   }
 
   function callList(d) {
@@ -475,36 +558,6 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       '</tbody></table></div></details>';
   }
 
-  function viewDecisions() {
-    const ds = S.ds, all = relevant(), hidden = S.decisions.length - all.length;
-    const list = all.slice().sort((a, b) => String(b.decidedAt).localeCompare(String(a.decidedAt)));
-    const acc = list.filter((d) => d.decision !== 'Rejected'), rej = list.length - acc.length;
-    const reviewed = acc.filter((d) => d.outcome), worked = reviewed.filter((d) => d.outcome.verdict === 'Worked').length;
-    const head = '<div class="page-head"><div><h1>Decisions</h1><p class="sub">What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ' + esc(IC.dayLabel(ds.asOf)) + ').</p></div></div>';
-    const score = '<div class="score"><div><b>' + list.length + '</b><span>decisions</span></div><div><b>' + acc.length + '</b><span>accepted or changed</span></div><div><b>' + rej + '</b><span>rejected</span></div><div><b>' + reviewed.length + '</b><span>results recorded</span></div><div><b>' + worked + '</b><span>worked</span></div></div>';
-    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + (hidden ? ' ' + hidden + ' decisions taken on other data are not shown.' : '') + (ds.source === 'sample' ? ' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.' : '') + '</p>';
-    if (!list.length) return head + score + '<div class="empty">No decisions yet. Decide on a recommendation to start the log.</div>' + where;
-    return head + score + viewLearned() + list.map((d) => {
-      const now = IC.evalMetric(ds, d.metric);
-      const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
-      let change = '';
-      if (now != null && d.baseline && d.baseline.value) {
-        const ch = now / d.baseline.value - 1;
-        const good = Math.abs(ch) < 0.005 ? 'flat' : (ch < 0) === (d.metric.better === 'down') ? 'good' : 'bad';
-        change = '<span class="' + good + '">' + (Math.abs(ch) < 0.005 ? 'no change' : (ch > 0 ? '▲ ' : '▼ ') + Math.abs(ch * 100).toFixed(0) + '%') + '</span>';
-      }
-      const open = S.open && S.open.decId === d.id;
-      let foot = '';
-      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(d.outcome.verdict) + '</span> recorded with data up to ' + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
-      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>Did it work?<select id="fVerdict"><option>Worked</option><option>Partly</option><option>Did not work</option></select></label><label>What happened (optional)<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">Save result</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
-      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">Record result</button>' + (due ? '<span class="pill medium">Review due</span>' : '') + '</div>';
-      const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
-      return '<article class="rec"><span class="kind">' + esc(KIND[d.kind] || d.kind) + '</span><h2>' + esc(d.title) + '</h2>' +
-        '<p class="decided-line">' + decisionLine(d) + '</p>' +
-        '<dl><dt>' + (d.decision === 'Rejected' ? 'Proposed action' : 'Action') + '</dt><dd>' + esc(d.action) + '</dd>' + (d.note ? '<dt>' + (d.decision === 'Rejected' ? 'Reason' : 'Note') + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
-        (d.decision !== 'Rejected' ? '<dt>' + esc(d.metric.label) + '</dt><dd class="dec-metric"><span>At decision: <b>' + fmt(d.baseline && d.baseline.value, d.metric.fmt) + '</b></span><span>Now: <b>' + fmt(now, d.metric.fmt) + '</b></span>' + change + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
-    }).join('') + where;
-  }
 
   function render() {
     if (!S.ds) return;
@@ -525,6 +578,28 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
     if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); return; }
     if (t.dataset.review) { S.open = { decId: t.dataset.review }; render(); return; }
+    if (t.dataset.log) { S.open = { log: true }; render(); const f = $('#lTitle'); if (f) f.focus(); return; }
+    if (t.dataset.logsave) {
+      const title = $('#lTitle').value.trim();
+      if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = 'Write what you decided'; return; }
+      const [type, param] = $('#lMetric').value.split('|');
+      const base = IC.METRICS[type];
+      const metric = { type, fmt: base.fmt, better: base.better };
+      if (base.param) metric[base.param] = param;
+      metric.label = IC.metricLabel(metric);
+      const day = $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
+      const exp = $('#lExpected').value === '' ? null : Number($('#lExpected').value) / 100;
+      const d = {
+        recId: null, manual: true, kind: $('#lKind').value, title, action: title, decision: 'Accepted',
+        note: $('#lWhy').value.trim(), owner: $('#lOwner').value.trim(),
+        decidedOn: IC.iso(day), reviewDay: IC.iso(day + Number($('#lReview').value)), decidedAt: new Date().toISOString(),
+        metric, expected: exp == null || isNaN(exp) ? null : { pct: exp }, baseline: { value: baselineFor(metric, IC.iso(day)), asOf: IC.iso(S.ds.asOf) },
+        outcome: null, dataLabel: S.ds.label, source: S.ds.source
+      };
+      t.disabled = true;
+      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+      return;
+    }
     if (t.dataset.cancel) { S.open = null; render(); return; }
     if (t.dataset.save) {
       const r = S.recs.find((x) => x.id === t.dataset.save); if (!r) return;
@@ -536,7 +611,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         action: mode === 'Modified' ? ($('#fAction').value.trim() || r.action) : r.action,
         note: note.trim(), owner: (($('#fOwner') || {}).value || '').trim(),
         decidedOn: IC.iso(S.ds.asOf), reviewDay: IC.iso(S.ds.asOf + days), decidedAt: new Date().toISOString(),
-        metric: r.metric, baseline: { value: IC.evalMetric(S.ds, r.metric), asOf: IC.iso(S.ds.asOf) }, outcome: null, dataLabel: S.ds.label,
+        metric: r.metric, baseline: { value: baselineFor(r.metric, IC.iso(S.ds.asOf)), asOf: IC.iso(S.ds.asOf) }, outcome: null, dataLabel: S.ds.label,
         source: S.ds.source, expectedRate: r.expectedRate || null, predictions: r.predictions || null, calls: r.kind === 'risk' ? {} : null
       };
       t.disabled = true;
@@ -545,7 +620,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     }
     if (t.dataset.outcome) {
       const d = S.decisions.find((x) => x.id === t.dataset.outcome); if (!d) return;
-      const patch = { outcome: { verdict: $('#fVerdict').value, note: $('#fOutNote').value.trim(), value: IC.evalMetric(S.ds, d.metric), asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
+      const ev = IC.evalDecision(S.ds, d);
+      const patch = { outcome: { verdict: $('#fVerdict').value, note: $('#fOutNote').value.trim(), value: ev.after, change: ev.change == null ? null : ev.change, asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
       t.disabled = true;
       try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
     }
@@ -564,6 +640,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const el = e.target; if (!el.dataset || !el.dataset.calls) return;
     if (el.open) S.openCalls.add(el.dataset.calls); else S.openCalls.delete(el.dataset.calls);
   }, true);
+  // The value a decision starts from: the three months before it for monthly metrics, today's amount otherwise.
+  function baselineFor(metric, decidedOn) {
+    if (metric.type === 'prepaid_ids') return IC.evalMetric(S.ds, metric);
+    return IC.evalDecision(S.ds, { metric, decidedOn }).before;
+  }
   function alertInline(el, msg) { const p = document.createElement('p'); p.className = 'note bad'; p.textContent = msg; el.parentNode.appendChild(p); }
 
   // ---------- Import ----------
@@ -605,19 +686,21 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   });
 
   // ---------- Assistant ----------
-  const SUGGEST = ['Why did production change this month?', 'Which patients should reception call first?', 'Where are we losing visits?'];
+  const SUGGEST = ['Why did production change this month?', 'Is the new dentist paying off?', 'Did the Google reviews incentive bring new patients?'];
   const monthArg = (m) => { if (!m) return S.k; const x = String(m).match(/^(\d{4})-(\d{1,2})/); if (!x) return S.k; return Math.min(S.ds.lastMonth, Number(x[1]) * 12 + Number(x[2]) - 1); };
   const round = (o) => JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v));
   const TOOLS = [
     { name: 'get_overview', description: 'Headline figures for one month: production, collections, unearned revenue (paid, not yet done) and patients holding it, done-but-unpaid, first visits and 6-month average, visits and lost visits (no-shows, cancelled without a new date, cancelled and rebooked), with previous-month and last-year comparisons.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM. Defaults to the month on screen.' } } }, execute: (i) => round(IC.overview(S.ds, monthArg(i && i.month))) },
     { name: 'get_monthly_series', description: 'A metric month by month, ending at the latest complete month.', inputSchema: { type: 'object', properties: { metric: { type: 'string', enum: ['production', 'collections', 'first_visits', 'lost_rate'] }, months: { type: 'integer', minimum: 2, maximum: 36 } }, required: ['metric'] }, execute: (i) => round(IC.series(S.ds, i.metric, i.months || 12).map((r) => ({ month: r.month, value: r.value }))) },
-    { name: 'get_production_by_room', description: 'Production per treatment room (gabinete) for one month, with the average of the six months before.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' } } }, execute: (i) => { const k = monthArg(i && i.month); return round(S.ds.cabs.map((c) => ({ room: c, production: IC.production(S.ds, k, c), averagePrior6Months: [1, 2, 3, 4, 5, 6].reduce((a, j) => a + IC.production(S.ds, k - j, c), 0) / 6 }))); } },
+    { name: 'get_production_by', description: 'Production for one month per dentist (professional) or per treatment room (gabinete), with the average of the six months before.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['professional', 'room'] }, month: { type: 'string', description: 'YYYY-MM' } }, required: ['by'] }, execute: (i) => { const k = monthArg(i && i.month); const keys = i.by === 'room' ? S.ds.cabs : S.ds.profs; return round(keys.map((x) => { const f = (m) => i.by === 'room' ? IC.production(S.ds, m, x) : IC.production(S.ds, m, null, x); return { name: x, production: f(k), averagePrior6Months: [1, 2, 3, 4, 5, 6].reduce((a, j) => a + f(k - j), 0) / 6 }; })); } },
+    { name: 'get_treatment_lines', description: 'Treatment lines (categories) over one or more months ending at the given month: treatments done, production, margin after materials and lab, and change against the same months last year.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' }, months: { type: 'integer', minimum: 1, maximum: 12 } } }, execute: (i) => { const k = monthArg(i && i.month); return round(IC.treatmentLines(S.ds, k - ((i && i.months) || 1) + 1, k)); } },
+    { name: 'get_data_quality', description: 'How much of what managers need is recorded in the loaded data over the last three months (appointment outcomes, cancellations, professional and cost on treatments, registration dates).', inputSchema: { type: 'object', properties: {} }, execute: () => round(IC.dataQuality(S.ds)) },
     { name: 'get_treatment_mix', description: 'Treatments done, by number and value, over one or more months ending at the given month.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' }, months: { type: 'integer', minimum: 1, maximum: 12 } } }, execute: (i) => { const k = monthArg(i && i.month); return round(IC.treatmentMix(S.ds, k - ((i && i.months) || 1) + 1, k).slice(0, 15)); } },
     { name: 'get_lost_visits_breakdown', description: 'Lost-visit rate by weekday or by professional over the last N months ending at the month on screen.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['weekday', 'professional'] }, months: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['by'] }, execute: (i) => { const n = i.months || 3; const rows = i.by === 'professional' ? IC.lostByProfessional(S.ds, S.k - n + 1, S.k) : IC.lostByWeekday(S.ds, S.k - n + 1, S.k); return round(rows.map((r) => ({ group: r.weekday || r.professional, appointments: r.total, lost: r.lost, lostRate: r.lostRate, noShows: r.noShow, cancelledNoNewDate: r.cancelled }))); } },
     { name: 'get_top_patients', description: 'Patients (by number) with the most treatment done in the 12 months to the month on screen.', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 25 } } }, execute: (i) => round(IC.topPatients(S.ds, S.k - 11, S.k, (i && i.n) || 10)) },
     { name: 'get_risk', description: 'Patients with accepted, unfinished treatment ranked by expected loss, the model quality check, and dormant plans (no activity for over a year).', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 30 } } }, execute: (i) => { const high = S.risk.filter((r) => r.tier === 'High'); const m = S.model; return round({ patientsScored: S.risk.length, highRisk: high.length, highRiskPending: high.reduce((a, r) => a + r.pending, 0), highRiskPrepaid: high.reduce((a, r) => a + r.prepaid, 0), dormant: S.dormant, model: m ? { aucModel: m.aucModel, aucSimpleRule: m.aucRule, stallRateAllPatients: m.baseRate, stallRateTop20pct: m.precisionTop20Model, testedOn: m.testRows, testDate: m.testDate } : null, top: S.risk.slice(0, (i && i.n) || 10).map((r) => ({ patient: r.patient, probability: r.probability, pending: r.pending, prepaid: r.prepaid, daysSinceVisit: r.daysSinceVisit, appointmentBooked: r.booked, reasons: r.reasons })) }); } },
     { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: r.metric.label, decision: d ? d.decision : 'Not decided yet' }; }) },
-    { name: 'get_decisions', description: 'The decision log: decisions taken, owners, review dates, metric at decision and now, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => ({ title: d.title, decision: d.decision, action: d.action, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: d.metric.label, atDecision: d.baseline && d.baseline.value, now: IC.evalMetric(S.ds, d.metric), result: d.outcome ? d.outcome.verdict : null }))) },
+    { name: 'get_decisions', description: 'The decision log: decisions taken (from recommendations or logged by managers), owners, dates, the metric used, its average in the three months before and the months after, the expected change, the change in the same months a year earlier, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => { const ev = d.decision === 'Rejected' ? null : IC.evalDecision(S.ds, d); return { title: d.title, type: KIND[d.kind] || d.kind, loggedByManager: !!d.manual, decision: d.decision, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: IC.metricLabel(d.metric), before: ev && ev.before, after: ev && ev.after, monthsAfter: ev && ev.afterMonths, change: ev && ev.change, expectedChange: d.expected ? d.expected.pct : null, sameMonthsLastYearChange: ev && ev.changeLastYear, result: d.outcome ? d.outcome.verdict : null }; })) },
     { name: 'get_learning', description: 'What the app has learned from the decision log: follow-up call results and how many called patients continued treatment, track record per recommendation kind, and whether the risk model or the simple rule is in use.', inputSchema: { type: 'object', properties: {} }, execute: () => { const m = S.model; return round({ followUp: S.learned && S.learned.followUp, byKind: S.learned && Object.fromEntries(Object.entries(S.learned.byKind).map(([k, s]) => [k, { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement }])), model: m ? { usingSimpleRule: m.useRule, aucModel: m.aucModel, aucRule: m.aucRule, calibration: m.calibration, trainingCasesWithCall: m.calls.trainingCases } : null }); } },
     { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
   ];
