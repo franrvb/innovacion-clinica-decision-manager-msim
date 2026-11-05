@@ -116,6 +116,9 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 :root[data-theme="dark"] .btn.primary { color: var(--brand); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: var(--brand); } }
 .btn.quiet { border-color: transparent; color: var(--ink-2); }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+:root[data-theme="dark"] .btn.danger { color: var(--brand); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.danger { color: var(--brand); } }
 .form { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
 .form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .form input, .form select, .form textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); font-weight: 400; }
@@ -1156,7 +1159,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
           '<label>' + (open.mode === 'Rejected' ? 'Why not' : 'Note (optional)') + '<textarea id="fNote" rows="2"></textarea></label>' +
           '<div class="actions"><button class="btn primary" data-save="' + esc(r.id) + '">' + (open.mode === 'Rejected' ? 'Save rejection' : 'Save decision') + '</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
       } else {
-        foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">Accept</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">Change</button><button class="btn quiet" data-decide="Rejected" data-rec="' + esc(r.id) + '">Reject</button></div>';
+        foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">Accept</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">Change</button><button class="btn danger" data-decide="Rejected" data-rec="' + esc(r.id) + '">Reject</button></div>';
       }
       const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>See the ' + r.metric.ids.length + ' patients</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
       return '<article class="rec"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
