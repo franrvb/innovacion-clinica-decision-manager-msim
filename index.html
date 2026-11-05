@@ -1,0 +1,602 @@
+<title>Innovación Clínica Management</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a fixed brand bar, then one centred working column of cards; the assistant slides in from the right. */
+:root {
+  --bg: #f3f5f6; --surface: #ffffff; --ink: #17202a; --ink-2: #53616c; --line: #dce2e6;
+  --accent: #178f8b; --accent-ink: #0c6865; --accent-soft: #e0f1f0; --bar: #cbd6db;
+  --good: #2c7a4c; --bad: #b2452a; --warn: #9a6410; --brand: #1b1d29; --brand-ink: #f1f5f6; --brand-teal: #4dbcbc;
+  --font: "Manrope", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10131a; --surface: #181c26; --ink: #e6ebee; --ink-2: #98a5af; --line: #283040;
+  --accent: #4dbcbc; --accent-ink: #84d8d5; --accent-soft: #15302f; --bar: #384250;
+  --good: #6cc191; --bad: #ef8b6c; --warn: #e0b35c; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #10131a; --surface: #181c26; --ink: #e6ebee; --ink-2: #98a5af; --line: #283040;
+  --accent: #4dbcbc; --accent-ink: #84d8d5; --accent-soft: #15302f; --bar: #384250;
+  --good: #6cc191; --bad: #ef8b6c; --warn: #e0b35c; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--brand); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Brand bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--brand); color: var(--brand-ink);
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.brand small { display: block; font-weight: 500; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-teal); }
+.tabs { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; }
+@media (max-width: 1020px) { .tabs { order: 3; flex-basis: 100%; } .top-actions { margin-left: auto; } }
+.tab { background: none; border: 0; color: #b9c3c9; padding: 8px 12px; border-radius: 8px; font-weight: 600; white-space: nowrap; }
+.tab[aria-current="page"] { color: #fff; background: rgba(77,188,188,.18); }
+.tab .badge { display: inline-block; min-width: 20px; margin-left: 6px; padding: 0 6px; border-radius: 10px; background: var(--brand-teal); color: var(--brand); font-size: 12px; text-align: center; }
+.top-actions { display: flex; gap: 8px; align-items: center; }
+.data-sel { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: var(--brand-ink); border-radius: 8px; padding: 7px 8px; max-width: 230px; }
+.data-sel option { color: #17202a; background: #fff; }
+.btn-top { border: 1px solid rgba(255,255,255,.22); background: none; color: var(--brand-ink); border-radius: 8px; padding: 7px 12px; font-weight: 600; }
+.btn-ask { background: var(--brand-teal); color: var(--brand); border-color: var(--brand-teal); }
+
+/* Page */
+main { max-width: 1180px; margin: 0 auto; padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 16px; }
+.page-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page-head h1 { font-size: 28px; font-weight: 700; letter-spacing: -.01em; }
+.sub { color: var(--ink-2); font-size: 13px; margin: 4px 0 0; }
+.month-nav { display: flex; gap: 6px; align-items: center; }
+.icon-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1; }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tile .lbl { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.tile .val { font-size: 28px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.tile .cmp { font-size: 13px; color: var(--ink-2); }
+.good { color: var(--good); } .bad { color: var(--bad); } .flat { color: var(--ink-2); }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.card h2 { font-size: 16px; font-weight: 700; }
+.card .def { color: var(--ink-2); font-size: 13px; margin: -8px 0 0; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--ink-2); font: 11px var(--font); }
+.chart .grid { stroke: var(--line); }
+.chart .b { fill: var(--bar); cursor: pointer; } .chart .b.sel { fill: var(--accent); }
+.chart .dot { fill: var(--ink); }
+
+.hbars { display: grid; gap: 8px; }
+.hbar { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.hbar .track { height: 10px; background: var(--accent-soft); border-radius: 5px; overflow: hidden; }
+.hbar .fill { height: 100%; background: var(--accent); border-radius: 5px; }
+.hbar .fill.hot { background: var(--bad); }
+.hbar .v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.hbar .v small { color: var(--ink-2); margin-left: 6px; }
+
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: .04em; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pid { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.high { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.pill.medium { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.pill.low, .pill.neutral { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.ok { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.why { color: var(--ink-2); font-size: 13px; }
+details.more { font-size: 13px; color: var(--ink-2); }
+details.more summary { cursor: pointer; color: var(--accent-ink); font-weight: 600; }
+details.more p { margin: 8px 0 0; max-width: 75ch; }
+
+/* Recommendations and decisions */
+.intro { color: var(--ink-2); margin: 0; max-width: 75ch; }
+.rec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 10px; }
+.rec.decided { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.kind { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); }
+.rec h2 { font-size: 18px; }
+.rec p { margin: 0; max-width: 80ch; }
+.rec dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 14px; margin: 0; }
+.rec dt { color: var(--ink-2); font-size: 13px; font-weight: 600; padding-top: 1px; }
+.rec dd { margin: 0; max-width: 75ch; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary { color: var(--brand); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: var(--brand); } }
+.btn.quiet { border-color: transparent; color: var(--ink-2); }
+.form { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.form input, .form select, .form textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); font-weight: 400; }
+.form .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.decided-line { font-size: 14px; color: var(--ink-2); }
+.ids { font-family: var(--mono); font-size: 12px; line-height: 1.8; }
+.score { display: flex; gap: 10px; flex-wrap: wrap; }
+.score div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
+.score b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.score span { font-size: 12px; color: var(--ink-2); }
+.dec-metric { display: flex; gap: 8px 18px; flex-wrap: wrap; font-size: 14px; align-items: baseline; }
+.dec-metric b { font-variant-numeric: tabular-nums; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 28px; color: var(--ink-2); text-align: center; }
+.note { font-size: 12px; color: var(--ink-2); }
+
+/* Assistant drawer */
+.chat { position: fixed; z-index: 20; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--surface); border-left: 1px solid var(--line);
+  display: grid; grid-template-rows: auto 1fr auto auto; box-shadow: -12px 0 32px rgba(0,0,0,.12);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.chat-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.chat-head b { font-size: 15px; }
+.chat-log { overflow-y: auto; padding: 16px; display: grid; gap: 12px; align-content: start; }
+.msg { padding: 10px 12px; border-radius: 10px; max-width: 92%; font-size: 14px; }
+.msg.user { background: var(--accent-soft); justify-self: end; }
+.msg.bot { background: var(--bg); border: 1px solid var(--line); }
+.msg.bot p { margin: 0 0 6px; } .msg.bot p:last-child { margin: 0; }
+.msg.bot ul { margin: 4px 0 6px; padding-left: 18px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 10px; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 14px; padding: 4px 10px; font-size: 13px; }
+.chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px 16px 6px; border-top: 1px solid var(--line); }
+.chat-form textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: none; background: var(--bg); }
+.chat .note { padding: 0 16px 12px; }
+
+/* Import dialog */
+.modal { position: fixed; inset: 0; z-index: 30; background: rgba(10,14,20,.45); display: grid; place-items: center; padding: 16px; }
+.modal-card { background: var(--surface); border-radius: 12px; padding: 22px; width: min(560px, 100%); max-height: 90vh; overflow-y: auto; display: grid; gap: 12px; }
+.modal-card h2 { font-size: 20px; }
+.modal-card ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+.modal-card p { margin: 0; }
+
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) {
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .tabs { order: 3; flex-basis: 100%; overflow-x: auto; }
+  .rec dl { grid-template-columns: minmax(0, 1fr); } .rec dt { padding-top: 6px; }
+  .form .row { grid-template-columns: minmax(0, 1fr); }
+  .hbar { grid-template-columns: 90px minmax(0, 1fr) auto; }
+  .data-sel { max-width: 150px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><rect x="2" y="1" width="2.4" height="28" fill="#4dbcbc"/><path d="M8 4.5 C13 1.2 19.5 1.4 24 5" fill="none" stroke="#4dbcbc" stroke-width="2.4"/><path d="M8 25.5 C13 28.8 19.5 28.6 24.5 24.6" fill="none" stroke="#4dbcbc" stroke-width="2.4"/></svg>
+      <div>Innovación Clínica<small>Management</small></div>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="recs">Recommendations<span class="badge" id="recBadge" hidden></span></button>
+      <button class="tab" data-tab="decisions">Decisions</button>
+    </nav>
+    <div class="top-actions">
+      <select id="dataSel" class="data-sel" aria-label="Data source"></select>
+      <button id="importBtn" class="btn-top">Import</button>
+      <button id="askBtn" class="btn-top btn-ask">Ask</button>
+    </div>
+  </div>
+</header>
+
+<main id="view"><p class="sub">Loading data…</p></main>
+
+<aside id="chat" class="chat" hidden aria-label="Assistant">
+  <div class="chat-head"><b>Ask about the data</b><button id="chatClose" class="btn quiet">Close</button></div>
+  <div id="chatLog" class="chat-log"></div>
+  <div id="chips" class="chips"></div>
+  <form id="chatForm" class="chat-form">
+    <textarea id="chatIn" rows="2" placeholder="Ask a question about the clinic's data"></textarea>
+    <button class="btn primary" type="submit">Send</button>
+  </form>
+  <p class="note">Figures come from the app's own calculations. Patients appear by number only.</p>
+</aside>
+
+<div id="imp" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <h2 id="impTitle">Import data</h2>
+    <p>Export these lists from MN Program to Excel or CSV and select them together. The files are read in this browser and are not uploaded.</p>
+    <ul>
+      <li><b>Appointments:</b> patient number, date, status, professional, room, type</li>
+      <li><b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room</li>
+      <li><b>Payments:</b> patient number, payment date, amount, payment method</li>
+      <li><b>Patients</b> (optional): patient number, registration date</li>
+    </ul>
+    <p class="note">Patient names are not needed. Leave them out of the export if you can.</p>
+    <input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv">
+    <div id="impResult"></div>
+    <div class="actions"><button id="impUse" class="btn primary" hidden>Use this data</button><button id="impClose" class="btn">Close</button></div>
+  </div>
+</div>
+
+<script src="core.js"></script>
+<script>
+(function () {
+  'use strict';
+  const IC = window.IC;
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const eur = IC.eur;
+  const pct1 = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
+  const fmt = (v, f) => v == null ? '—' : f === 'eur' ? eur(v) : f === 'pct' ? pct1(v) : String(Math.round(v));
+
+  const SNAPS = [
+    { asOf: IC.dn(2026, 11, 3), label: 'Sample · 3 Nov 2026' },
+    { asOf: IC.dn(2026, 12, 3), label: 'Sample · 3 Dec 2026' },
+    { asOf: IC.dn(2027, 1, 4), label: 'Sample · 4 Jan 2027' }
+  ];
+  const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, open: null, chat: [], busy: false };
+
+  // ---------- Data ----------
+  function useSample(i) {
+    if (!S.full) S.full = IC.simulate();
+    setDataset(IC.snapshot(S.full, SNAPS[i].asOf, 'Sample data (synthetic patients)'));
+  }
+  function setDataset(ds) {
+    S.ds = ds; S.k = ds.lastMonth;
+    S.model = IC.trainRisk(ds);
+    S.risk = IC.riskList(ds, S.model);
+    S.dormant = IC.dormantPlans(ds);
+    S.recs = IC.recommendations(ds, S.model, S.risk);
+    render();
+  }
+  function fillDataSelect() {
+    const sel = $('#dataSel');
+    const opts = SNAPS.map((s, i) => '<option value="s' + i + '">' + esc(s.label) + '</option>');
+    if (S.imported) opts.unshift('<option value="imp">Imported · up to ' + esc(IC.dayLabel(S.imported.asOf)) + '</option>');
+    sel.innerHTML = opts.join('');
+  }
+  $('#dataSel').addEventListener('change', (e) => {
+    const v = e.target.value;
+    if (v === 'imp') setDataset(S.imported); else useSample(+v.slice(1));
+  });
+
+  // ---------- Decision log (shared through the artifact database when available) ----------
+  const Store = {
+    db: null,
+    loadLocal() { try { S.decisions = JSON.parse(localStorage.getItem('ic-decisions') || '[]'); } catch (e) { S.decisions = []; } },
+    saveLocal() { try { localStorage.setItem('ic-decisions', JSON.stringify(S.decisions)); } catch (e) { /* storage unavailable */ } },
+    async init() {
+      this.loadLocal();
+      if (!window.claude || !window.claude.use) return;
+      let db = null;
+      try { db = await window.claude.use('db'); } catch (e) { db = null; }
+      if (!db) return;
+      this.db = db;
+      const timer = setTimeout(() => { if (S.store !== 'shared') render(); }, 10000);
+      db.collection('decisions').onSnapshot((snap) => {
+        clearTimeout(timer);
+        S.store = 'shared';
+        S.decisions = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+        renderSoon();
+      }, () => { clearTimeout(timer); this.db = null; S.store = 'local'; this.loadLocal(); renderSoon(); });
+    },
+    async add(d) {
+      if (this.db) { await this.db.collection('decisions').add(d); return; }
+      d.id = 'l' + Date.now(); S.decisions.push(d); this.saveLocal();
+    },
+    async update(id, patch) {
+      if (this.db) { await this.db.collection('decisions').doc(id).update(patch); return; }
+      const d = S.decisions.find((x) => x.id === id); if (d) Object.assign(d, patch); this.saveLocal();
+    }
+  };
+  let pendingRender = false;
+  function renderSoon() { if (S.open) { pendingRender = true; return; } render(); }
+
+  // ---------- Small render helpers ----------
+  function delta(cur, prev, upIsGood, label) {
+    if (!prev) return '<span class="flat">no comparison</span>';
+    const ch = cur / prev - 1;
+    if (Math.abs(ch) < 0.005) return '<span class="flat">= ' + esc(label) + '</span>';
+    const good = upIsGood == null ? 'flat' : (ch > 0) === upIsGood ? 'good' : 'bad';
+    return '<span class="' + good + '">' + (ch > 0 ? '▲ ' : '▼ ') + Math.abs(ch * 100).toFixed(0) + '%</span> ' + esc(label);
+  }
+  function barChart(rows, selK) {
+    const W = 680, H = 230, L = 46, B = 26, T = 10, R = 8;
+    const max = Math.max(1, ...rows.map((r) => Math.max(r.p, r.c)));
+    const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].find((x) => x * mag >= raw) * mag;
+    const top = Math.ceil(max / step) * step, nLines = Math.round(top / step);
+    const y = (v) => T + (H - T - B) * (1 - v / top);
+    const bw = (W - L - R) / rows.length;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Production and collections by month">';
+    for (let i = 0; i <= nLines; i++) {
+      const v = step * i;
+      s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v) + '</text>';
+    }
+    rows.forEach((r, i) => {
+      const x = L + i * bw + bw * 0.18, w = bw * 0.64;
+      s += '<rect class="b' + (r.k === selK ? ' sel' : '') + '" data-k="' + r.k + '" x="' + x.toFixed(1) + '" y="' + y(r.p).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (y(0) - y(r.p)).toFixed(1) + '" rx="3"><title>' + esc(r.label + ': production ' + eur(r.p) + ', collections ' + eur(r.c)) + '</title></rect>';
+      s += '<circle class="dot" cx="' + (x + w / 2).toFixed(1) + '" cy="' + y(r.c).toFixed(1) + '" r="3.5"/>';
+      s += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(r.short) + '</text>';
+    });
+    return s + '</svg>';
+  }
+  const KIND = { risk: 'Treatment follow-up', lost: 'Lost visits', acq: 'New patients', cab: 'Treatment rooms', ar: 'Collections' };
+
+  // ---------- Views ----------
+  function viewOverview() {
+    const ds = S.ds, k = S.k, o = IC.overview(ds, k);
+    const prevLbl = IC.mkLabel(k - 1, true), lyLbl = IC.mkLabel(k - 12, true) + ' ' + Math.floor((k - 12) / 12);
+    const rows = []; for (let i = ds.lastMonth - 11; i <= ds.lastMonth; i++) rows.push({ k: i, label: IC.mkLabel(i), short: IC.mkLabel(i, true), p: IC.production(ds, i), c: IC.collections(ds, i) });
+    const cabs = ds.cabs.map((c) => { const v = IC.production(ds, k, c); const prior = [1, 2, 3, 4, 5, 6].map((i) => IC.production(ds, k - i, c)); const a = prior.reduce((x, y) => x + y, 0) / 6; return { c, v, a }; }).filter((x) => x.v || x.a);
+    const cabMax = Math.max(1, ...cabs.map((x) => Math.max(x.v, x.a)));
+    const wd = IC.lostByWeekday(ds, k - 2, k), wdMax = Math.max(0.01, ...wd.map((w) => w.lostRate)), vs3 = IC.visitStats(ds, k - 2, k);
+    const avgOthers = vs3.lostRate;
+    const mix = IC.treatmentMix(ds, k, k).slice(0, 8);
+    const top = IC.topPatients(ds, k - 11, k, 8);
+    const risk = S.risk.slice(0, 8), high = S.risk.filter((r) => r.tier === 'High');
+    const m = S.model;
+    const synthetic = ds.source === 'sample';
+
+    return '' +
+    '<div class="page-head"><div><h1>' + esc(IC.mkLabel(k)) + '</h1><p class="sub">Data up to ' + esc(IC.dayLabel(ds.asOf)) + ' · ' + esc(ds.label) + '</p></div>' +
+    '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="Previous month"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="Next month"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' +
+
+    '<section class="tiles">' +
+      '<div class="tile"><span class="lbl">Production</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">Paid, not yet done</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + ' patients · ' + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, 'vs end of ' + prevLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">First visits</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, 'vs 6-month average (' + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
+      '<div class="tile"><span class="lbl">Lost visits</span><span class="val">' + pct1(o.lostRate) + '</span><span class="cmp">' + o.lostVisits + ' of ' + o.visits + ' appointments · ' + prevLbl + ' ' + pct1(o.lostRatePrevMonth) + '</span></div>' +
+    '</section>' +
+
+    '<section class="card"><h2>Production and collections, last 12 months</h2><p class="def">Production is treatment done (earned). Collections is money received. Select a bar to change month.</p>' +
+      '<div class="chart" id="barChart">' + barChart(rows, k) + '</div>' +
+      '<div class="legend"><span><i style="background:var(--accent)"></i>Selected month</span><span><i style="background:var(--bar)"></i>Production</span><span><i style="background:var(--ink);border-radius:50%"></i>Collections</span></div></section>' +
+
+    '<section class="card"><h2>Patients likely to abandon their treatment</h2><p class="def">Patients with accepted treatment not finished, ranked by expected loss (risk × amount pending). Risk is the probability of no progress in the next 90 days.</p>' +
+      (risk.length ? '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th>Risk</th><th class="r">Pending</th><th class="r">Already paid</th><th>Why</th></tr></thead><tbody>' +
+        risk.map((r) => '<tr><td class="pid">Nº ' + r.patient + '</td><td><span class="pill ' + r.tier.toLowerCase() + '">' + Math.round(r.probability * 100) + '%</span></td><td class="r">' + eur(r.pending) + '</td><td class="r">' + eur(r.prepaid) + '</td><td class="why">' + esc(r.reasons.slice(0, 2).join(' · ')) + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<p class="sub">No patients with unfinished treatment in the data.</p>') +
+      '<p class="note">' + high.length + ' patients at high risk (60% or more) hold ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' of pending treatment, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' of it already paid.' +
+        (S.dormant && S.dormant.patients ? ' Another ' + S.dormant.patients + ' patients have had no activity for over a year, with ' + eur(S.dormant.pending) + ' pending (' + eur(S.dormant.prepaid) + ' paid); they are not scored.' : '') + '</p>' +
+      (m ? '<details class="more"><summary>How the risk is calculated</summary><p>' + esc(IC.DEFINITIONS.risk) + '</p><p>Tested on ' + m.testRows + ' patients as of ' + esc(IC.dayLabel(IC.fromIso(m.testDate))) + ', after training on ' + m.trainRows + ' earlier cases. It ranks who stalls better than the simple rule "no appointment and no visit in 60 days" (AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' against ' + m.aucRule.toFixed(2).replace('.', ',') + '). Of the 20% of patients it rated riskiest, ' + Math.round(m.precisionTop20Model * 100) + '% did stall, against ' + Math.round(m.baseRate * 100) + '% of all patients.</p>' + (synthetic ? '<p>With sample data these figures describe the simulation, not the clinic.</p>' : '') + '</details>' : '') +
+    '</section>' +
+
+    '<div class="grid2">' +
+      '<section class="card"><h2>Production by treatment room</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Grey figure: average of the six months before.</p>' +
+        (cabs.length ? '<div class="hbars">' + cabs.map((x) => '<div class="hbar"><span>' + esc(x.c) + '</span><span class="track"><span class="fill' + (x.a && x.v < x.a * 0.85 ? ' hot' : '') + '" style="width:' + (100 * x.v / cabMax).toFixed(1) + '%;display:block"></span></span><span class="v">' + eur(x.v) + '<small>' + eur(x.a) + '</small></span></div>').join('') + '</div>' : '<p class="sub">The data has no treatment room information.</p>') +
+      '</section>' +
+      '<section class="card"><h2>Lost visits by weekday</h2><p class="def">' + esc(IC.mkLabel(k - 2, true) + '–' + IC.mkLabel(k, true)) + '. No-shows plus cancellations without a new date.</p>' +
+        '<div class="hbars">' + wd.map((w) => '<div class="hbar"><span>' + esc(w.weekday) + '</span><span class="track"><span class="fill' + (w.lostRate > avgOthers * 1.3 ? ' hot' : '') + '" style="width:' + (100 * w.lostRate / wdMax).toFixed(1) + '%;display:block"></span></span><span class="v">' + pct1(w.lostRate) + '<small>' + w.lost + '/' + w.total + '</small></span></div>').join('') + '</div>' +
+        '<p class="note">In ' + esc(IC.mkLabel(k)) + ': ' + o.noShows + ' no-shows, ' + o.cancelledNotRebooked + ' cancelled without a new date, ' + o.cancelledRebooked + ' cancelled and rebooked (not counted as lost).</p>' +
+      '</section>' +
+      '<section class="card"><h2>Most performed treatments</h2><p class="def">' + esc(IC.mkLabel(k)) + ', by number of treatments done.</p>' +
+        (mix.length ? '<div class="tbl-wrap"><table><thead><tr><th>Treatment</th><th class="r">Done</th><th class="r">Value</th></tr></thead><tbody>' + mix.map((x) => '<tr><td>' + esc(x.treatment) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No treatment done this month.</p>') +
+      '</section>' +
+      '<section class="card"><h2>Patients who brought most revenue</h2><p class="def">Production in the 12 months to ' + esc(IC.mkLabel(k)) + '.</p>' +
+        (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th class="r">Treatment done</th></tr></thead><tbody>' + top.map((x) => '<tr><td class="pid">Nº ' + x.patient + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No data.</p>') +
+      '</section>' +
+    '</div>';
+  }
+
+  function decisionFor(rec) { return S.decisions.find((d) => d.recId === rec.id); }
+
+  function viewRecs() {
+    const ds = S.ds;
+    const head = '<div class="page-head"><div><h1>Recommendations</h1><p class="sub">From the data up to ' + esc(IC.dayLabel(ds.asOf)) + '. You decide. Each decision goes to the log and is checked against the next data import.</p></div></div>';
+    if (!S.recs.length) return head + '<div class="empty">Nothing needs a decision in this data.</div>';
+    return head + S.recs.map((r) => {
+      const d = decisionFor(r), open = S.open && S.open.recId === r.id ? S.open : null;
+      const now = IC.evalMetric(ds, r.metric);
+      let foot;
+      if (d) {
+        foot = '<p class="decided-line"><span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '') + ' · <button class="btn quiet" data-go="decisions">See in Decisions</button></p>';
+      } else if (open) {
+        foot = '<div class="form">' +
+          (open.mode === 'Modified' ? '<label>Your version of the action<textarea id="fAction" rows="3">' + esc(r.action) + '</textarea></label>' : '') +
+          (open.mode !== 'Rejected' ? '<div class="row"><label>Who is responsible<input id="fOwner" placeholder="e.g. Reception lead"></label><label>Check the result in<select id="fReview"><option value="14">2 weeks</option><option value="30" selected>1 month</option><option value="61">2 months</option></select></label></div>' : '') +
+          '<label>' + (open.mode === 'Rejected' ? 'Why not' : 'Note (optional)') + '<textarea id="fNote" rows="2"></textarea></label>' +
+          '<div class="actions"><button class="btn primary" data-save="' + esc(r.id) + '">' + (open.mode === 'Rejected' ? 'Save rejection' : 'Save decision') + '</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
+      } else {
+        foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">Accept</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">Change</button><button class="btn quiet" data-decide="Rejected" data-rec="' + esc(r.id) + '">Reject</button></div>';
+      }
+      const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>See the ' + r.metric.ids.length + ' patients</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
+      return '<article class="rec' + (d ? ' decided' : '') + '"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
+        '<dl><dt>Suggested action</dt><dd>' + esc(r.action) + '</dd><dt>Expected effect</dt><dd>' + esc(r.impact) + '</dd><dt>Measured by</dt><dd>' + esc(r.metric.label) + ': now <b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + ids + foot + '</article>';
+    }).join('');
+  }
+
+  function viewDecisions() {
+    const ds = S.ds, list = S.decisions.slice().sort((a, b) => String(b.decidedAt).localeCompare(String(a.decidedAt)));
+    const acc = list.filter((d) => d.decision !== 'Rejected'), rej = list.length - acc.length;
+    const reviewed = acc.filter((d) => d.outcome), worked = reviewed.filter((d) => d.outcome.verdict === 'Worked').length;
+    const head = '<div class="page-head"><div><h1>Decisions</h1><p class="sub">What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ' + esc(IC.dayLabel(ds.asOf)) + ').</p></div></div>';
+    const score = '<div class="score"><div><b>' + list.length + '</b><span>decisions</span></div><div><b>' + acc.length + '</b><span>accepted or changed</span></div><div><b>' + rej + '</b><span>rejected</span></div><div><b>' + reviewed.length + '</b><span>results recorded</span></div><div><b>' + worked + '</b><span>worked</span></div></div>';
+    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + '</p>';
+    if (!list.length) return head + score + '<div class="empty">No decisions yet. Decide on a recommendation to start the log.</div>' + where;
+    return head + score + list.map((d) => {
+      const now = IC.evalMetric(ds, d.metric);
+      const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
+      let change = '';
+      if (now != null && d.baseline && d.baseline.value) {
+        const ch = now / d.baseline.value - 1;
+        const good = Math.abs(ch) < 0.005 ? 'flat' : (ch < 0) === (d.metric.better === 'down') ? 'good' : 'bad';
+        change = '<span class="' + good + '">' + (Math.abs(ch) < 0.005 ? 'no change' : (ch > 0 ? '▲ ' : '▼ ') + Math.abs(ch * 100).toFixed(0) + '%') + '</span>';
+      }
+      const open = S.open && S.open.decId === d.id;
+      let foot = '';
+      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(d.outcome.verdict) + '</span> recorded with data up to ' + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
+      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>Did it work?<select id="fVerdict"><option>Worked</option><option>Partly</option><option>Did not work</option></select></label><label>What happened (optional)<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">Save result</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
+      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">Record result</button>' + (due ? '<span class="pill medium">Review due</span>' : '') + '</div>';
+      return '<article class="rec"><span class="kind">' + esc(KIND[d.kind] || d.kind) + '</span><h2>' + esc(d.title) + '</h2>' +
+        '<p class="decided-line"><span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '') + '</p>' +
+        '<dl><dt>' + (d.decision === 'Rejected' ? 'Proposed action' : 'Action') + '</dt><dd>' + esc(d.action) + '</dd>' + (d.note ? '<dt>' + (d.decision === 'Rejected' ? 'Reason' : 'Note') + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
+        (d.decision !== 'Rejected' ? '<dt>' + esc(d.metric.label) + '</dt><dd class="dec-metric"><span>At decision: <b>' + fmt(d.baseline && d.baseline.value, d.metric.fmt) + '</b></span><span>Now: <b>' + fmt(now, d.metric.fmt) + '</b></span>' + change + '</dd>' : '') + '</dl>' + foot + '</article>';
+    }).join('') + where;
+  }
+
+  function render() {
+    if (!S.ds) return;
+    pendingRender = false;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-current', t.dataset.tab === S.tab ? 'page' : 'false'));
+    const undecided = S.recs.filter((r) => !decisionFor(r)).length;
+    const b = $('#recBadge'); b.hidden = !undecided; b.textContent = undecided;
+    $('#view').innerHTML = S.tab === 'recs' ? viewRecs() : S.tab === 'decisions' ? viewDecisions() : viewOverview();
+  }
+
+  // ---------- Events ----------
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { S.tab = t.dataset.tab; S.open = null; render(); window.scrollTo(0, 0); }));
+  $('#view').addEventListener('click', async (e) => {
+    const t = e.target.closest('button, rect.b');
+    if (!t) return;
+    if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
+    if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
+    if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
+    if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); return; }
+    if (t.dataset.review) { S.open = { decId: t.dataset.review }; render(); return; }
+    if (t.dataset.cancel) { S.open = null; render(); return; }
+    if (t.dataset.save) {
+      const r = S.recs.find((x) => x.id === t.dataset.save); if (!r) return;
+      const mode = S.open.mode, note = ($('#fNote') || {}).value || '';
+      if (mode === 'Rejected' && !note.trim()) { $('#fNote').focus(); $('#fNote').placeholder = 'Please say why, so the recommendations can improve'; return; }
+      const days = Number(($('#fReview') || {}).value || 30);
+      const d = {
+        recId: r.id, kind: r.kind, title: r.title, decision: mode,
+        action: mode === 'Modified' ? ($('#fAction').value.trim() || r.action) : r.action,
+        note: note.trim(), owner: (($('#fOwner') || {}).value || '').trim(),
+        decidedOn: IC.iso(S.ds.asOf), reviewDay: IC.iso(S.ds.asOf + days), decidedAt: new Date().toISOString(),
+        metric: r.metric, baseline: { value: IC.evalMetric(S.ds, r.metric), asOf: IC.iso(S.ds.asOf) }, outcome: null, dataLabel: S.ds.label
+      };
+      t.disabled = true;
+      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+      return;
+    }
+    if (t.dataset.outcome) {
+      const d = S.decisions.find((x) => x.id === t.dataset.outcome); if (!d) return;
+      const patch = { outcome: { verdict: $('#fVerdict').value, note: $('#fOutNote').value.trim(), value: IC.evalMetric(S.ds, d.metric), asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
+      t.disabled = true;
+      try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+    }
+  });
+  function alertInline(el, msg) { const p = document.createElement('p'); p.className = 'note bad'; p.textContent = msg; el.parentNode.appendChild(p); }
+
+  // ---------- Import ----------
+  let parsed = null;
+  $('#importBtn').addEventListener('click', () => { $('#imp').hidden = false; });
+  $('#impClose').addEventListener('click', () => { $('#imp').hidden = true; });
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve();
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('The spreadsheet reader could not load.')); document.head.appendChild(s); });
+  }
+  $('#impFiles').addEventListener('change', async (e) => {
+    const out = $('#impResult'); $('#impUse').hidden = true; parsed = null;
+    const files = Array.from(e.target.files || []); if (!files.length) return;
+    out.innerHTML = '<p class="sub">Reading…</p>';
+    try {
+      await loadXlsx();
+      const tables = [], skipped = [];
+      for (const f of files) {
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+        for (const name of wb.SheetNames) {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: true });
+          const kind = rows.length ? IC.detect(Object.keys(rows[0])) : null;
+          if (kind) tables.push({ kind, rows, from: f.name + (wb.SheetNames.length > 1 ? ' · ' + name : '') }); else skipped.push(f.name + (wb.SheetNames.length > 1 ? ' · ' + name : ''));
+        }
+      }
+      const names = { appts: 'Appointments', lines: 'Treatments', pays: 'Payments', patients: 'Patients' };
+      const ds = IC.fromTables(tables, 'Imported from ' + files.map((f) => f.name).join(', '));
+      parsed = ds;
+      out.innerHTML = '<ul>' + tables.map((t) => '<li>' + esc(names[t.kind]) + ': ' + t.rows.length + ' rows from ' + esc(t.from) + '</li>').join('') + skipped.map((s) => '<li class="bad">Not recognised: ' + esc(s) + '</li>').join('') + '</ul>' +
+        '<p class="sub">Data up to ' + esc(IC.dayLabel(ds.asOf)) + '.</p>' + (ds.warnings || []).map((w) => '<p class="note bad">' + esc(w) + '</p>').join('');
+      $('#impUse').hidden = false;
+    } catch (err) {
+      out.innerHTML = '<p class="bad">' + esc(err && err.message ? err.message : 'The files could not be read.') + '</p>';
+    }
+  });
+  $('#impUse').addEventListener('click', () => {
+    if (!parsed) return;
+    S.imported = parsed; fillDataSelect(); $('#dataSel').value = 'imp'; $('#imp').hidden = true; setDataset(parsed);
+  });
+
+  // ---------- Assistant ----------
+  const SUGGEST = ['Why did production change this month?', 'Which patients should reception call first?', 'Where are we losing visits?'];
+  const monthArg = (m) => { if (!m) return S.k; const x = String(m).match(/^(\d{4})-(\d{1,2})/); if (!x) return S.k; return Math.min(S.ds.lastMonth, Number(x[1]) * 12 + Number(x[2]) - 1); };
+  const round = (o) => JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v));
+  const TOOLS = [
+    { name: 'get_overview', description: 'Headline figures for one month: production, collections, unearned revenue (paid, not yet done) and patients holding it, done-but-unpaid, first visits and 6-month average, visits and lost visits (no-shows, cancelled without a new date, cancelled and rebooked), with previous-month and last-year comparisons.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM. Defaults to the month on screen.' } } }, execute: (i) => round(IC.overview(S.ds, monthArg(i && i.month))) },
+    { name: 'get_monthly_series', description: 'A metric month by month, ending at the latest complete month.', inputSchema: { type: 'object', properties: { metric: { type: 'string', enum: ['production', 'collections', 'first_visits', 'lost_rate'] }, months: { type: 'integer', minimum: 2, maximum: 36 } }, required: ['metric'] }, execute: (i) => round(IC.series(S.ds, i.metric, i.months || 12).map((r) => ({ month: r.month, value: r.value }))) },
+    { name: 'get_production_by_room', description: 'Production per treatment room (gabinete) for one month, with the average of the six months before.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' } } }, execute: (i) => { const k = monthArg(i && i.month); return round(S.ds.cabs.map((c) => ({ room: c, production: IC.production(S.ds, k, c), averagePrior6Months: [1, 2, 3, 4, 5, 6].reduce((a, j) => a + IC.production(S.ds, k - j, c), 0) / 6 }))); } },
+    { name: 'get_treatment_mix', description: 'Treatments done, by number and value, over one or more months ending at the given month.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' }, months: { type: 'integer', minimum: 1, maximum: 12 } } }, execute: (i) => { const k = monthArg(i && i.month); return round(IC.treatmentMix(S.ds, k - ((i && i.months) || 1) + 1, k).slice(0, 15)); } },
+    { name: 'get_lost_visits_breakdown', description: 'Lost-visit rate by weekday or by professional over the last N months ending at the month on screen.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['weekday', 'professional'] }, months: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['by'] }, execute: (i) => { const n = i.months || 3; const rows = i.by === 'professional' ? IC.lostByProfessional(S.ds, S.k - n + 1, S.k) : IC.lostByWeekday(S.ds, S.k - n + 1, S.k); return round(rows.map((r) => ({ group: r.weekday || r.professional, appointments: r.total, lost: r.lost, lostRate: r.lostRate, noShows: r.noShow, cancelledNoNewDate: r.cancelled }))); } },
+    { name: 'get_top_patients', description: 'Patients (by number) with the most treatment done in the 12 months to the month on screen.', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 25 } } }, execute: (i) => round(IC.topPatients(S.ds, S.k - 11, S.k, (i && i.n) || 10)) },
+    { name: 'get_risk', description: 'Patients with accepted, unfinished treatment ranked by expected loss, the model quality check, and dormant plans (no activity for over a year).', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 30 } } }, execute: (i) => { const high = S.risk.filter((r) => r.tier === 'High'); const m = S.model; return round({ patientsScored: S.risk.length, highRisk: high.length, highRiskPending: high.reduce((a, r) => a + r.pending, 0), highRiskPrepaid: high.reduce((a, r) => a + r.prepaid, 0), dormant: S.dormant, model: m ? { aucModel: m.aucModel, aucSimpleRule: m.aucRule, stallRateAllPatients: m.baseRate, stallRateTop20pct: m.precisionTop20Model, testedOn: m.testRows, testDate: m.testDate } : null, top: S.risk.slice(0, (i && i.n) || 10).map((r) => ({ patient: r.patient, probability: r.probability, pending: r.pending, prepaid: r.prepaid, daysSinceVisit: r.daysSinceVisit, appointmentBooked: r.booked, reasons: r.reasons })) }); } },
+    { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: r.metric.label, decision: d ? d.decision : 'Not decided yet' }; }) },
+    { name: 'get_decisions', description: 'The decision log: decisions taken, owners, review dates, metric at decision and now, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(S.decisions.map((d) => ({ title: d.title, decision: d.decision, action: d.action, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: d.metric.label, atDecision: d.baseline && d.baseline.value, now: IC.evalMetric(S.ds, d.metric), result: d.outcome ? d.outcome.verdict : null }))) },
+    { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
+  ];
+  function instructions() {
+    return 'You are the analysis assistant inside the management app of Innovación Clínica, a dental clinic in Valdepeñas (Spain). You talk to the clinic\'s managers.\n' +
+      'Rules:\n- Get every figure from the tools. Never estimate, compute new totals from memory, or invent numbers. If the tools cannot answer, say so.\n' +
+      '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
+      '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number. Never ask for or guess personal data.\n' +
+      '- Answer in the language of the question. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
+      'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
+  }
+  function md(t) {
+    const lines = esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').split(/\n/);
+    let html = '', inList = false;
+    for (const l of lines) {
+      const m = l.match(/^\s*[-*•]\s+(.*)/);
+      if (m) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + m[1] + '</li>'; continue; }
+      if (inList) { html += '</ul>'; inList = false; }
+      if (l.trim()) html += '<p>' + l + '</p>';
+    }
+    return html + (inList ? '</ul>' : '');
+  }
+  function addMsg(role, text) {
+    const el = document.createElement('div'); el.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    if (role === 'user') el.textContent = text; else el.innerHTML = md(text);
+    $('#chatLog').appendChild(el); $('#chatLog').scrollTop = $('#chatLog').scrollHeight; return el;
+  }
+  let samplePromise = null;
+  const getSample = () => { if (!samplePromise) samplePromise = window.claude && window.claude.use ? window.claude.use('sample').catch(() => null) : Promise.resolve(null); return samplePromise; };
+  async function ask(q) {
+    if (S.busy || !q.trim()) return;
+    S.busy = true; $('#chips').hidden = true;
+    addMsg('user', q);
+    const bubble = addMsg('bot', 'Looking at the data…');
+    const sample = await getSample();
+    if (!sample) { bubble.innerHTML = md('The assistant works when this app is opened on claude.ai.'); S.busy = false; return; }
+    const hist = S.chat.slice(-6).map((m) => (m.role === 'user' ? 'Manager: ' : 'Assistant: ') + m.text).join('\n');
+    const prompt = instructions() + (hist ? '\n\nConversation so far:\n' + hist : '') + '\n\nManager question: ' + q;
+    try {
+      const res = await sample(prompt, { tools: TOOLS, cache: false, onText: (u) => { if (u && u.text) { bubble.innerHTML = md(u.text); $('#chatLog').scrollTop = $('#chatLog').scrollHeight; } } });
+      const text = res && res.text ? res.text : 'No answer came back.';
+      bubble.innerHTML = md(text);
+      S.chat.push({ role: 'user', text: q }, { role: 'assistant', text });
+    } catch (err) {
+      const code = err && err.code;
+      bubble.innerHTML = md(code === 'not_granted' ? 'The assistant needs your permission to answer. Allow it when asked, or from the artifact\'s permissions menu.' : code === 'rate_limited' ? 'Too many questions in a short time. Wait a minute and ask again.' : 'The assistant could not answer: ' + ((err && err.message) || 'unknown error') + '.');
+    }
+    S.busy = false;
+  }
+  $('#askBtn').addEventListener('click', () => {
+    const c = $('#chat'); c.hidden = !c.hidden;
+    if (!c.hidden) {
+      if (!$('#chatLog').children.length) addMsg('bot', 'Ask about any figure in the app. I read the same calculations you see and can explain them, compare periods or suggest a decision.');
+      $('#chips').innerHTML = SUGGEST.map((s) => '<button class="chip" type="button">' + esc(s) + '</button>').join('');
+      $('#chatIn').focus();
+    }
+  });
+  $('#chatClose').addEventListener('click', () => { $('#chat').hidden = true; });
+  $('#chips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) ask(b.textContent); });
+  $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const q = $('#chatIn').value; $('#chatIn').value = ''; ask(q); });
+  $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#chat').hidden = true; $('#imp').hidden = true; } });
+
+  // ---------- Start ----------
+  fillDataSelect();
+  useSample(0);
+  Store.init().then(() => { if (!S.open) render(); });
+})();
+</script>

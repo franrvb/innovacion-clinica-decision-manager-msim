@@ -1,0 +1,9 @@
+# Never commit real clinic data
+*.xlsx
+*.xls
+*.csv
+exports/
+
+node_modules/
+.DS_Store
+Thumbs.db
