@@ -193,7 +193,8 @@
   }
 
   // Cut the simulated history at an export date, as an MN export would see it.
-  function snapshot(full, asOf, label) {
+  // decisions (optional): call results recorded in the app; the simulation lets booked patients come back.
+  function snapshot(full, asOf, label, decisions) {
     const H = asOf + 150;
     const ds = {
       source: 'sample', label: label || 'Sample data', asOf,
@@ -202,7 +203,30 @@
       lines: full.lines.filter((l) => l.accept <= asOf).map((l) => (l.done != null && l.done > asOf ? Object.assign({}, l, { status: 'Pendiente', done: null, prof: null, cab: null }) : l)),
       pays: full.pays.filter((p) => p.day <= asOf)
     };
+    ds.simulatedCalls = simulateCallEffects(ds, decisions);
     return prepare(ds);
+  }
+  // Sample data only: a patient whose call ended in "Booked" gets an appointment 7–20 days later and,
+  // in 75% of cases, attends it and completes the next pending treatment. Other call results change nothing.
+  function simulateCallEffects(ds, decisions) {
+    let n = 0;
+    for (const d of decisions || []) {
+      if (d.kind !== 'risk' || !d.calls || d.decision === 'Rejected') continue;
+      const d0 = fromIso(d.decidedOn);
+      for (const [id, c] of Object.entries(d.calls)) {
+        if (!c || c.result !== 'Booked') continue;
+        const pid = Number(id), r = rng(pid * 7919 + d0);
+        const day = d0 + 7 + Math.floor(r() * 14), attends = r() < 0.75;
+        const idx = ds.lines.findIndex((l) => l.pid === pid && l.done == null && l.status === 'Pendiente' && l.accept <= d0);
+        if (idx < 0) continue;
+        const L = ds.lines[idx];
+        if (day > ds.asOf) { ds.appts.push({ pid, day, prof: 'Dr. Sol', cab: 'Gabinete 2', desc: L.name, type: 'Tratamiento', status: ST.FUTURE }); n++; continue; }
+        ds.appts.push({ pid, day, prof: 'Dr. Sol', cab: 'Gabinete 2', desc: L.name, type: 'Tratamiento', status: attends ? ST.DONE : ST.NOSHOW });
+        if (attends) ds.lines[idx] = Object.assign({}, L, { status: 'Realizado', done: day, prof: 'Dr. Sol', cab: 'Gabinete 2' });
+        n++;
+      }
+    }
+    return n;
   }
 
   // Index by patient; sort by day.
@@ -307,8 +331,9 @@
   }
 
   // ---------- Risk model: probability that a patient with accepted, unfinished treatment does not progress within 90 days ----------
-  const FEATURES = ['Days since last attended visit', 'Appointment booked in next 3 weeks', 'Lost visits in last 12 months', 'Share of plan already done', 'Treatment financed', 'Size of pending treatment'];
-  function features(x, S) {
+  const FEATURES = ['Days since last attended visit', 'Appointment booked in next 3 weeks', 'Lost visits in last 12 months', 'Share of plan already done', 'Treatment financed', 'Size of pending treatment', 'Called by the clinic in the last 30 days'];
+  // cdays: days on which the clinic called this patient (from call outcomes in the decision log)
+  function features(x, S, cdays) {
     let pending = 0, done = 0, paid = 0, fin = false, lastAtt = -1, lost12 = 0, future = false, nextDay = null, lastAccept = -1;
     for (const l of x.lines) {
       if (l.accept > S) continue;
@@ -321,41 +346,44 @@
       else if (a.day <= S + 21) { future = true; if (nextDay == null) nextDay = a.day; }
     }
     for (const p of x.pays) if (p.day <= S) { paid += p.amount; if (p.method === 'Financiación') fin = true; }
+    const contacted = !!(cdays && cdays.some((d) => d <= S && d > S - 30));
     const days = lastAtt < 0 ? 365 : Math.min(365, S - lastAtt);
     // Dormant: no attended visit and no newly accepted treatment for 12 months. Reported apart, not scored.
     const dormant = !future && (lastAtt < 0 || S - lastAtt > 365) && S - lastAccept > 365;
     return {
       dormant,
-      v: [days / 365, future ? 1 : 0, Math.min(lost12, 5) / 5, done / (done + pending), fin ? 1 : 0, Math.log10(pending) / 4],
-      pending, done, paid, prepaid: Math.max(0, paid - done), days, future, lost12, fin, nextDay
+      v: [days / 365, future ? 1 : 0, Math.min(lost12, 5) / 5, done / (done + pending), fin ? 1 : 0, Math.log10(pending) / 4, contacted ? 1 : 0],
+      pending, done, paid, prepaid: Math.max(0, paid - done), days, future, lost12, fin, nextDay, contacted
     };
   }
   const sigmoid = (z) => 1 / (1 + Math.exp(-z));
   function auc(scores, labels) {
     const idx = scores.map((s, i) => i).sort((a, b) => scores[a] - scores[b]);
-    let rank = 0, sumPos = 0, nPos = 0, nNeg = 0;
+    let sumPos = 0, nPos = 0, nNeg = 0;
     for (let i = 0; i < idx.length;) {
       let j = i; while (j < idx.length && scores[idx[j]] === scores[idx[i]]) j++;
       const avgRank = (i + j + 1) / 2;
       for (let t = i; t < j; t++) if (labels[idx[t]]) { sumPos += avgRank; nPos++; } else nNeg++;
-      rank = j; i = j;
+      i = j;
     }
     return nPos && nNeg ? (sumPos - nPos * (nPos + 1) / 2) / (nPos * nNeg) : 0.5;
   }
+  // The simple non-AI alternative: no appointment booked and no visit in 60 days.
   const ruleScore = (f) => (!f.future && f.days > 60 ? 1 : 0);
-  function trainRisk(ds) {
+  // contacts: Map patient -> [days called]. Retrained on every import and whenever call outcomes change.
+  function trainRisk(ds, contacts) {
     const rows = [];
     for (let j = 0; j <= 12; j++) {
       const S = ds.asOf - 90 - 30 * j;
-      ds.by.forEach((x) => {
-        const f = features(x, S); if (!f || f.dormant) return;
+      ds.by.forEach((x, pid) => {
+        const f = features(x, S, contacts && contacts.get(pid)); if (!f || f.dormant) return;
         let y = 1; for (const l of x.lines) if (l.done != null && l.done > S && l.done <= S + 90) { y = 0; break; }
         rows.push({ j, f, y });
       });
     }
     const train = rows.filter((r) => r.j >= 1), test = rows.filter((r) => r.j === 0);
     const w = new Array(FEATURES.length + 1).fill(0);
-    if (train.length < 50) return null;
+    if (train.length < 50 || !test.length) return null;
     const lr = 0.8, l2 = 0.001, n = train.length;
     for (let it = 0; it < 600; it++) {
       const g = new Array(w.length).fill(0);
@@ -371,12 +399,23 @@
     const topN = Math.max(1, Math.round(test.length * 0.2));
     const top = ps.map((p, i) => [p, ys[i]]).sort((a, b) => b[0] - a[0]).slice(0, topN);
     const ruleFlag = test.filter((r) => ruleScore(r.f) === 1);
+    // Rule probabilities, estimated from the training period, used if the model does not beat the rule.
+    const trFlag = train.filter((r) => ruleScore(r.f) === 1), trOther = train.filter((r) => ruleScore(r.f) === 0);
+    const ruleRates = { flagged: trFlag.length ? avg(trFlag.map((r) => r.y)) : 0.7, other: trOther.length ? avg(trOther.map((r) => r.y)) : 0.2 };
+    const aucModel = auc(ps, ys), aucRule = auc(rs, ys);
+    const useRule = aucModel <= aucRule;
+    const score = (f) => (useRule ? (ruleScore(f) ? ruleRates.flagged : ruleRates.other) : predict(f));
+    // Calls made: share of training cases that had a recent call, and what the model learned about them.
+    const contactedRows = train.filter((r) => r.f.contacted);
     return {
-      weights: w, predict,
+      weights: w, predict, score, useRule, ruleRates,
       trainRows: train.length, testRows: test.length, testDate: iso(ds.asOf - 90),
-      aucModel: auc(ps, ys), aucRule: auc(rs, ys), baseRate: base,
+      aucModel, aucRule, baseRate: base,
       precisionTop20Model: avg(top.map((t) => t[1])),
-      precisionRule: ruleFlag.length ? avg(ruleFlag.map((r) => r.y)) : 0, ruleFlagShare: test.length ? ruleFlag.length / test.length : 0
+      precisionRule: ruleFlag.length ? avg(ruleFlag.map((r) => r.y)) : 0, ruleFlagShare: test.length ? ruleFlag.length / test.length : 0,
+      // Calibration on the held-out month: does the average predicted risk match what happened?
+      calibration: { predictedMean: avg(ps), observedRate: base, predictedTop20: avg(top.map((t) => t[0])), observedTop20: avg(top.map((t) => t[1])) },
+      calls: { trainingCases: contactedRows.length, stallRateCalled: contactedRows.length ? avg(contactedRows.map((r) => r.y)) : null, weight: w[7] }
     };
   }
   function dormantPlans(ds) {
@@ -384,38 +423,118 @@
     ds.by.forEach((x) => { const f = features(x, ds.asOf); if (f && f.dormant) { o.patients++; o.pending += f.pending; o.prepaid += f.prepaid; } });
     return o;
   }
-  function riskList(ds, model) {
+  function riskList(ds, model, contacts) {
     const out = [];
     ds.by.forEach((x, pid) => {
-      const f = features(x, ds.asOf); if (!f || f.dormant) return;
-      const p = model ? model.predict(f) : (ruleScore(f) ? 0.7 : 0.2);
+      const f = features(x, ds.asOf, contacts && contacts.get(pid)); if (!f || f.dormant) return;
+      const p = model ? model.score(f) : (ruleScore(f) ? 0.7 : 0.2);
       const reasons = [];
       if (!f.future) reasons.push('No appointment booked');
       if (f.days > 60) reasons.push(f.days >= 365 ? 'No visit in over a year' : 'No visit in ' + f.days + ' days');
       if (f.lost12 >= 2) reasons.push(f.lost12 + ' missed or cancelled visits this year');
       if (f.done / (f.done + f.pending) < 0.25) reasons.push('Less than a quarter of the plan done');
       if (f.fin) reasons.push('Financed treatment');
-      out.push({ patient: pid, probability: p, tier: p >= 0.6 ? 'High' : p >= 0.3 ? 'Medium' : 'Low', pending: f.pending, prepaid: f.prepaid, daysSinceVisit: f.days, booked: f.future, lostVisits12m: f.lost12, expectedLoss: p * f.pending, reasons });
+      if (f.contacted) reasons.push('Called in the last 30 days');
+      out.push({ patient: pid, probability: p, tier: p >= 0.6 ? 'High' : p >= 0.3 ? 'Medium' : 'Low', pending: f.pending, prepaid: f.prepaid, daysSinceVisit: f.days, booked: f.future, lostVisits12m: f.lost12, contacted: f.contacted, expectedLoss: p * f.pending, reasons });
     });
     return out.sort((a, b) => b.expectedLoss - a.expectedLoss);
+  }
+
+  // ---------- Learning from the decision log ----------
+  const CALLED = ['Booked', 'Declined', 'No answer'];
+  // Days on which each patient was called, taken from call outcomes recorded on follow-up decisions.
+  function contactsFrom(decisions) {
+    const m = new Map();
+    for (const d of decisions || []) {
+      if (d.kind !== 'risk' || !d.calls) continue;
+      const day = fromIso(d.decidedOn);
+      for (const [id, c] of Object.entries(d.calls)) {
+        if (!c || !CALLED.includes(c.result)) continue;
+        const pid = Number(id), cd = c.day ? fromIso(c.day) : day;
+        if (!m.has(pid)) m.set(pid, []);
+        m.get(pid).push(cd);
+      }
+    }
+    return m;
+  }
+  const progressedSince = (ds, pid, d0) => { const x = ds.by.get(pid); return !!(x && x.lines.some((l) => l.done != null && l.done > d0 && l.done <= ds.asOf)); };
+  // Turns the decision log into what the next recommendations use: track record per kind and
+  // the measured response of patients on follow-up call lists.
+  function learnFromDecisions(ds, decisions) {
+    const byKind = {};
+    const fu = { decisions: 0, observed: 0, continued: 0, callsRecorded: 0, booked: 0, reached: { n: 0, continued: 0 }, notReached: { n: 0, continued: 0 } };
+    for (const d of decisions || []) {
+      const s = byKind[d.kind] || (byKind[d.kind] = { decided: 0, accepted: 0, rejected: 0, reviewed: 0, worked: 0, partly: 0, improvements: [] });
+      s.decided++;
+      if (d.decision === 'Rejected') { s.rejected++; continue; }
+      s.accepted++;
+      if (d.outcome) {
+        s.reviewed++;
+        if (d.outcome.verdict === 'Worked') s.worked++; else if (d.outcome.verdict === 'Partly') s.partly++;
+        if (d.baseline && d.baseline.value) s.improvements.push((d.outcome.value - d.baseline.value) / d.baseline.value * (d.metric.better === 'down' ? -1 : 1));
+      }
+      if (d.kind === 'risk' && d.metric && d.metric.ids) {
+        const d0 = fromIso(d.decidedOn), mature = ds.asOf >= d0 + 28;
+        fu.decisions++;
+        for (const pid of d.metric.ids) {
+          const c = d.calls && d.calls[pid];
+          if (c && CALLED.includes(c.result)) { fu.callsRecorded++; if (c.result === 'Booked') fu.booked++; }
+          if (!mature) continue;
+          const prog = progressedSince(ds, pid, d0);
+          fu.observed++; if (prog) fu.continued++;
+          if (c && (c.result === 'Booked' || c.result === 'Declined')) { fu.reached.n++; if (prog) fu.reached.continued++; }
+          else if (c && c.result === 'No answer') { fu.notReached.n++; if (prog) fu.notReached.continued++; }
+        }
+      }
+    }
+    for (const k in byKind) {
+      const s = byKind[k];
+      s.avgImprovement = s.improvements.length ? avg(s.improvements) : null;
+      s.successRate = s.reviewed ? (s.worked + 0.5 * s.partly) / s.reviewed : null;
+      s.rejectionRate = s.decided ? s.rejected / s.decided : 0;
+    }
+    fu.continuedRate = fu.observed ? fu.continued / fu.observed : null;
+    fu.bookedRate = fu.callsRecorded ? fu.booked / fu.callsRecorded : null;
+    fu.reachedRate = fu.reached.n ? fu.reached.continued / fu.reached.n : null;
+    fu.notReachedRate = fu.notReached.n ? fu.notReached.continued / fu.notReached.n : null;
+    return { byKind, followUp: fu };
+  }
+  // Predicted vs observed for the patients on a follow-up decision (model monitoring).
+  function followUpCheck(ds, d) {
+    if (!d.predictions || !d.predictions.length) return null;
+    const d0 = fromIso(d.decidedOn);
+    let stalled = 0;
+    for (const p of d.predictions) if (!progressedSince(ds, p.id, d0)) stalled++;
+    return { patients: d.predictions.length, predictedStall: d.predictions.reduce((a, p) => a + p.p, 0), observedStall: stalled, daysElapsed: ds.asOf - d0, complete: ds.asOf - d0 >= 90 };
   }
 
   // ---------- Recommendations (rules over KPIs and model output) ----------
   const eur = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Math.round(n));
   const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
-  function recommendations(ds, model, risk) {
+  function recommendations(ds, model, risk, learned) {
     const recs = [], k = ds.lastMonth, tag = iso(ds.asOf);
-    // 1. Unfinished, prepaid treatment at risk
-    const high = risk.filter((r) => r.tier === 'High');
+    const fu = learned && learned.followUp;
+    // 1. Unfinished, prepaid treatment at risk (patients called in the last 30 days are left out)
+    const high = risk.filter((r) => r.tier === 'High' && !r.contacted);
     if (high.length) {
       const top = high.slice().sort((a, b) => b.prepaid - a.prepaid || b.pending - a.pending).slice(0, 25);
       const prepaidTop = top.reduce((a, r) => a + r.prepaid, 0), pendingTop = top.reduce((a, r) => a + r.pending, 0);
+      // Expected effect: the clinic's own measured response once there is enough history, otherwise a stated assumption.
+      let rate = 1 / 3, impact;
+      if (fu && fu.observed >= 10) {
+        rate = fu.continuedRate;
+        impact = 'Measured on ' + fu.observed + ' patients from ' + fu.decisions + ' earlier follow-up decision' + (fu.decisions > 1 ? 's' : '') + ': ' + pct(rate) + ' continued their treatment afterwards. Applied to this list, about ' + eur(pendingTop * rate) + ' of treatment would be completed.';
+        if (fu.reachedRate != null && fu.notReachedRate != null) impact += ' Patients reached by phone continued in ' + pct(fu.reachedRate) + ' of cases, against ' + pct(fu.notReachedRate) + ' for those who did not answer.';
+      } else {
+        impact = 'If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption until the first follow-up decision has been reviewed; after that the app uses the measured rate.';
+      }
       recs.push({
         id: 'risk:' + tag, kind: 'risk', priority: 1,
         title: 'Call ' + top.length + ' patients who are likely to abandon their treatment',
-        evidence: high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days. The ' + top.length + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
-        action: 'Reception calls these ' + top.length + ' patients this week, starting with those who paid most, and offers a date for their next session.',
-        impact: 'If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption to check at review.',
+        evidence: high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days' + (risk.some((r) => r.contacted) ? ', not counting patients already called in the last 30 days' : '') + '. The ' + top.length + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
+        action: 'Reception calls these ' + top.length + ' patients this week, starting with those who paid most, offers a date for their next session, and records each call result in the app.',
+        impact, expectedRate: rate,
+        predictions: top.map((r) => ({ id: r.patient, p: Math.round(r.probability * 1000) / 1000 })),
         metric: { type: 'prepaid_ids', ids: top.map((r) => r.patient), label: 'Paid but unfinished treatment of these ' + top.length + ' patients', fmt: 'eur', better: 'down' }
       });
     }
@@ -479,7 +598,17 @@
         metric: { type: 'receivable', label: 'Treatment done but not paid', fmt: 'eur', better: 'down' }
       });
     }
-    return recs.sort((a, b) => a.priority - b.priority);
+    // Order by track record: kinds whose past decisions worked rise, kinds usually rejected sink.
+    // Kinds with no reviewed decisions keep a neutral score, so the default priority decides.
+    const by = (learned && learned.byKind) || {};
+    for (const r of recs) {
+      const s = by[r.kind];
+      r.track = s ? { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement } : null;
+      let score = s && s.successRate != null ? s.successRate : 0.5;
+      if (s && s.decided >= 3 && s.rejectionRate >= 0.6) score -= 0.3;
+      r.score = score;
+    }
+    return recs.sort((a, b) => b.score - a.score || a.priority - b.priority);
   }
   function evalMetric(ds, m) {
     const k = ds.lastMonth;
@@ -492,7 +621,7 @@
   }
 
   // ---------- Import (MN Program / Excel exports) ----------
-  const norm = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const norm = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   function parseDay(v) {
     if (v == null || v === '') return null;
     if (v instanceof Date && !isNaN(v)) return dn(v.getFullYear(), v.getMonth() + 1, v.getDate());
@@ -578,13 +707,13 @@
     firstVisits: 'First visits: attended appointments of type "Primera visita" in the month.',
     lostVisits: 'Lost visits: no-shows plus cancellations without a new date, as a share of all appointments in the period. Cancellations with a new date (refijadas) are not lost.',
     cabinet: 'Production by treatment room: production of treatment done in each room (gabinete).',
-    risk: 'Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, and size of the pending treatment.'
+    risk: 'Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.'
   };
 
   const IC = {
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
-    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, recommendations, evalMetric, detect, fromTables, eur, pct
+    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, eur, pct
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);

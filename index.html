@@ -128,6 +128,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .score span { font-size: 12px; color: var(--ink-2); }
 .dec-metric { display: flex; gap: 8px 18px; flex-wrap: wrap; font-size: 14px; align-items: baseline; }
 .dec-metric b { font-variant-numeric: tabular-nums; }
+.learned { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; max-width: 85ch; }
+.call-sel { border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; background: var(--bg); }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 28px; color: var(--ink-2); text-align: center; }
 .note { font-size: 12px; color: var(--ink-2); }
 
@@ -233,20 +235,42 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     { asOf: IC.dn(2026, 12, 3), label: 'Sample · 3 Dec 2026' },
     { asOf: IC.dn(2027, 1, 4), label: 'Sample · 4 Jan 2027' }
   ];
-  const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, open: null, chat: [], busy: false };
+  const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false };
 
   // ---------- Data ----------
+  const SAMPLE_LABEL = 'Sample data (synthetic patients)';
+  // Decisions made on the data currently loaded (sample decisions never mix with imported data).
+  const relevant = () => S.decisions.filter((d) => (d.source || 'sample') === (S.ds ? S.ds.source : 'sample'));
+  const sampleSnapshot = (i) => IC.snapshot(S.full, SNAPS[i].asOf, SAMPLE_LABEL, S.decisions.filter((d) => (d.source || 'sample') === 'sample'));
   function useSample(i) {
     if (!S.full) S.full = IC.simulate();
-    setDataset(IC.snapshot(S.full, SNAPS[i].asOf, 'Sample data (synthetic patients)'));
+    S.sampleIdx = i;
+    setDataset(sampleSnapshot(i));
   }
   function setDataset(ds) {
     S.ds = ds; S.k = ds.lastMonth;
-    S.model = IC.trainRisk(ds);
-    S.risk = IC.riskList(ds, S.model);
-    S.dormant = IC.dormantPlans(ds);
-    S.recs = IC.recommendations(ds, S.model, S.risk);
-    render();
+    recompute(); render();
+  }
+  // The model layer: retrain the risk model (with call results as a feature), learn from the
+  // decision log, and regenerate the recommendations.
+  function recompute() {
+    const dec = relevant(), contacts = IC.contactsFrom(dec);
+    S.model = IC.trainRisk(S.ds, contacts);
+    S.risk = IC.riskList(S.ds, S.model, contacts);
+    S.dormant = IC.dormantPlans(S.ds);
+    S.learned = IC.learnFromDecisions(S.ds, dec);
+    S.recs = IC.recommendations(S.ds, S.model, S.risk, S.learned);
+  }
+  let changeTimer = null;
+  function decisionsChanged() {
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(() => {
+      if (!S.ds) return;
+      const k = S.k;
+      if (S.ds.source === 'sample' && S.full) S.ds = sampleSnapshot(S.sampleIdx);
+      S.k = Math.min(k, S.ds.lastMonth);
+      recompute(); renderSoon();
+    }, 400);
   }
   function fillDataSelect() {
     const sel = $('#dataSel');
@@ -276,16 +300,16 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         clearTimeout(timer);
         S.store = 'shared';
         S.decisions = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-        renderSoon();
-      }, () => { clearTimeout(timer); this.db = null; S.store = 'local'; this.loadLocal(); renderSoon(); });
+        decisionsChanged();
+      }, () => { clearTimeout(timer); this.db = null; S.store = 'local'; this.loadLocal(); decisionsChanged(); });
     },
     async add(d) {
       if (this.db) { await this.db.collection('decisions').add(d); return; }
-      d.id = 'l' + Date.now(); S.decisions.push(d); this.saveLocal();
+      d.id = 'l' + Date.now(); S.decisions.push(d); this.saveLocal(); decisionsChanged();
     },
     async update(id, patch) {
       if (this.db) { await this.db.collection('decisions').doc(id).update(patch); return; }
-      const d = S.decisions.find((x) => x.id === id); if (d) Object.assign(d, patch); this.saveLocal();
+      const d = S.decisions.find((x) => x.id === id); if (d) Object.assign(d, patch); this.saveLocal(); decisionsChanged();
     }
   };
   let pendingRender = false;
@@ -359,7 +383,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         '</tbody></table></div>' : '<p class="sub">No patients with unfinished treatment in the data.</p>') +
       '<p class="note">' + high.length + ' patients at high risk (60% or more) hold ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' of pending treatment, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' of it already paid.' +
         (S.dormant && S.dormant.patients ? ' Another ' + S.dormant.patients + ' patients have had no activity for over a year, with ' + eur(S.dormant.pending) + ' pending (' + eur(S.dormant.prepaid) + ' paid); they are not scored.' : '') + '</p>' +
-      (m ? '<details class="more"><summary>How the risk is calculated</summary><p>' + esc(IC.DEFINITIONS.risk) + '</p><p>Tested on ' + m.testRows + ' patients as of ' + esc(IC.dayLabel(IC.fromIso(m.testDate))) + ', after training on ' + m.trainRows + ' earlier cases. It ranks who stalls better than the simple rule "no appointment and no visit in 60 days" (AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' against ' + m.aucRule.toFixed(2).replace('.', ',') + '). Of the 20% of patients it rated riskiest, ' + Math.round(m.precisionTop20Model * 100) + '% did stall, against ' + Math.round(m.baseRate * 100) + '% of all patients.</p>' + (synthetic ? '<p>With sample data these figures describe the simulation, not the clinic.</p>' : '') + '</details>' : '') +
+      (m ? '<p class="note">' + (m.useRule ? 'Using the simple rule this month: the model did not rank patients better than the rule on the latest test.' : 'Risk model retrained on this data: it beats the simple rule (AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' against ' + m.aucRule.toFixed(2).replace('.', ',') + ').') + '</p>' +
+        '<details class="more"><summary>How the risk is calculated</summary><p>' + esc(IC.DEFINITIONS.risk) + '</p><p>Tested on ' + m.testRows + ' patients as of ' + esc(IC.dayLabel(IC.fromIso(m.testDate))) + ', after training on ' + m.trainRows + ' earlier cases. AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' for the model against ' + m.aucRule.toFixed(2).replace('.', ',') + ' for the rule. Of the 20% of patients it rated riskiest, ' + Math.round(m.precisionTop20Model * 100) + '% did stall, against ' + Math.round(m.baseRate * 100) + '% of all patients.</p>' +
+        '<p>Calibration on that month: average predicted risk ' + Math.round(m.calibration.predictedMean * 100) + '%, observed ' + Math.round(m.calibration.observedRate * 100) + '%. For the riskiest 20%: predicted ' + Math.round(m.calibration.predictedTop20 * 100) + '%, observed ' + Math.round(m.calibration.observedTop20 * 100) + '%.</p>' +
+        '<p>' + (m.calls.trainingCases ? 'Call results: ' + m.calls.trainingCases + ' training cases had a call in the 30 days before; ' + Math.round(m.calls.stallRateCalled * 100) + '% of them stalled.' : 'Call results recorded in the Decisions tab join the training data once 90 days have passed and the outcome is known.') + '</p>' +
+        (synthetic ? '<p>With sample data these figures describe the simulation, not the clinic.</p>' : '') + '</details>' : '') +
     '</section>' +
 
     '<div class="grid2">' +
@@ -379,19 +407,28 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     '</div>';
   }
 
-  function decisionFor(rec) { return S.decisions.find((d) => d.recId === rec.id); }
+  function decisionFor(rec) { return relevant().find((d) => d.recId === rec.id); }
+  const decisionLine = (d) => '<span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '');
+  function trackLine(t) {
+    if (!t) return '';
+    const parts = [t.decided + ' decided before'];
+    if (t.reviewed) parts.push(t.worked + ' of ' + t.reviewed + ' reviewed worked' + (t.partly ? ', ' + t.partly + ' partly' : ''));
+    if (t.rejected) parts.push(t.rejected + ' rejected');
+    return '<p class="note">Track record of this kind: ' + esc(parts.join(' · ')) + '.</p>';
+  }
 
   function viewRecs() {
     const ds = S.ds;
-    const head = '<div class="page-head"><div><h1>Recommendations</h1><p class="sub">From the data up to ' + esc(IC.dayLabel(ds.asOf)) + '. You decide. Each decision goes to the log and is checked against the next data import.</p></div></div>';
+    const head = '<div class="page-head"><div><h1>Recommendations</h1><p class="sub">From the data up to ' + esc(IC.dayLabel(ds.asOf)) + '. You decide. Each decision goes to the log and is checked against the next data import. Kinds of decision that worked before are listed first.</p></div></div>';
     if (!S.recs.length) return head + '<div class="empty">Nothing needs a decision in this data.</div>';
     return head + S.recs.map((r) => {
       const d = decisionFor(r), open = S.open && S.open.recId === r.id ? S.open : null;
+      if (d) {
+        return '<article class="rec decided"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(d.title) + '</h2><p class="decided-line">' + decisionLine(d) + ' · <button class="btn quiet" data-go="decisions">See in Decisions</button></p></article>';
+      }
       const now = IC.evalMetric(ds, r.metric);
       let foot;
-      if (d) {
-        foot = '<p class="decided-line"><span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '') + ' · <button class="btn quiet" data-go="decisions">See in Decisions</button></p>';
-      } else if (open) {
+      if (open) {
         foot = '<div class="form">' +
           (open.mode === 'Modified' ? '<label>Your version of the action<textarea id="fAction" rows="3">' + esc(r.action) + '</textarea></label>' : '') +
           (open.mode !== 'Rejected' ? '<div class="row"><label>Who is responsible<input id="fOwner" placeholder="e.g. Reception lead"></label><label>Check the result in<select id="fReview"><option value="14">2 weeks</option><option value="30" selected>1 month</option><option value="61">2 months</option></select></label></div>' : '') +
@@ -401,20 +438,50 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">Accept</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">Change</button><button class="btn quiet" data-decide="Rejected" data-rec="' + esc(r.id) + '">Reject</button></div>';
       }
       const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>See the ' + r.metric.ids.length + ' patients</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
-      return '<article class="rec' + (d ? ' decided' : '') + '"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
-        '<dl><dt>Suggested action</dt><dd>' + esc(r.action) + '</dd><dt>Expected effect</dt><dd>' + esc(r.impact) + '</dd><dt>Measured by</dt><dd>' + esc(r.metric.label) + ': now <b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + ids + foot + '</article>';
+      return '<article class="rec"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
+        '<dl><dt>Suggested action</dt><dd>' + esc(r.action) + '</dd><dt>Expected effect</dt><dd>' + esc(r.impact) + '</dd><dt>Measured by</dt><dd>' + esc(r.metric.label) + ': now <b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + trackLine(r.track) + ids + foot + '</article>';
     }).join('');
   }
 
+  // What the app has learned from the log so far (feeds the next recommendations).
+  function viewLearned() {
+    const fu = S.learned && S.learned.followUp, m = S.model, pc = (x) => Math.round(x * 100) + '%';
+    const items = [];
+    if (fu && fu.callsRecorded) items.push(fu.callsRecorded + ' call results recorded; ' + pc(fu.bookedRate) + ' ended in a booking.');
+    if (fu && fu.observed) {
+      let t = 'Of ' + fu.observed + ' patients on call lists at least four weeks ago, ' + pc(fu.continuedRate) + ' have continued their treatment. The next follow-up recommendation uses this rate.';
+      if (fu.reachedRate != null && fu.notReachedRate != null) t += ' Reached by phone: ' + pc(fu.reachedRate) + '. No answer: ' + pc(fu.notReachedRate) + '.';
+      items.push(t);
+    } else if (fu && fu.decisions) items.push('Follow-up results are measured four weeks after each call list; until then recommendations use a stated assumption.');
+    if (m) items.push(m.useRule ? 'Risk model: the simple rule is in use because the model did not beat it on the latest test.' : 'Risk model retrained on data up to ' + IC.dayLabel(S.ds.asOf) + (m.calls.trainingCases ? ', including ' + m.calls.trainingCases + ' cases with a recorded call.' : '. Call results join its training data once their 90-day outcome is known.'));
+    const kinds = S.learned ? Object.entries(S.learned.byKind).filter(([, s]) => s.reviewed) : [];
+    if (kinds.length) items.push('Recommendation order now reflects past results: ' + kinds.map(([k, s]) => (KIND[k] || k) + ' ' + s.worked + '/' + s.reviewed + ' worked').join(', ') + '.');
+    if (!items.length) return '';
+    return '<section class="card"><h2>What the app has learned</h2><ul class="learned">' + items.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></section>';
+  }
+
+  function callList(d) {
+    const preds = d.predictions || d.metric.ids.map((id) => ({ id, p: null }));
+    const calls = d.calls || {}, recorded = Object.values(calls).filter((c) => c && c.result).length;
+    const chk = IC.followUpCheck(S.ds, d);
+    const check = chk ? '<p class="note">Model check: it expected about ' + Math.round(chk.predictedStall) + ' of ' + chk.patients + ' patients not to continue within 90 days. ' + (chk.daysElapsed <= 0 ? 'Measured from the next import.' : (chk.complete ? 'After 90 days, ' : 'So far (' + chk.daysElapsed + ' days), ') + chk.observedStall + ' have not continued.') + '</p>' : '';
+    const opt = (v, cur) => '<option' + (v === cur ? ' selected' : '') + ' value="' + v + '">' + (v || '—') + '</option>';
+    return check + '<details class="more" data-calls="' + esc(d.id) + '"' + (S.openCalls.has(d.id) ? ' open' : '') + '><summary>Call list · ' + recorded + ' of ' + preds.length + ' results recorded</summary>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th>Risk at decision</th><th>Call result</th></tr></thead><tbody>' +
+      preds.map((p) => { const cur = calls[p.id] ? calls[p.id].result : ''; return '<tr><td class="pid">Nº ' + p.id + '</td><td>' + (p.p != null ? Math.round(p.p * 100) + '%' : '—') + '</td><td><select class="call-sel" aria-label="Call result for patient ' + p.id + '" data-dec="' + esc(d.id) + '" data-pid="' + p.id + '">' + ['', 'Booked', 'Declined', 'No answer'].map((v) => opt(v, cur)).join('') + '</select></td></tr>'; }).join('') +
+      '</tbody></table></div></details>';
+  }
+
   function viewDecisions() {
-    const ds = S.ds, list = S.decisions.slice().sort((a, b) => String(b.decidedAt).localeCompare(String(a.decidedAt)));
+    const ds = S.ds, all = relevant(), hidden = S.decisions.length - all.length;
+    const list = all.slice().sort((a, b) => String(b.decidedAt).localeCompare(String(a.decidedAt)));
     const acc = list.filter((d) => d.decision !== 'Rejected'), rej = list.length - acc.length;
     const reviewed = acc.filter((d) => d.outcome), worked = reviewed.filter((d) => d.outcome.verdict === 'Worked').length;
     const head = '<div class="page-head"><div><h1>Decisions</h1><p class="sub">What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ' + esc(IC.dayLabel(ds.asOf)) + ').</p></div></div>';
     const score = '<div class="score"><div><b>' + list.length + '</b><span>decisions</span></div><div><b>' + acc.length + '</b><span>accepted or changed</span></div><div><b>' + rej + '</b><span>rejected</span></div><div><b>' + reviewed.length + '</b><span>results recorded</span></div><div><b>' + worked + '</b><span>worked</span></div></div>';
-    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + '</p>';
+    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + (hidden ? ' ' + hidden + ' decisions taken on other data are not shown.' : '') + (ds.source === 'sample' ? ' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.' : '') + '</p>';
     if (!list.length) return head + score + '<div class="empty">No decisions yet. Decide on a recommendation to start the log.</div>' + where;
-    return head + score + list.map((d) => {
+    return head + score + viewLearned() + list.map((d) => {
       const now = IC.evalMetric(ds, d.metric);
       const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
       let change = '';
@@ -428,10 +495,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(d.outcome.verdict) + '</span> recorded with data up to ' + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
       else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>Did it work?<select id="fVerdict"><option>Worked</option><option>Partly</option><option>Did not work</option></select></label><label>What happened (optional)<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">Save result</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
       else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">Record result</button>' + (due ? '<span class="pill medium">Review due</span>' : '') + '</div>';
+      const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
       return '<article class="rec"><span class="kind">' + esc(KIND[d.kind] || d.kind) + '</span><h2>' + esc(d.title) + '</h2>' +
-        '<p class="decided-line"><span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '') + '</p>' +
+        '<p class="decided-line">' + decisionLine(d) + '</p>' +
         '<dl><dt>' + (d.decision === 'Rejected' ? 'Proposed action' : 'Action') + '</dt><dd>' + esc(d.action) + '</dd>' + (d.note ? '<dt>' + (d.decision === 'Rejected' ? 'Reason' : 'Note') + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
-        (d.decision !== 'Rejected' ? '<dt>' + esc(d.metric.label) + '</dt><dd class="dec-metric"><span>At decision: <b>' + fmt(d.baseline && d.baseline.value, d.metric.fmt) + '</b></span><span>Now: <b>' + fmt(now, d.metric.fmt) + '</b></span>' + change + '</dd>' : '') + '</dl>' + foot + '</article>';
+        (d.decision !== 'Rejected' ? '<dt>' + esc(d.metric.label) + '</dt><dd class="dec-metric"><span>At decision: <b>' + fmt(d.baseline && d.baseline.value, d.metric.fmt) + '</b></span><span>Now: <b>' + fmt(now, d.metric.fmt) + '</b></span>' + change + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
     }).join('') + where;
   }
 
@@ -465,7 +533,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         action: mode === 'Modified' ? ($('#fAction').value.trim() || r.action) : r.action,
         note: note.trim(), owner: (($('#fOwner') || {}).value || '').trim(),
         decidedOn: IC.iso(S.ds.asOf), reviewDay: IC.iso(S.ds.asOf + days), decidedAt: new Date().toISOString(),
-        metric: r.metric, baseline: { value: IC.evalMetric(S.ds, r.metric), asOf: IC.iso(S.ds.asOf) }, outcome: null, dataLabel: S.ds.label
+        metric: r.metric, baseline: { value: IC.evalMetric(S.ds, r.metric), asOf: IC.iso(S.ds.asOf) }, outcome: null, dataLabel: S.ds.label,
+        source: S.ds.source, expectedRate: r.expectedRate || null, predictions: r.predictions || null, calls: r.kind === 'risk' ? {} : null
       };
       t.disabled = true;
       try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
@@ -478,6 +547,20 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
     }
   });
+  // Call results on follow-up lists: one change saves one result.
+  $('#view').addEventListener('change', async (e) => {
+    const sel = e.target.closest('.call-sel'); if (!sel) return;
+    const d = S.decisions.find((x) => x.id === sel.dataset.dec); if (!d) return;
+    const calls = Object.assign({}, d.calls || {});
+    if (sel.value) calls[sel.dataset.pid] = { result: sel.value, day: IC.iso(S.ds.asOf) }; else delete calls[sel.dataset.pid];
+    sel.disabled = true;
+    try { await Store.update(d.id, { calls }); } catch (err) { alertInline(sel, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+    sel.disabled = false;
+  });
+  $('#view').addEventListener('toggle', (e) => {
+    const el = e.target; if (!el.dataset || !el.dataset.calls) return;
+    if (el.open) S.openCalls.add(el.dataset.calls); else S.openCalls.delete(el.dataset.calls);
+  }, true);
   function alertInline(el, msg) { const p = document.createElement('p'); p.className = 'note bad'; p.textContent = msg; el.parentNode.appendChild(p); }
 
   // ---------- Import ----------
@@ -531,7 +614,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     { name: 'get_top_patients', description: 'Patients (by number) with the most treatment done in the 12 months to the month on screen.', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 25 } } }, execute: (i) => round(IC.topPatients(S.ds, S.k - 11, S.k, (i && i.n) || 10)) },
     { name: 'get_risk', description: 'Patients with accepted, unfinished treatment ranked by expected loss, the model quality check, and dormant plans (no activity for over a year).', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 30 } } }, execute: (i) => { const high = S.risk.filter((r) => r.tier === 'High'); const m = S.model; return round({ patientsScored: S.risk.length, highRisk: high.length, highRiskPending: high.reduce((a, r) => a + r.pending, 0), highRiskPrepaid: high.reduce((a, r) => a + r.prepaid, 0), dormant: S.dormant, model: m ? { aucModel: m.aucModel, aucSimpleRule: m.aucRule, stallRateAllPatients: m.baseRate, stallRateTop20pct: m.precisionTop20Model, testedOn: m.testRows, testDate: m.testDate } : null, top: S.risk.slice(0, (i && i.n) || 10).map((r) => ({ patient: r.patient, probability: r.probability, pending: r.pending, prepaid: r.prepaid, daysSinceVisit: r.daysSinceVisit, appointmentBooked: r.booked, reasons: r.reasons })) }); } },
     { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: r.metric.label, decision: d ? d.decision : 'Not decided yet' }; }) },
-    { name: 'get_decisions', description: 'The decision log: decisions taken, owners, review dates, metric at decision and now, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(S.decisions.map((d) => ({ title: d.title, decision: d.decision, action: d.action, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: d.metric.label, atDecision: d.baseline && d.baseline.value, now: IC.evalMetric(S.ds, d.metric), result: d.outcome ? d.outcome.verdict : null }))) },
+    { name: 'get_decisions', description: 'The decision log: decisions taken, owners, review dates, metric at decision and now, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => ({ title: d.title, decision: d.decision, action: d.action, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: d.metric.label, atDecision: d.baseline && d.baseline.value, now: IC.evalMetric(S.ds, d.metric), result: d.outcome ? d.outcome.verdict : null }))) },
+    { name: 'get_learning', description: 'What the app has learned from the decision log: follow-up call results and how many called patients continued treatment, track record per recommendation kind, and whether the risk model or the simple rule is in use.', inputSchema: { type: 'object', properties: {} }, execute: () => { const m = S.model; return round({ followUp: S.learned && S.learned.followUp, byKind: S.learned && Object.fromEntries(Object.entries(S.learned.byKind).map(([k, s]) => [k, { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement }])), model: m ? { usingSimpleRule: m.useRule, aucModel: m.aucModel, aucRule: m.aucRule, calibration: m.calibration, trainingCasesWithCall: m.calls.trainingCases } : null }); } },
     { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
   ];
   function instructions() {
@@ -596,6 +680,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 
   // ---------- Start ----------
   fillDataSelect();
+  Store.loadLocal();
   useSample(0);
   Store.init().then(() => { if (!S.open) render(); });
 })();
