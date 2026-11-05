@@ -14,11 +14,20 @@
   const weekday = (n) => (toDate(n).getUTCDay() + 6) % 7; // 0 = Monday
   const iso = (n) => toDate(n).toISOString().slice(0, 10);
   const fromIso = (s) => { const [y, m, d] = s.split('-').map(Number); return dn(y, m, d); };
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  // ---------- Language: Spanish for the clinic (default), English for the course ----------
+  let LANG = 'es';
+  const L = (en, es) => (LANG === 'es' ? es : en);
+  const setLang = (l) => { LANG = l === 'en' ? 'en' : 'es'; };
+  const getLang = () => LANG;
+  const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const mkLabel = (k, short) => (short ? MONTHS[k % 12].slice(0, 3) : MONTHS[k % 12]) + (short ? '' : ' ' + Math.floor(k / 12));
-  const mkShortYear = (k) => MONTHS[k % 12].slice(0, 3) + ' ' + String(Math.floor(k / 12)).slice(2);
-  const dayLabel = (n) => { const t = toDate(n); return t.getUTCDate() + ' ' + MONTHS[t.getUTCMonth()].slice(0, 3) + ' ' + t.getUTCFullYear(); };
+  const WEEKDAYS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const months = () => (LANG === 'es' ? MONTHS_ES : MONTHS_EN);
+  const weekdayName = (w) => (LANG === 'es' ? WEEKDAYS_ES : WEEKDAYS)[w];
+  const mkLabel = (k, short) => (short ? months()[k % 12].slice(0, 3) : months()[k % 12]) + (short ? '' : ' ' + Math.floor(k / 12));
+  const mkShortYear = (k) => months()[k % 12].slice(0, 3) + ' ' + String(Math.floor(k / 12)).slice(2);
+  const dayLabel = (n) => { const t = toDate(n), m = months()[t.getUTCMonth()].slice(0, 3); return t.getUTCDate() + ' ' + (LANG === 'es' ? m.toLowerCase() : m) + ' ' + t.getUTCFullYear(); };
 
   function rng(seed) {
     let a = seed >>> 0;
@@ -31,11 +40,13 @@
   }
 
   // ---------- Status vocabulary (mirrors MN Program agenda states) ----------
+  // MN has these states, but reception today marks outcomes by colour instead: red "anula la consulta"
+  // (cancelled or no-show, not told apart) and green "actuación realizada". ANNULLED is that red mark.
   const ST = {
     DONE: 'Realizada', REBOOKED: 'Cancelada refijada', CANCEL: 'Cancelada no refijada',
-    NOSHOW: 'No llegó', FUTURE: 'Programada'
+    NOSHOW: 'No llegó', ANNULLED: 'Anulada', FUTURE: 'Programada'
   };
-  const isLost = (s) => s === ST.CANCEL || s === ST.NOSHOW;
+  const isLost = (s) => s === ST.CANCEL || s === ST.NOSHOW || s === ST.ANNULLED;
 
   // ---------- Sample clinic (synthetic, sized like Innovación Clínica: ~€75k/month, 4 rooms, 7 dentists, 4 hygienists) ----------
   const PROFS = {
@@ -275,12 +286,21 @@
     return s;
   }
   function collections(ds, k) { let s = 0; for (const p of ds.pays) if (inMonth(p.day, k)) s += p.amount; return s; }
-  // New patients: patient files opened in the month (MN "Fecha Alta"). Falls back to labelled first-visit
-  // appointments when the patient table has no registration dates.
+  // New patients: patient files opened in the month (MN "Fecha Alta"). Without registration dates, each
+  // patient's first first-visit appointment ("1 consulta" in MN) that was not marked lost. A patient with
+  // several first-visit entries counts once, in the month of the earliest; the accountant removes these
+  // repeats by hand in Excel today.
   function firstVisits(ds, k) {
     let n = 0;
     if (ds.hasPatientDates) { for (const p of ds.patients) if (inMonth(p.first, k)) n++; return n; }
-    for (const a of ds.appts) if (a.type === 'Primera visita' && a.status === ST.DONE && inMonth(a.day, k)) n++;
+    if (!ds.firstVisitDay) {
+      ds.firstVisitDay = new Map();
+      for (const a of ds.appts) {
+        if (a.type !== 'Primera visita' || a.day > ds.asOf || !(a.status === ST.DONE || a.status === ST.FUTURE)) continue;
+        const d = ds.firstVisitDay.get(a.pid); if (d == null || a.day < d) ds.firstVisitDay.set(a.pid, a.day);
+      }
+    }
+    ds.firstVisitDay.forEach((d) => { if (inMonth(d, k)) n++; });
     return n;
   }
   const isHygienist = (name) => /^hig/i.test(String(name || ''));
@@ -317,14 +337,19 @@
   // How much of what managers need is actually recorded in the loaded data (last three months).
   function dataQuality(ds) {
     const k1 = ds.lastMonth - 2, a0 = mkStart(k1), a1 = Math.min(mkEnd(ds.lastMonth), ds.asOf);
-    let past = 0, withOutcome = 0, cancelled = 0;
-    for (const a of ds.appts) { if (a.day < a0 || a.day > a1) continue; past++; if (a.status !== ST.FUTURE) withOutcome++; if (a.status === ST.CANCEL || a.status === ST.REBOOKED || a.status === ST.NOSHOW) cancelled++; }
+    let past = 0, withOutcome = 0, cancelled = 0, annulled = 0;
+    for (const a of ds.appts) {
+      if (a.day < a0 || a.day > a1) continue;
+      past++; if (a.status !== ST.FUTURE) withOutcome++;
+      if (a.status === ST.CANCEL || a.status === ST.REBOOKED || a.status === ST.NOSHOW || a.status === ST.ANNULLED) cancelled++;
+      if (a.status === ST.ANNULLED) annulled++;
+    }
     let lines = 0, withProf = 0, withCost = 0;
     for (const l of ds.lines) { if (l.done == null || l.done < a0 || l.done > a1) continue; lines++; if (l.prof) withProf++; if (l.cost != null) withCost++; }
-    return { appointments: past, outcomeRecorded: past ? withOutcome / past : null, cancellationsRecorded: cancelled, treatmentsDone: lines, professionalRecorded: lines ? withProf / lines : null, costRecorded: lines ? withCost / lines : null, patientDates: !!ds.hasPatientDates };
+    return { appointments: past, outcomeRecorded: past ? withOutcome / past : null, cancellationsRecorded: cancelled, lostWithoutReason: annulled, treatmentsDone: lines, professionalRecorded: lines ? withProf / lines : null, costRecorded: lines ? withCost / lines : null, patientDates: !!ds.hasPatientDates };
   }
   function visitStats(ds, k1, k2, filter) {
-    const o = { total: 0, done: 0, lost: 0, noShow: 0, cancelled: 0, rebooked: 0 };
+    const o = { total: 0, done: 0, lost: 0, noShow: 0, cancelled: 0, annulled: 0, rebooked: 0 };
     const a0 = mkStart(k1), a1 = mkEnd(k2);
     for (const a of ds.appts) {
       if (a.day < a0 || a.day > a1 || a.status === ST.FUTURE) continue;
@@ -333,13 +358,14 @@
       if (a.status === ST.DONE) o.done++;
       else if (a.status === ST.NOSHOW) { o.noShow++; o.lost++; }
       else if (a.status === ST.CANCEL) { o.cancelled++; o.lost++; }
+      else if (a.status === ST.ANNULLED) { o.annulled++; o.lost++; }
       else if (a.status === ST.REBOOKED) o.rebooked++;
     }
     o.lostRate = o.total ? o.lost / o.total : 0;
     return o;
   }
   function lostByWeekday(ds, k1, k2) {
-    return [0, 1, 2, 3, 4].map((w) => Object.assign({ weekday: WEEKDAYS[w], wd: w }, visitStats(ds, k1, k2, (a) => weekday(a.day) === w)));
+    return [0, 1, 2, 3, 4].map((w) => Object.assign({ weekday: weekdayName(w), wd: w }, visitStats(ds, k1, k2, (a) => weekday(a.day) === w)));
   }
   function lostByProfessional(ds, k1, k2) {
     const names = Array.from(new Set(ds.appts.map((a) => a.prof).filter(Boolean))).sort();
@@ -502,12 +528,12 @@
       const f = features(x, ds.asOf, contacts && contacts.get(pid)); if (!f || f.dormant) return;
       const p = model ? model.score(f) : (ruleScore(f) ? 0.7 : 0.2);
       const reasons = [];
-      if (!f.future) reasons.push('No appointment booked');
-      if (f.days > 60) reasons.push(f.days >= 365 ? 'No visit in over a year' : 'No visit in ' + f.days + ' days');
-      if (f.lost12 >= 2) reasons.push(f.lost12 + ' missed or cancelled visits this year');
-      if (f.done / (f.done + f.pending) < 0.25) reasons.push('Less than a quarter of the plan done');
-      if (f.fin) reasons.push('Financed treatment');
-      if (f.contacted) reasons.push('Called in the last 30 days');
+      if (!f.future) reasons.push(L('No appointment booked', 'Sin cita reservada'));
+      if (f.days > 60) reasons.push(f.days >= 365 ? L('No visit in over a year', 'Sin visita en más de un año') : L('No visit in ' + f.days + ' days', 'Sin visita en ' + f.days + ' días'));
+      if (f.lost12 >= 2) reasons.push(L(f.lost12 + ' missed or cancelled visits this year', f.lost12 + ' citas perdidas o anuladas este año'));
+      if (f.done / (f.done + f.pending) < 0.25) reasons.push(L('Less than a quarter of the plan done', 'Menos de un cuarto del plan hecho'));
+      if (f.fin) reasons.push(L('Financed treatment', 'Tratamiento financiado'));
+      if (f.contacted) reasons.push(L('Called in the last 30 days', 'Llamado en los últimos 30 días'));
       out.push({ patient: pid, probability: p, tier: p >= 0.6 ? 'High' : p >= 0.3 ? 'Medium' : 'Low', pending: f.pending, prepaid: f.prepaid, daysSinceVisit: f.days, booked: f.future, lostVisits12m: f.lost12, contacted: f.contacted, expectedLoss: p * f.pending, reasons });
     });
     return out.sort((a, b) => b.expectedLoss - a.expectedLoss);
@@ -595,28 +621,35 @@
   function recommendations(ds, model, risk, learned) {
     const recs = [], k = ds.lastMonth, tag = iso(ds.asOf);
     const fu = learned && learned.followUp;
+    const span = mkLabel(k - 2, true) + '–' + mkLabel(k, true);
     // 1. Unfinished, prepaid treatment at risk (patients called in the last 30 days are left out)
     const high = risk.filter((r) => r.tier === 'High' && !r.contacted);
     if (high.length) {
       const top = high.slice().sort((a, b) => b.prepaid - a.prepaid || b.pending - a.pending).slice(0, 25);
-      const prepaidTop = top.reduce((a, r) => a + r.prepaid, 0), pendingTop = top.reduce((a, r) => a + r.pending, 0);
+      const n = top.length, prepaidTop = top.reduce((a, r) => a + r.prepaid, 0), pendingTop = top.reduce((a, r) => a + r.pending, 0);
       // Expected effect: the clinic's own measured response once there is enough history, otherwise a stated assumption.
       let rate = 1 / 3, impact;
       if (fu && fu.observed >= 10) {
         rate = fu.continuedRate;
-        impact = 'Measured on ' + fu.observed + ' patients from ' + fu.decisions + ' earlier follow-up decision' + (fu.decisions > 1 ? 's' : '') + ': ' + pct(rate) + ' continued their treatment afterwards. Applied to this list, about ' + eur(pendingTop * rate) + ' of treatment would be completed.';
-        if (fu.reachedRate != null && fu.notReachedRate != null) impact += ' Patients reached by phone continued in ' + pct(fu.reachedRate) + ' of cases, against ' + pct(fu.notReachedRate) + ' for those who did not answer.';
+        impact = L('Measured on ' + fu.observed + ' patients from ' + fu.decisions + ' earlier follow-up decision' + (fu.decisions > 1 ? 's' : '') + ': ' + pct(rate) + ' continued their treatment afterwards. Applied to this list, about ' + eur(pendingTop * rate) + ' of treatment would be completed.',
+          'Medido en ' + fu.observed + ' pacientes de ' + fu.decisions + ' decisi' + (fu.decisions > 1 ? 'ones' : 'ón') + ' de seguimiento anteriores: el ' + pct(rate) + ' continuó su tratamiento después. Aplicado a esta lista, se completarían unos ' + eur(pendingTop * rate) + ' de tratamiento.');
+        if (fu.reachedRate != null && fu.notReachedRate != null) impact += L(' Patients reached by phone continued in ' + pct(fu.reachedRate) + ' of cases, against ' + pct(fu.notReachedRate) + ' for those who did not answer.', ' Los pacientes que contestaron continuaron en el ' + pct(fu.reachedRate) + ' de los casos, frente al ' + pct(fu.notReachedRate) + ' de los que no contestaron.');
       } else {
-        impact = 'If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption until the first follow-up decision has been reviewed; after that the app uses the measured rate.';
+        impact = L('If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption until the first follow-up decision has been reviewed; after that the app uses the measured rate.',
+          'Si uno de cada tres reserva y continúa, se completarían unos ' + eur(pendingTop / 3) + ' de tratamiento. Es una suposición hasta que se revise la primera decisión de seguimiento; a partir de entonces la app usa la tasa medida.');
       }
+      const metric = { type: 'prepaid_ids', ids: top.map((r) => r.patient), fmt: 'eur', better: 'down' };
+      metric.label = metricLabel(metric);
       recs.push({
         id: 'risk:' + tag, kind: 'risk', priority: 1,
-        title: 'Call ' + top.length + ' patients who are likely to abandon their treatment',
-        evidence: high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days' + (risk.some((r) => r.contacted) ? ', not counting patients already called in the last 30 days' : '') + '. The ' + top.length + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
-        action: 'Reception calls these ' + top.length + ' patients this week, starting with those who paid most, offers a date for their next session, and records each call result in the app.',
+        title: L('Call ' + n + ' patients who are likely to abandon their treatment', 'Llamar a ' + n + ' pacientes con riesgo de abandonar su tratamiento'),
+        evidence: L(high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days' + (risk.some((r) => r.contacted) ? ', not counting patients already called in the last 30 days' : '') + '. The ' + n + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
+          high.length + ' pacientes tienen un riesgo alto (60% o más) de no continuar su tratamiento en los próximos 90 días' + (risk.some((r) => r.contacted) ? ', sin contar los ya llamados en los últimos 30 días' : '') + '. Los ' + n + ' con más dinero en juego tienen ' + eur(pendingTop) + ' de tratamiento aceptado sin hacer, de los que ' + eur(prepaidTop) + ' ya están pagados.'),
+        action: L('Reception calls these ' + n + ' patients this week, starting with those who paid most, offers a date for their next session, and records each call result in the app.',
+          'Recepción llama a estos ' + n + ' pacientes esta semana, empezando por los que más han pagado, les ofrece fecha para la siguiente sesión y anota el resultado de cada llamada en la app.'),
         impact, expectedRate: rate,
         predictions: top.map((r) => ({ id: r.patient, p: Math.round(r.probability * 1000) / 1000 })),
-        metric: { type: 'prepaid_ids', ids: top.map((r) => r.patient), label: 'Paid but unfinished treatment of these ' + top.length + ' patients', fmt: 'eur', better: 'down' }
+        metric
       });
     }
     // 2. Marketing: new patients falling
@@ -626,13 +659,17 @@
       const firstDay = new Map(ds.patients.filter((p) => p.first != null && p.first >= mkStart(k - 13) && p.first <= mkEnd(k - 6)).map((p) => [p.id, p.first]));
       let val = 0; for (const l of ds.lines) { const f = firstDay.get(l.pid); if (f != null && l.accept <= f + 183) val += l.price; }
       const perPatient = firstDay.size ? val / firstDay.size : 0;
+      const metric = { type: 'new_patients', fmt: 'int', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'acq:' + tag, kind: 'acq', priority: 2,
-        title: 'New patients are falling',
-        evidence: firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
-        action: 'Check where new patients came from in the last months (referrals, reviews, website, insurers) and decide which channel to reinforce. Log the marketing action here with the number of new patients you expect.',
-        impact: 'Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
-        metric: { type: 'new_patients', label: 'New patients per month', fmt: 'int', better: 'up' }
+        title: L('New patients are falling', 'Bajan los pacientes nuevos'),
+        evidence: L(firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
+          firstVisits(ds, k) + ' pacientes nuevos en ' + mkLabel(k, true) + ' y ' + firstVisits(ds, k - 1) + ' en ' + mkLabel(k - 1, true) + ', frente a una media de ' + Math.round(fvPrior) + ' al mes en los seis meses anteriores (' + pct(fvRecent / fvPrior - 1) + ').'),
+        action: L('Ask every new patient how they found the clinic and record it, then reinforce the channel that brings most (Instagram giveaways have worked better than flyers). Log the marketing action here with the number of new patients you expect.',
+          'Preguntar a cada paciente nuevo cómo conoció la clínica y anotarlo, y reforzar el canal que más trae (los sorteos de Instagram han funcionado mejor que los folletos). Registrar aquí la acción de marketing con el número de pacientes nuevos que se espera.'),
+        impact: L('Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
+          'Cada paciente nuevo aceptó unos ' + eur(perPatient) + ' de tratamiento en sus seis primeros meses, así que ' + Math.round(fvPrior - fvRecent) + ' pacientes nuevos menos al mes son unos ' + eur((fvPrior - fvRecent) * perPatient) + ' de tratamiento futuro al mes.'),
+        metric
       });
     }
     // 3. Hiring and dentist performance
@@ -649,13 +686,16 @@
       }
     }
     if (worstDentist && worstDentist.ch <= -0.25) {
+      const w = worstDentist, metric = { type: 'dentist_production', prof: w.p, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
-        id: 'dentist:' + worstDentist.p + ':' + tag, kind: 'dentist', priority: 3,
-        title: worstDentist.p + ' is producing much less than usual',
-        evidence: worstDentist.p + ' produced ' + eur(worstDentist.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(worstDentist.prior) + ' a month in the six months before (' + pct(worstDentist.ch) + ').',
-        action: 'The CEO and owner-dentist review ' + worstDentist.p + "'s hours and patient flow and decide whether to change the rota or find cover for the lost hours.",
-        impact: 'Returning to the usual level would add about ' + eur(worstDentist.prior - worstDentist.recent) + ' of production a month.',
-        metric: { type: 'dentist_production', prof: worstDentist.p, label: 'Production of ' + worstDentist.p + ' per month', fmt: 'eur', better: 'up' }
+        id: 'dentist:' + w.p + ':' + tag, kind: 'dentist', priority: 3,
+        title: L(w.p + ' is producing much less than usual', w.p + ' está produciendo mucho menos de lo habitual'),
+        evidence: L(w.p + ' produced ' + eur(w.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(w.prior) + ' a month in the six months before (' + pct(w.ch) + ').',
+          w.p + ' produjo ' + eur(w.recent) + ' al mes en ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', frente a ' + eur(w.prior) + ' al mes en los seis meses anteriores (' + pct(w.ch) + ').'),
+        action: L('The CEO and owner-dentist review ' + w.p + "'s hours and patient flow and decide whether to change the rota or find cover for the lost hours.",
+          'La gerencia y la dirección clínica revisan las horas y el flujo de pacientes de ' + w.p + ' y deciden si cambiar el horario o cubrir las horas perdidas.'),
+        impact: L('Returning to the usual level would add about ' + eur(w.prior - w.recent) + ' of production a month.', 'Volver al nivel habitual sumaría unos ' + eur(w.prior - w.recent) + ' de producción al mes.'),
+        metric
       });
     }
     // A dentist who joined in the last 12 months: is the hire paying off?
@@ -666,13 +706,16 @@
       const own = avg(months.slice(-3));
       const others = dentists.filter((q) => q !== p).map((q) => avg([0, 1, 2].map((i) => production(ds, k - i, null, q))));
       const othersAvg = avg(others);
+      const metric = { type: 'dentist_production', prof: p, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'hire:' + p + ':' + tag, kind: 'dentist', priority: 3,
-        title: 'Review the new dentist: ' + p,
-        evidence: p + ' started in ' + mkLabel(mk(firstDone)) + '. In the last three months ' + p + ' produced ' + eur(own) + ' a month; the other dentists averaged ' + eur(othersAvg) + '.',
-        action: 'Compare this production with ' + p + "'s salary and hours, and decide whether to keep, extend or change the role. Log the decision with the production you expect.",
-        impact: 'Gives the hiring decision a measured result instead of perceived demand.',
-        metric: { type: 'dentist_production', prof: p, label: 'Production of ' + p + ' per month', fmt: 'eur', better: 'up' }
+        title: L('Review the new dentist: ' + p, 'Revisar la nueva contratación: ' + p),
+        evidence: L(p + ' started in ' + mkLabel(mk(firstDone)) + '. In the last three months ' + p + ' produced ' + eur(own) + ' a month; the other dentists averaged ' + eur(othersAvg) + '.',
+          p + ' empezó en ' + mkLabel(mk(firstDone)) + '. En los últimos tres meses produjo ' + eur(own) + ' al mes; el resto de odontólogos, ' + eur(othersAvg) + ' de media.'),
+        action: L('Compare this production with ' + p + "'s salary and hours, and decide whether to keep, extend or change the role. Log the decision with the production you expect.",
+          'Comparar esta producción con el sueldo y las horas de ' + p + ' y decidir si mantener, ampliar o cambiar el puesto. Registrar la decisión con la producción que se espera.'),
+        impact: L('Gives the hiring decision a measured result instead of perceived demand.', 'Da a la decisión de contratar un resultado medido en lugar de una demanda percibida.'),
+        metric
       });
     }
     // 4. Treatment lines to promote: high margin but falling volume
@@ -681,13 +724,17 @@
     const lostMargin = (x) => (x.productionLastYear - x.production) * x.marginPct;
     const cand = tl.filter((x) => x.change <= -0.1).sort((a, b) => lostMargin(b) - lostMargin(a))[0];
     if (cand) {
+      const metric = { type: 'line_production', line: cand.line, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'line:' + cand.line + ':' + tag, kind: 'line', priority: 4,
-        title: 'Consider promoting ' + cand.line,
-        evidence: cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
-        action: 'Decide whether to promote ' + cand.line + ' (an offer, financing campaign or coordinator follow-up of open quotes). Log it here with the production you expect.',
-        impact: 'Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
-        metric: { type: 'line_production', line: cand.line, label: cand.line + ' production per month', fmt: 'eur', better: 'up' }
+        title: L('Consider promoting ' + cand.line, 'Valorar impulsar ' + cand.line),
+        evidence: L(cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + span + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
+          cand.line + ' conserva el ' + pct(cand.marginPct) + ' de su precio tras materiales y laboratorio, pero su producción en ' + span + ' fue de ' + eur(cand.production) + ', un ' + pct(-cand.change) + ' menos que en los mismos meses del año pasado.'),
+        action: L('Decide how to promote ' + cand.line + ' to patients already in the clinic (financing, coordinator follow-up of open quotes). Flyer discounts have not brought new patients; offers work once the patient is inside. Log it here with the production you expect.',
+          'Decidir cómo impulsar ' + cand.line + ' entre los pacientes que ya vienen a la clínica (financiación, seguimiento de presupuestos abiertos). Los descuentos en folletos no han traído pacientes nuevos; las ofertas funcionan cuando el paciente ya está dentro. Registrarlo aquí con la producción que se espera.'),
+        impact: L('Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
+          'Recuperar el nivel del año pasado sumaría unos ' + eur((cand.productionLastYear - cand.production) / 3) + ' de producción al mes con un margen del ' + pct(cand.marginPct) + '.'),
+        metric
       });
     }
     // 5. Cost and margin: margin after materials and lab falling
@@ -700,13 +747,16 @@
         const now = avg([0, 1, 2].map((i) => costShare(k - i, cat)).filter((x) => x != null)), then = avg([12, 13, 14].map((i) => costShare(k - i, cat)).filter((x) => x != null));
         if (now && then && (!worstCat || now - then > worstCat.d)) worstCat = { cat, d: now - then, now, then };
       }
+      const metric = { type: 'margin_pct', fmt: 'pct', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'margin:' + tag, kind: 'margin', priority: 5,
-        title: 'Margin after materials and lab is falling',
-        evidence: 'Over ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
-        action: 'The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
-        impact: 'Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.',
-        metric: { type: 'margin_pct', label: 'Margin after materials and lab', fmt: 'pct', better: 'up' }
+        title: L('Margin after materials and lab is falling', 'Baja el margen tras materiales y laboratorio'),
+        evidence: L('Over ' + span + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
+          'En ' + span + ' la clínica conservó el ' + pct(m3) + ' de la producción tras materiales y laboratorio, frente al ' + pct(m3ly) + ' en los mismos meses del año pasado.' + (worstCat ? ' La mayor subida del peso del coste está en ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' del precio).' : '')),
+        action: L('The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
+          'Contabilidad revisa los precios de materiales y laboratorio' + (worstCat ? ' de ' + worstCat.cat : '') + ' y la gerencia decide si renegociar con proveedores o ajustar precios.'),
+        impact: L('Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.', 'Cada punto de margen vale unos ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' al mes.'),
+        metric
       });
     }
     // Order by track record: kinds whose past decisions worked rise, kinds usually rejected sink.
@@ -724,14 +774,14 @@
   // ---------- Metrics a decision can be measured by ----------
   // Monthly metrics are compared before and after the decision; "prepaid_ids" is a point-in-time amount.
   const METRICS = {
-    production: { label: 'Production per month', fmt: 'eur', better: 'up' },
-    collections: { label: 'Collections per month', fmt: 'eur', better: 'up' },
-    new_patients: { label: 'New patients per month', fmt: 'int', better: 'up' },
-    margin_pct: { label: 'Margin after materials and lab', fmt: 'pct', better: 'up' },
-    line_production: { label: 'Production of a treatment line per month', fmt: 'eur', better: 'up', param: 'line' },
-    line_count: { label: 'Treatments done in a line per month', fmt: 'int', better: 'up', param: 'line' },
-    dentist_production: { label: 'Production of a dentist per month', fmt: 'eur', better: 'up', param: 'prof' },
-    unearned: { label: 'Paid, not yet done (end of month)', fmt: 'eur', better: 'down' }
+    production: { get label() { return L('Production per month', 'Producción al mes'); }, fmt: 'eur', better: 'up' },
+    collections: { get label() { return L('Collections per month', 'Cobros al mes'); }, fmt: 'eur', better: 'up' },
+    new_patients: { get label() { return L('New patients per month', 'Pacientes nuevos al mes'); }, fmt: 'int', better: 'up' },
+    margin_pct: { get label() { return L('Margin after materials and lab', 'Margen tras materiales y laboratorio'); }, fmt: 'pct', better: 'up' },
+    line_production: { get label() { return L('Production of a treatment line per month', 'Producción de una línea de tratamiento al mes'); }, fmt: 'eur', better: 'up', param: 'line' },
+    line_count: { get label() { return L('Treatments done in a line per month', 'Tratamientos hechos de una línea al mes'); }, fmt: 'int', better: 'up', param: 'line' },
+    dentist_production: { get label() { return L('Production of a dentist per month', 'Producción de un odontólogo al mes'); }, fmt: 'eur', better: 'up', param: 'prof' },
+    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' }
   };
   function monthlyValue(ds, m, k) {
     switch (m.type) {
@@ -774,14 +824,15 @@
     const changeLastYear = lastYear == null || !beforeLastYear ? null : m.fmt === 'pct' ? lastYear - beforeLastYear : lastYear / beforeLastYear - 1;
     return { kind: 'monthly', before, after, afterMonths: afterArr.length, lastYear, beforeLastYear, change, changeLastYear, beforeFrom: mkLabel(k0 - 3, true), beforeTo: mkLabel(k0 - 1, true), afterFrom: afterArr.length ? mkLabel(k0 + 1, true) : null, afterTo: afterArr.length ? mkLabel(ds.lastMonth, true) : null };
   }
+  // Label in the current language, worked out from the metric itself (stored labels may be in the other language).
   function metricLabel(m) {
-    if (m.label) return m.label;
-    const base = METRICS[m.type];
-    if (!base) return m.type;
-    if (m.type === 'line_production') return m.line + ' production per month';
-    if (m.type === 'line_count') return m.line + ' treatments done per month';
-    if (m.type === 'dentist_production') return 'Production of ' + m.prof + ' per month';
-    return base.label;
+    if (!m) return '';
+    if (m.type === 'prepaid_ids' && m.ids) return L('Paid but unfinished treatment of these ' + m.ids.length + ' patients', 'Tratamiento pagado sin terminar de estos ' + m.ids.length + ' pacientes');
+    if (m.type === 'line_production') return L(m.line + ' production per month', 'Producción de ' + m.line + ' al mes');
+    if (m.type === 'line_count') return L(m.line + ' treatments done per month', 'Tratamientos de ' + m.line + ' hechos al mes');
+    if (m.type === 'dentist_production') return L('Production of ' + m.prof + ' per month', 'Producción de ' + m.prof + ' al mes');
+    if (METRICS[m.type]) return METRICS[m.type].label;
+    return m.label || m.type;
   }
 
   // ---------- Import (MN Program / Excel exports) ----------
@@ -824,8 +875,20 @@
     if (has(['fecha alta', 'alta'])) return 'patients';
     return null;
   }
+  // Appointment outcome from the MN state, or, when reception left the state untouched, from the colour
+  // they actually use: red "anula la consulta" (cancelled or no-show) and green "actuación realizada".
+  function apptStatus(state, colour) {
+    const sn = norm(state), cn = norm(colour);
+    if (sn.includes('refijada') && !sn.includes('no refijada')) return ST.REBOOKED;
+    if (sn.includes('no refijada') || sn === 'cancelada') return ST.CANCEL;
+    if (sn.includes('no lleg') || sn.includes('no contesta')) return ST.NOSHOW;
+    if (sn.includes('realizad') || sn.includes('en consulta') || sn.includes('sala de espera')) return ST.DONE;
+    if (cn.includes('anula') || cn.includes('rojo') || cn === 'red' || cn.includes('salmon')) return ST.ANNULLED;
+    if (cn.includes('realizad') || cn.includes('verde') || cn === 'green') return ST.DONE;
+    return ST.FUTURE;
+  }
   function fromTables(tables, label) {
-    const ds = { source: 'import', label: label || 'Imported data', patients: [], appts: [], lines: [], pays: [] };
+    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [] };
     const warn = [];
     const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v).replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
     for (const t of tables) {
@@ -833,11 +896,10 @@
       if (t.kind === 'appts') t.rows.forEach((r) => {
         const id = pid(r), day = parseDay(pick(r, COLS.date)); if (id == null || day == null) return;
         const desc = String(pick(r, ['descripcion', 'description', 'motivo']) || '');
-        const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || '');
-        let status = String(pick(r, COLS.status) || '').trim();
-        const sn = norm(status);
-        status = sn.includes('refijada') && !sn.includes('no refijada') ? ST.REBOOKED : sn.includes('no refijada') || sn === 'cancelada' ? ST.CANCEL : sn.includes('no lleg') || sn.includes('no contesta') ? ST.NOSHOW : sn.includes('realizada') || sn.includes('consulta') || sn.includes('sala') ? ST.DONE : ST.FUTURE;
-        const type = tipo.includes('primera') || norm(desc).includes('primera visita') ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
+        const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || ''), nd = norm(desc);
+        const status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
+        // MN marks first visits as "1 consulta".
+        const type = tipo.includes('primera') || nd.includes('primera visita') || /(^| )1 consulta/.test(nd) ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
         ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status });
       });
       if (t.kind === 'lines') t.rows.forEach((r, i) => {
@@ -851,11 +913,11 @@
         ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept']) || '') });
       });
     }
-    if (!ds.appts.length) warn.push('No appointments table found: lost visits and first visits will be empty.');
-    if (!ds.lines.length) warn.push('No treatments table found: production, treatment mix and risk need it.');
-    if (!ds.pays.length) warn.push('No payments table found: collections and unearned revenue need it.');
+    if (!ds.appts.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
+    if (!ds.lines.length) warn.push(L('No treatments table found: production, treatment mix and risk need it.', 'No hay tabla de tratamientos: la producción, las líneas y el riesgo la necesitan.'));
+    if (!ds.pays.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
     const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done));
-    if (!days.length) throw new Error('No dated rows found. Check that the files have the expected columns.');
+    if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
     ds.asOf = Math.max.apply(null, days);
     if (!ds.patients.length) { const ids = new Set(); ds.appts.forEach((a) => ids.add(a.pid)); ds.lines.forEach((l) => ids.add(l.pid)); ids.forEach((id) => ds.patients.push({ id, first: null, age: null })); }
     prepare(ds);
@@ -864,23 +926,24 @@
   }
 
   const DEFINITIONS = {
-    production: 'Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.',
-    collections: 'Collections: money received in the month (card, cash, transfer, financing), by payment date.',
-    unearned: 'Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.',
-    receivable: 'Done but not paid: for each patient, value of treatment done minus payments, counted when positive.',
-    newPatients: 'New patients: patient files opened in the month (MN "Fecha Alta"). Used instead of first visits because MN has no consistent first-visit label yet.',
-    margin: 'Margin after materials and lab: production minus the direct cost of materials and laboratory work for the treatment done in the month, as a share of production. It is not net profit: salaries, rent and other overheads are not deducted.',
-    treatmentLines: 'Treatment lines: treatment categories (implants, orthodontics, prosthodontics…), with treatments done, production, margin after materials and lab, and change against the same months last year.',
-    dentist: 'Production by dentist: production of treatment done by each professional.',
-    lostVisits: 'Lost visits: no-shows plus cancellations without a new date. Only measurable once reception records appointment outcomes; today MN entries rarely carry a status.',
-    decisionEvaluation: 'Decision evaluation: for monthly metrics, the average of the three full months before the decision month against the average of the full months after it, shown next to the same months a year earlier to separate the decision from seasonality. This is a before/after comparison, not proof of cause.',
-    risk: 'Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.'
+    get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
+    get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
+    get unearned() { return L('Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.', 'Cobrado y no realizado: para cada paciente, lo cobrado menos el valor del tratamiento realizado, si es positivo, al cierre del periodo. Se calcula por paciente porque MN Program no enlaza cada cobro con un tratamiento concreto.'); },
+    get receivable() { return L('Done but not paid: for each patient, value of treatment done minus payments, counted when positive.', 'Realizado y no cobrado: para cada paciente, el valor del tratamiento realizado menos lo cobrado, si es positivo.'); },
+    get newPatients() { return L('New patients: patient files opened in the month (MN "Fecha Alta"). Without registration dates, each patient\'s first first-visit appointment ("1 consulta" in MN), counted once even if MN lists it several times.', 'Pacientes nuevos: fichas abiertas en el mes ("Fecha Alta" de MN). Sin fechas de alta, la primera cita de primera visita ("1 consulta" en MN) de cada paciente, contada una sola vez aunque MN la repita.'); },
+    get margin() { return L('Margin after materials and lab: production minus the direct cost of materials and laboratory work for the treatment done in the month, as a share of production. It is not net profit: salaries, rent and other overheads are not deducted.', 'Margen tras materiales y laboratorio: producción menos el coste directo de materiales y laboratorio del tratamiento realizado en el mes, en porcentaje de la producción. No es beneficio neto: no descuenta sueldos, alquiler ni otros gastos generales.'); },
+    get treatmentLines() { return L('Treatment lines: treatment categories (implants, orthodontics, prosthodontics…), with treatments done, production, margin after materials and lab, and change against the same months last year. MN cannot tag treatments by type, so the clinic today only knows collections by type (an initial on each payment), not production.', 'Líneas de tratamiento: categorías de tratamiento (implantes, ortodoncia, prótesis…), con tratamientos hechos, producción, margen tras materiales y laboratorio y cambio frente a los mismos meses del año pasado. MN no permite tipificar los tratamientos, así que hoy la clínica solo sabe lo que cobra por tipo (una inicial en cada cobro), no lo que produce.'); },
+    get dentist() { return L('Production by dentist: production of treatment done by each professional.', 'Producción por odontólogo: producción del tratamiento realizado por cada profesional.'); },
+    get lostVisits() { return L('Lost visits: cancellations without a new date plus no-shows. Reception marks both in red ("anula la consulta") without telling them apart, so the app counts them together as lost; the recording standard adds one choice to separate them.', 'Citas perdidas: cancelaciones sin nueva fecha más ausencias. Recepción marca ambas en rojo ("anula la consulta") sin distinguirlas, así que la app las cuenta juntas como perdidas; el estándar de registro añade una opción para separarlas.'); },
+    get decisionEvaluation() { return L('Decision evaluation: for monthly metrics, the average of the three full months before the decision month against the average of the full months after it, shown next to the same months a year earlier to separate the decision from seasonality. This is a before/after comparison, not proof of cause.', 'Evaluación de decisiones: en métricas mensuales, la media de los tres meses completos anteriores al mes de la decisión frente a la media de los meses completos posteriores, junto a los mismos meses del año anterior para separar la decisión de la estacionalidad. Es una comparación antes/después, no una prueba de causa.'); },
+    get risk() { return L('Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.', 'Riesgo: una regresión logística entrenada con el historial de la propia clínica estima la probabilidad de que un paciente con tratamiento aceptado sin terminar no complete nada en los próximos 90 días. Entradas: días desde la última visita, si tiene cita en las próximas 3 semanas, citas perdidas en los últimos 12 meses, parte del plan ya hecha, financiación, importe pendiente y si la clínica le llamó en los últimos 30 días (de los resultados de llamada anotados en el registro de decisiones). Se reentrena en cada importación y cada vez que cambian los resultados de llamada. Si en el último mes de prueba no ordena a los pacientes mejor que la regla simple "sin cita reservada y sin visita en 60 días", la app usa la regla.'); }
   };
 
   const IC = {
+    L, setLang, getLang, weekdayName,
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
-    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, eur, pct,
+    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;

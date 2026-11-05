@@ -37,7 +37,7 @@ h1, h2, h3 { text-wrap: balance; margin: 0; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
 .brand small { display: block; font-weight: 500; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-teal); }
 .tabs { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; }
-@media (max-width: 1020px) { .tabs { order: 3; flex-basis: 100%; } .top-actions { margin-left: auto; } }
+@media (max-width: 1140px) { .tabs { order: 3; flex-basis: 100%; } .top-actions { margin-left: auto; } }
 .tab { background: none; border: 0; color: #b9c3c9; padding: 8px 12px; border-radius: 8px; font-weight: 600; white-space: nowrap; }
 .tab[aria-current="page"] { color: #fff; background: rgba(77,188,188,.18); }
 .tab .badge { display: inline-block; min-width: 20px; margin-left: 6px; padding: 0 6px; border-radius: 10px; background: var(--brand-teal); color: var(--brand); font-size: 12px; text-align: center; }
@@ -177,48 +177,49 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   <div class="top-in">
     <div class="brand">
       <svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><rect x="2" y="1" width="2.4" height="28" fill="#4dbcbc"/><path d="M8 4.5 C13 1.2 19.5 1.4 24 5" fill="none" stroke="#4dbcbc" stroke-width="2.4"/><path d="M8 25.5 C13 28.8 19.5 28.6 24.5 24.6" fill="none" stroke="#4dbcbc" stroke-width="2.4"/></svg>
-      <div>Innovación Clínica<small>Management</small></div>
+      <div>Innovación Clínica<small data-t="brandSub"></small></div>
     </div>
-    <nav class="tabs" aria-label="Sections">
-      <button class="tab" data-tab="overview">Overview</button>
-      <button class="tab" data-tab="recs">Recommendations<span class="badge" id="recBadge" hidden></span></button>
-      <button class="tab" data-tab="decisions">Decisions</button>
+    <nav class="tabs" id="tabsNav">
+      <button class="tab" data-tab="overview" data-t="tabOverview"></button>
+      <button class="tab" data-tab="recs"><span data-t="tabRecs"></span><span class="badge" id="recBadge" hidden></span></button>
+      <button class="tab" data-tab="decisions" data-t="tabDecisions"></button>
     </nav>
     <div class="top-actions">
-      <select id="dataSel" class="data-sel" aria-label="Data source"></select>
-      <button id="importBtn" class="btn-top">Import</button>
-      <button id="askBtn" class="btn-top btn-ask">Ask</button>
+      <select id="dataSel" class="data-sel"></select>
+      <button id="importBtn" class="btn-top" data-t="import"></button>
+      <button id="askBtn" class="btn-top btn-ask" data-t="ask"></button>
+      <button id="langBtn" class="btn-top btn-lang"></button>
     </div>
   </div>
 </header>
 
-<main id="view"><p class="sub">Loading data…</p></main>
+<main id="view"><p class="sub">…</p></main>
 
-<aside id="chat" class="chat" hidden aria-label="Assistant">
-  <div class="chat-head"><b>Ask about the data</b><button id="chatClose" class="btn quiet">Close</button></div>
+<aside id="chat" class="chat" hidden>
+  <div class="chat-head"><b data-t="chatTitle"></b><button id="chatClose" class="btn quiet" data-t="close"></button></div>
   <div id="chatLog" class="chat-log"></div>
   <div id="chips" class="chips"></div>
   <form id="chatForm" class="chat-form">
-    <textarea id="chatIn" rows="2" placeholder="Ask a question about the clinic's data"></textarea>
-    <button class="btn primary" type="submit">Send</button>
+    <textarea id="chatIn" rows="2"></textarea>
+    <button class="btn primary" type="submit" data-t="send"></button>
   </form>
-  <p class="note">Figures come from the app's own calculations. Patients appear by number only.</p>
+  <p class="note" data-t="chatNote"></p>
 </aside>
 
 <div id="imp" class="modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="impTitle">
-    <h2 id="impTitle">Import data</h2>
-    <p>Export these lists from MN Program to Excel or CSV and select them together. The files are read in this browser and are not uploaded.</p>
+    <h2 id="impTitle" data-t="impTitle"></h2>
+    <p data-t="impIntro"></p>
     <ul>
-      <li><b>Appointments:</b> patient number, date, status, professional, room, type</li>
-      <li><b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room</li>
-      <li><b>Payments:</b> patient number, payment date, amount, payment method</li>
-      <li><b>Patients</b> (optional): patient number, registration date</li>
+      <li data-t="impAppts" data-html="1"></li>
+      <li data-t="impLines" data-html="1"></li>
+      <li data-t="impPays" data-html="1"></li>
+      <li data-t="impPatients" data-html="1"></li>
     </ul>
-    <p class="note">Patient names are not needed. Leave them out of the export if you can.</p>
+    <p class="note" data-t="impNote"></p>
     <input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv">
     <div id="impResult"></div>
-    <div class="actions"><button id="impUse" class="btn primary" hidden>Use this data</button><button id="impClose" class="btn">Close</button></div>
+    <div class="actions"><button id="impUse" class="btn primary" hidden data-t="impUse"></button><button id="impClose" class="btn" data-t="close"></button></div>
   </div>
 </div>
 
@@ -239,11 +240,20 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   const weekday = (n) => (toDate(n).getUTCDay() + 6) % 7; // 0 = Monday
   const iso = (n) => toDate(n).toISOString().slice(0, 10);
   const fromIso = (s) => { const [y, m, d] = s.split('-').map(Number); return dn(y, m, d); };
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  // ---------- Language: Spanish for the clinic (default), English for the course ----------
+  let LANG = 'es';
+  const L = (en, es) => (LANG === 'es' ? es : en);
+  const setLang = (l) => { LANG = l === 'en' ? 'en' : 'es'; };
+  const getLang = () => LANG;
+  const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const mkLabel = (k, short) => (short ? MONTHS[k % 12].slice(0, 3) : MONTHS[k % 12]) + (short ? '' : ' ' + Math.floor(k / 12));
-  const mkShortYear = (k) => MONTHS[k % 12].slice(0, 3) + ' ' + String(Math.floor(k / 12)).slice(2);
-  const dayLabel = (n) => { const t = toDate(n); return t.getUTCDate() + ' ' + MONTHS[t.getUTCMonth()].slice(0, 3) + ' ' + t.getUTCFullYear(); };
+  const WEEKDAYS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const months = () => (LANG === 'es' ? MONTHS_ES : MONTHS_EN);
+  const weekdayName = (w) => (LANG === 'es' ? WEEKDAYS_ES : WEEKDAYS)[w];
+  const mkLabel = (k, short) => (short ? months()[k % 12].slice(0, 3) : months()[k % 12]) + (short ? '' : ' ' + Math.floor(k / 12));
+  const mkShortYear = (k) => months()[k % 12].slice(0, 3) + ' ' + String(Math.floor(k / 12)).slice(2);
+  const dayLabel = (n) => { const t = toDate(n), m = months()[t.getUTCMonth()].slice(0, 3); return t.getUTCDate() + ' ' + (LANG === 'es' ? m.toLowerCase() : m) + ' ' + t.getUTCFullYear(); };
 
   function rng(seed) {
     let a = seed >>> 0;
@@ -256,11 +266,13 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
 
   // ---------- Status vocabulary (mirrors MN Program agenda states) ----------
+  // MN has these states, but reception today marks outcomes by colour instead: red "anula la consulta"
+  // (cancelled or no-show, not told apart) and green "actuación realizada". ANNULLED is that red mark.
   const ST = {
     DONE: 'Realizada', REBOOKED: 'Cancelada refijada', CANCEL: 'Cancelada no refijada',
-    NOSHOW: 'No llegó', FUTURE: 'Programada'
+    NOSHOW: 'No llegó', ANNULLED: 'Anulada', FUTURE: 'Programada'
   };
-  const isLost = (s) => s === ST.CANCEL || s === ST.NOSHOW;
+  const isLost = (s) => s === ST.CANCEL || s === ST.NOSHOW || s === ST.ANNULLED;
 
   // ---------- Sample clinic (synthetic, sized like Innovación Clínica: ~€75k/month, 4 rooms, 7 dentists, 4 hygienists) ----------
   const PROFS = {
@@ -500,12 +512,21 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return s;
   }
   function collections(ds, k) { let s = 0; for (const p of ds.pays) if (inMonth(p.day, k)) s += p.amount; return s; }
-  // New patients: patient files opened in the month (MN "Fecha Alta"). Falls back to labelled first-visit
-  // appointments when the patient table has no registration dates.
+  // New patients: patient files opened in the month (MN "Fecha Alta"). Without registration dates, each
+  // patient's first first-visit appointment ("1 consulta" in MN) that was not marked lost. A patient with
+  // several first-visit entries counts once, in the month of the earliest; the accountant removes these
+  // repeats by hand in Excel today.
   function firstVisits(ds, k) {
     let n = 0;
     if (ds.hasPatientDates) { for (const p of ds.patients) if (inMonth(p.first, k)) n++; return n; }
-    for (const a of ds.appts) if (a.type === 'Primera visita' && a.status === ST.DONE && inMonth(a.day, k)) n++;
+    if (!ds.firstVisitDay) {
+      ds.firstVisitDay = new Map();
+      for (const a of ds.appts) {
+        if (a.type !== 'Primera visita' || a.day > ds.asOf || !(a.status === ST.DONE || a.status === ST.FUTURE)) continue;
+        const d = ds.firstVisitDay.get(a.pid); if (d == null || a.day < d) ds.firstVisitDay.set(a.pid, a.day);
+      }
+    }
+    ds.firstVisitDay.forEach((d) => { if (inMonth(d, k)) n++; });
     return n;
   }
   const isHygienist = (name) => /^hig/i.test(String(name || ''));
@@ -542,14 +563,19 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   // How much of what managers need is actually recorded in the loaded data (last three months).
   function dataQuality(ds) {
     const k1 = ds.lastMonth - 2, a0 = mkStart(k1), a1 = Math.min(mkEnd(ds.lastMonth), ds.asOf);
-    let past = 0, withOutcome = 0, cancelled = 0;
-    for (const a of ds.appts) { if (a.day < a0 || a.day > a1) continue; past++; if (a.status !== ST.FUTURE) withOutcome++; if (a.status === ST.CANCEL || a.status === ST.REBOOKED || a.status === ST.NOSHOW) cancelled++; }
+    let past = 0, withOutcome = 0, cancelled = 0, annulled = 0;
+    for (const a of ds.appts) {
+      if (a.day < a0 || a.day > a1) continue;
+      past++; if (a.status !== ST.FUTURE) withOutcome++;
+      if (a.status === ST.CANCEL || a.status === ST.REBOOKED || a.status === ST.NOSHOW || a.status === ST.ANNULLED) cancelled++;
+      if (a.status === ST.ANNULLED) annulled++;
+    }
     let lines = 0, withProf = 0, withCost = 0;
     for (const l of ds.lines) { if (l.done == null || l.done < a0 || l.done > a1) continue; lines++; if (l.prof) withProf++; if (l.cost != null) withCost++; }
-    return { appointments: past, outcomeRecorded: past ? withOutcome / past : null, cancellationsRecorded: cancelled, treatmentsDone: lines, professionalRecorded: lines ? withProf / lines : null, costRecorded: lines ? withCost / lines : null, patientDates: !!ds.hasPatientDates };
+    return { appointments: past, outcomeRecorded: past ? withOutcome / past : null, cancellationsRecorded: cancelled, lostWithoutReason: annulled, treatmentsDone: lines, professionalRecorded: lines ? withProf / lines : null, costRecorded: lines ? withCost / lines : null, patientDates: !!ds.hasPatientDates };
   }
   function visitStats(ds, k1, k2, filter) {
-    const o = { total: 0, done: 0, lost: 0, noShow: 0, cancelled: 0, rebooked: 0 };
+    const o = { total: 0, done: 0, lost: 0, noShow: 0, cancelled: 0, annulled: 0, rebooked: 0 };
     const a0 = mkStart(k1), a1 = mkEnd(k2);
     for (const a of ds.appts) {
       if (a.day < a0 || a.day > a1 || a.status === ST.FUTURE) continue;
@@ -558,13 +584,14 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       if (a.status === ST.DONE) o.done++;
       else if (a.status === ST.NOSHOW) { o.noShow++; o.lost++; }
       else if (a.status === ST.CANCEL) { o.cancelled++; o.lost++; }
+      else if (a.status === ST.ANNULLED) { o.annulled++; o.lost++; }
       else if (a.status === ST.REBOOKED) o.rebooked++;
     }
     o.lostRate = o.total ? o.lost / o.total : 0;
     return o;
   }
   function lostByWeekday(ds, k1, k2) {
-    return [0, 1, 2, 3, 4].map((w) => Object.assign({ weekday: WEEKDAYS[w], wd: w }, visitStats(ds, k1, k2, (a) => weekday(a.day) === w)));
+    return [0, 1, 2, 3, 4].map((w) => Object.assign({ weekday: weekdayName(w), wd: w }, visitStats(ds, k1, k2, (a) => weekday(a.day) === w)));
   }
   function lostByProfessional(ds, k1, k2) {
     const names = Array.from(new Set(ds.appts.map((a) => a.prof).filter(Boolean))).sort();
@@ -727,12 +754,12 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       const f = features(x, ds.asOf, contacts && contacts.get(pid)); if (!f || f.dormant) return;
       const p = model ? model.score(f) : (ruleScore(f) ? 0.7 : 0.2);
       const reasons = [];
-      if (!f.future) reasons.push('No appointment booked');
-      if (f.days > 60) reasons.push(f.days >= 365 ? 'No visit in over a year' : 'No visit in ' + f.days + ' days');
-      if (f.lost12 >= 2) reasons.push(f.lost12 + ' missed or cancelled visits this year');
-      if (f.done / (f.done + f.pending) < 0.25) reasons.push('Less than a quarter of the plan done');
-      if (f.fin) reasons.push('Financed treatment');
-      if (f.contacted) reasons.push('Called in the last 30 days');
+      if (!f.future) reasons.push(L('No appointment booked', 'Sin cita reservada'));
+      if (f.days > 60) reasons.push(f.days >= 365 ? L('No visit in over a year', 'Sin visita en más de un año') : L('No visit in ' + f.days + ' days', 'Sin visita en ' + f.days + ' días'));
+      if (f.lost12 >= 2) reasons.push(L(f.lost12 + ' missed or cancelled visits this year', f.lost12 + ' citas perdidas o anuladas este año'));
+      if (f.done / (f.done + f.pending) < 0.25) reasons.push(L('Less than a quarter of the plan done', 'Menos de un cuarto del plan hecho'));
+      if (f.fin) reasons.push(L('Financed treatment', 'Tratamiento financiado'));
+      if (f.contacted) reasons.push(L('Called in the last 30 days', 'Llamado en los últimos 30 días'));
       out.push({ patient: pid, probability: p, tier: p >= 0.6 ? 'High' : p >= 0.3 ? 'Medium' : 'Low', pending: f.pending, prepaid: f.prepaid, daysSinceVisit: f.days, booked: f.future, lostVisits12m: f.lost12, contacted: f.contacted, expectedLoss: p * f.pending, reasons });
     });
     return out.sort((a, b) => b.expectedLoss - a.expectedLoss);
@@ -820,28 +847,35 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   function recommendations(ds, model, risk, learned) {
     const recs = [], k = ds.lastMonth, tag = iso(ds.asOf);
     const fu = learned && learned.followUp;
+    const span = mkLabel(k - 2, true) + '–' + mkLabel(k, true);
     // 1. Unfinished, prepaid treatment at risk (patients called in the last 30 days are left out)
     const high = risk.filter((r) => r.tier === 'High' && !r.contacted);
     if (high.length) {
       const top = high.slice().sort((a, b) => b.prepaid - a.prepaid || b.pending - a.pending).slice(0, 25);
-      const prepaidTop = top.reduce((a, r) => a + r.prepaid, 0), pendingTop = top.reduce((a, r) => a + r.pending, 0);
+      const n = top.length, prepaidTop = top.reduce((a, r) => a + r.prepaid, 0), pendingTop = top.reduce((a, r) => a + r.pending, 0);
       // Expected effect: the clinic's own measured response once there is enough history, otherwise a stated assumption.
       let rate = 1 / 3, impact;
       if (fu && fu.observed >= 10) {
         rate = fu.continuedRate;
-        impact = 'Measured on ' + fu.observed + ' patients from ' + fu.decisions + ' earlier follow-up decision' + (fu.decisions > 1 ? 's' : '') + ': ' + pct(rate) + ' continued their treatment afterwards. Applied to this list, about ' + eur(pendingTop * rate) + ' of treatment would be completed.';
-        if (fu.reachedRate != null && fu.notReachedRate != null) impact += ' Patients reached by phone continued in ' + pct(fu.reachedRate) + ' of cases, against ' + pct(fu.notReachedRate) + ' for those who did not answer.';
+        impact = L('Measured on ' + fu.observed + ' patients from ' + fu.decisions + ' earlier follow-up decision' + (fu.decisions > 1 ? 's' : '') + ': ' + pct(rate) + ' continued their treatment afterwards. Applied to this list, about ' + eur(pendingTop * rate) + ' of treatment would be completed.',
+          'Medido en ' + fu.observed + ' pacientes de ' + fu.decisions + ' decisi' + (fu.decisions > 1 ? 'ones' : 'ón') + ' de seguimiento anteriores: el ' + pct(rate) + ' continuó su tratamiento después. Aplicado a esta lista, se completarían unos ' + eur(pendingTop * rate) + ' de tratamiento.');
+        if (fu.reachedRate != null && fu.notReachedRate != null) impact += L(' Patients reached by phone continued in ' + pct(fu.reachedRate) + ' of cases, against ' + pct(fu.notReachedRate) + ' for those who did not answer.', ' Los pacientes que contestaron continuaron en el ' + pct(fu.reachedRate) + ' de los casos, frente al ' + pct(fu.notReachedRate) + ' de los que no contestaron.');
       } else {
-        impact = 'If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption until the first follow-up decision has been reviewed; after that the app uses the measured rate.';
+        impact = L('If one in three books and continues, about ' + eur(pendingTop / 3) + ' of treatment would be completed. This is an assumption until the first follow-up decision has been reviewed; after that the app uses the measured rate.',
+          'Si uno de cada tres reserva y continúa, se completarían unos ' + eur(pendingTop / 3) + ' de tratamiento. Es una suposición hasta que se revise la primera decisión de seguimiento; a partir de entonces la app usa la tasa medida.');
       }
+      const metric = { type: 'prepaid_ids', ids: top.map((r) => r.patient), fmt: 'eur', better: 'down' };
+      metric.label = metricLabel(metric);
       recs.push({
         id: 'risk:' + tag, kind: 'risk', priority: 1,
-        title: 'Call ' + top.length + ' patients who are likely to abandon their treatment',
-        evidence: high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days' + (risk.some((r) => r.contacted) ? ', not counting patients already called in the last 30 days' : '') + '. The ' + top.length + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
-        action: 'Reception calls these ' + top.length + ' patients this week, starting with those who paid most, offers a date for their next session, and records each call result in the app.',
+        title: L('Call ' + n + ' patients who are likely to abandon their treatment', 'Llamar a ' + n + ' pacientes con riesgo de abandonar su tratamiento'),
+        evidence: L(high.length + ' patients have a high risk (60% or more) of not continuing their treatment in the next 90 days' + (risk.some((r) => r.contacted) ? ', not counting patients already called in the last 30 days' : '') + '. The ' + n + ' with most money at stake have ' + eur(pendingTop) + ' of accepted treatment not yet done, of which ' + eur(prepaidTop) + ' is already paid.',
+          high.length + ' pacientes tienen un riesgo alto (60% o más) de no continuar su tratamiento en los próximos 90 días' + (risk.some((r) => r.contacted) ? ', sin contar los ya llamados en los últimos 30 días' : '') + '. Los ' + n + ' con más dinero en juego tienen ' + eur(pendingTop) + ' de tratamiento aceptado sin hacer, de los que ' + eur(prepaidTop) + ' ya están pagados.'),
+        action: L('Reception calls these ' + n + ' patients this week, starting with those who paid most, offers a date for their next session, and records each call result in the app.',
+          'Recepción llama a estos ' + n + ' pacientes esta semana, empezando por los que más han pagado, les ofrece fecha para la siguiente sesión y anota el resultado de cada llamada en la app.'),
         impact, expectedRate: rate,
         predictions: top.map((r) => ({ id: r.patient, p: Math.round(r.probability * 1000) / 1000 })),
-        metric: { type: 'prepaid_ids', ids: top.map((r) => r.patient), label: 'Paid but unfinished treatment of these ' + top.length + ' patients', fmt: 'eur', better: 'down' }
+        metric
       });
     }
     // 2. Marketing: new patients falling
@@ -851,13 +885,17 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       const firstDay = new Map(ds.patients.filter((p) => p.first != null && p.first >= mkStart(k - 13) && p.first <= mkEnd(k - 6)).map((p) => [p.id, p.first]));
       let val = 0; for (const l of ds.lines) { const f = firstDay.get(l.pid); if (f != null && l.accept <= f + 183) val += l.price; }
       const perPatient = firstDay.size ? val / firstDay.size : 0;
+      const metric = { type: 'new_patients', fmt: 'int', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'acq:' + tag, kind: 'acq', priority: 2,
-        title: 'New patients are falling',
-        evidence: firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
-        action: 'Check where new patients came from in the last months (referrals, reviews, website, insurers) and decide which channel to reinforce. Log the marketing action here with the number of new patients you expect.',
-        impact: 'Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
-        metric: { type: 'new_patients', label: 'New patients per month', fmt: 'int', better: 'up' }
+        title: L('New patients are falling', 'Bajan los pacientes nuevos'),
+        evidence: L(firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
+          firstVisits(ds, k) + ' pacientes nuevos en ' + mkLabel(k, true) + ' y ' + firstVisits(ds, k - 1) + ' en ' + mkLabel(k - 1, true) + ', frente a una media de ' + Math.round(fvPrior) + ' al mes en los seis meses anteriores (' + pct(fvRecent / fvPrior - 1) + ').'),
+        action: L('Ask every new patient how they found the clinic and record it, then reinforce the channel that brings most (Instagram giveaways have worked better than flyers). Log the marketing action here with the number of new patients you expect.',
+          'Preguntar a cada paciente nuevo cómo conoció la clínica y anotarlo, y reforzar el canal que más trae (los sorteos de Instagram han funcionado mejor que los folletos). Registrar aquí la acción de marketing con el número de pacientes nuevos que se espera.'),
+        impact: L('Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
+          'Cada paciente nuevo aceptó unos ' + eur(perPatient) + ' de tratamiento en sus seis primeros meses, así que ' + Math.round(fvPrior - fvRecent) + ' pacientes nuevos menos al mes son unos ' + eur((fvPrior - fvRecent) * perPatient) + ' de tratamiento futuro al mes.'),
+        metric
       });
     }
     // 3. Hiring and dentist performance
@@ -874,13 +912,16 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       }
     }
     if (worstDentist && worstDentist.ch <= -0.25) {
+      const w = worstDentist, metric = { type: 'dentist_production', prof: w.p, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
-        id: 'dentist:' + worstDentist.p + ':' + tag, kind: 'dentist', priority: 3,
-        title: worstDentist.p + ' is producing much less than usual',
-        evidence: worstDentist.p + ' produced ' + eur(worstDentist.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(worstDentist.prior) + ' a month in the six months before (' + pct(worstDentist.ch) + ').',
-        action: 'The CEO and owner-dentist review ' + worstDentist.p + "'s hours and patient flow and decide whether to change the rota or find cover for the lost hours.",
-        impact: 'Returning to the usual level would add about ' + eur(worstDentist.prior - worstDentist.recent) + ' of production a month.',
-        metric: { type: 'dentist_production', prof: worstDentist.p, label: 'Production of ' + worstDentist.p + ' per month', fmt: 'eur', better: 'up' }
+        id: 'dentist:' + w.p + ':' + tag, kind: 'dentist', priority: 3,
+        title: L(w.p + ' is producing much less than usual', w.p + ' está produciendo mucho menos de lo habitual'),
+        evidence: L(w.p + ' produced ' + eur(w.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(w.prior) + ' a month in the six months before (' + pct(w.ch) + ').',
+          w.p + ' produjo ' + eur(w.recent) + ' al mes en ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', frente a ' + eur(w.prior) + ' al mes en los seis meses anteriores (' + pct(w.ch) + ').'),
+        action: L('The CEO and owner-dentist review ' + w.p + "'s hours and patient flow and decide whether to change the rota or find cover for the lost hours.",
+          'La gerencia y la dirección clínica revisan las horas y el flujo de pacientes de ' + w.p + ' y deciden si cambiar el horario o cubrir las horas perdidas.'),
+        impact: L('Returning to the usual level would add about ' + eur(w.prior - w.recent) + ' of production a month.', 'Volver al nivel habitual sumaría unos ' + eur(w.prior - w.recent) + ' de producción al mes.'),
+        metric
       });
     }
     // A dentist who joined in the last 12 months: is the hire paying off?
@@ -891,13 +932,16 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       const own = avg(months.slice(-3));
       const others = dentists.filter((q) => q !== p).map((q) => avg([0, 1, 2].map((i) => production(ds, k - i, null, q))));
       const othersAvg = avg(others);
+      const metric = { type: 'dentist_production', prof: p, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'hire:' + p + ':' + tag, kind: 'dentist', priority: 3,
-        title: 'Review the new dentist: ' + p,
-        evidence: p + ' started in ' + mkLabel(mk(firstDone)) + '. In the last three months ' + p + ' produced ' + eur(own) + ' a month; the other dentists averaged ' + eur(othersAvg) + '.',
-        action: 'Compare this production with ' + p + "'s salary and hours, and decide whether to keep, extend or change the role. Log the decision with the production you expect.",
-        impact: 'Gives the hiring decision a measured result instead of perceived demand.',
-        metric: { type: 'dentist_production', prof: p, label: 'Production of ' + p + ' per month', fmt: 'eur', better: 'up' }
+        title: L('Review the new dentist: ' + p, 'Revisar la nueva contratación: ' + p),
+        evidence: L(p + ' started in ' + mkLabel(mk(firstDone)) + '. In the last three months ' + p + ' produced ' + eur(own) + ' a month; the other dentists averaged ' + eur(othersAvg) + '.',
+          p + ' empezó en ' + mkLabel(mk(firstDone)) + '. En los últimos tres meses produjo ' + eur(own) + ' al mes; el resto de odontólogos, ' + eur(othersAvg) + ' de media.'),
+        action: L('Compare this production with ' + p + "'s salary and hours, and decide whether to keep, extend or change the role. Log the decision with the production you expect.",
+          'Comparar esta producción con el sueldo y las horas de ' + p + ' y decidir si mantener, ampliar o cambiar el puesto. Registrar la decisión con la producción que se espera.'),
+        impact: L('Gives the hiring decision a measured result instead of perceived demand.', 'Da a la decisión de contratar un resultado medido en lugar de una demanda percibida.'),
+        metric
       });
     }
     // 4. Treatment lines to promote: high margin but falling volume
@@ -906,13 +950,17 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const lostMargin = (x) => (x.productionLastYear - x.production) * x.marginPct;
     const cand = tl.filter((x) => x.change <= -0.1).sort((a, b) => lostMargin(b) - lostMargin(a))[0];
     if (cand) {
+      const metric = { type: 'line_production', line: cand.line, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'line:' + cand.line + ':' + tag, kind: 'line', priority: 4,
-        title: 'Consider promoting ' + cand.line,
-        evidence: cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
-        action: 'Decide whether to promote ' + cand.line + ' (an offer, financing campaign or coordinator follow-up of open quotes). Log it here with the production you expect.',
-        impact: 'Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
-        metric: { type: 'line_production', line: cand.line, label: cand.line + ' production per month', fmt: 'eur', better: 'up' }
+        title: L('Consider promoting ' + cand.line, 'Valorar impulsar ' + cand.line),
+        evidence: L(cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + span + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
+          cand.line + ' conserva el ' + pct(cand.marginPct) + ' de su precio tras materiales y laboratorio, pero su producción en ' + span + ' fue de ' + eur(cand.production) + ', un ' + pct(-cand.change) + ' menos que en los mismos meses del año pasado.'),
+        action: L('Decide how to promote ' + cand.line + ' to patients already in the clinic (financing, coordinator follow-up of open quotes). Flyer discounts have not brought new patients; offers work once the patient is inside. Log it here with the production you expect.',
+          'Decidir cómo impulsar ' + cand.line + ' entre los pacientes que ya vienen a la clínica (financiación, seguimiento de presupuestos abiertos). Los descuentos en folletos no han traído pacientes nuevos; las ofertas funcionan cuando el paciente ya está dentro. Registrarlo aquí con la producción que se espera.'),
+        impact: L('Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
+          'Recuperar el nivel del año pasado sumaría unos ' + eur((cand.productionLastYear - cand.production) / 3) + ' de producción al mes con un margen del ' + pct(cand.marginPct) + '.'),
+        metric
       });
     }
     // 5. Cost and margin: margin after materials and lab falling
@@ -925,13 +973,16 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         const now = avg([0, 1, 2].map((i) => costShare(k - i, cat)).filter((x) => x != null)), then = avg([12, 13, 14].map((i) => costShare(k - i, cat)).filter((x) => x != null));
         if (now && then && (!worstCat || now - then > worstCat.d)) worstCat = { cat, d: now - then, now, then };
       }
+      const metric = { type: 'margin_pct', fmt: 'pct', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'margin:' + tag, kind: 'margin', priority: 5,
-        title: 'Margin after materials and lab is falling',
-        evidence: 'Over ' + mkLabel(k - 2, true) + '–' + mkLabel(k, true) + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
-        action: 'The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
-        impact: 'Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.',
-        metric: { type: 'margin_pct', label: 'Margin after materials and lab', fmt: 'pct', better: 'up' }
+        title: L('Margin after materials and lab is falling', 'Baja el margen tras materiales y laboratorio'),
+        evidence: L('Over ' + span + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
+          'En ' + span + ' la clínica conservó el ' + pct(m3) + ' de la producción tras materiales y laboratorio, frente al ' + pct(m3ly) + ' en los mismos meses del año pasado.' + (worstCat ? ' La mayor subida del peso del coste está en ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' del precio).' : '')),
+        action: L('The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
+          'Contabilidad revisa los precios de materiales y laboratorio' + (worstCat ? ' de ' + worstCat.cat : '') + ' y la gerencia decide si renegociar con proveedores o ajustar precios.'),
+        impact: L('Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.', 'Cada punto de margen vale unos ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' al mes.'),
+        metric
       });
     }
     // Order by track record: kinds whose past decisions worked rise, kinds usually rejected sink.
@@ -949,14 +1000,14 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   // ---------- Metrics a decision can be measured by ----------
   // Monthly metrics are compared before and after the decision; "prepaid_ids" is a point-in-time amount.
   const METRICS = {
-    production: { label: 'Production per month', fmt: 'eur', better: 'up' },
-    collections: { label: 'Collections per month', fmt: 'eur', better: 'up' },
-    new_patients: { label: 'New patients per month', fmt: 'int', better: 'up' },
-    margin_pct: { label: 'Margin after materials and lab', fmt: 'pct', better: 'up' },
-    line_production: { label: 'Production of a treatment line per month', fmt: 'eur', better: 'up', param: 'line' },
-    line_count: { label: 'Treatments done in a line per month', fmt: 'int', better: 'up', param: 'line' },
-    dentist_production: { label: 'Production of a dentist per month', fmt: 'eur', better: 'up', param: 'prof' },
-    unearned: { label: 'Paid, not yet done (end of month)', fmt: 'eur', better: 'down' }
+    production: { get label() { return L('Production per month', 'Producción al mes'); }, fmt: 'eur', better: 'up' },
+    collections: { get label() { return L('Collections per month', 'Cobros al mes'); }, fmt: 'eur', better: 'up' },
+    new_patients: { get label() { return L('New patients per month', 'Pacientes nuevos al mes'); }, fmt: 'int', better: 'up' },
+    margin_pct: { get label() { return L('Margin after materials and lab', 'Margen tras materiales y laboratorio'); }, fmt: 'pct', better: 'up' },
+    line_production: { get label() { return L('Production of a treatment line per month', 'Producción de una línea de tratamiento al mes'); }, fmt: 'eur', better: 'up', param: 'line' },
+    line_count: { get label() { return L('Treatments done in a line per month', 'Tratamientos hechos de una línea al mes'); }, fmt: 'int', better: 'up', param: 'line' },
+    dentist_production: { get label() { return L('Production of a dentist per month', 'Producción de un odontólogo al mes'); }, fmt: 'eur', better: 'up', param: 'prof' },
+    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' }
   };
   function monthlyValue(ds, m, k) {
     switch (m.type) {
@@ -999,14 +1050,15 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const changeLastYear = lastYear == null || !beforeLastYear ? null : m.fmt === 'pct' ? lastYear - beforeLastYear : lastYear / beforeLastYear - 1;
     return { kind: 'monthly', before, after, afterMonths: afterArr.length, lastYear, beforeLastYear, change, changeLastYear, beforeFrom: mkLabel(k0 - 3, true), beforeTo: mkLabel(k0 - 1, true), afterFrom: afterArr.length ? mkLabel(k0 + 1, true) : null, afterTo: afterArr.length ? mkLabel(ds.lastMonth, true) : null };
   }
+  // Label in the current language, worked out from the metric itself (stored labels may be in the other language).
   function metricLabel(m) {
-    if (m.label) return m.label;
-    const base = METRICS[m.type];
-    if (!base) return m.type;
-    if (m.type === 'line_production') return m.line + ' production per month';
-    if (m.type === 'line_count') return m.line + ' treatments done per month';
-    if (m.type === 'dentist_production') return 'Production of ' + m.prof + ' per month';
-    return base.label;
+    if (!m) return '';
+    if (m.type === 'prepaid_ids' && m.ids) return L('Paid but unfinished treatment of these ' + m.ids.length + ' patients', 'Tratamiento pagado sin terminar de estos ' + m.ids.length + ' pacientes');
+    if (m.type === 'line_production') return L(m.line + ' production per month', 'Producción de ' + m.line + ' al mes');
+    if (m.type === 'line_count') return L(m.line + ' treatments done per month', 'Tratamientos de ' + m.line + ' hechos al mes');
+    if (m.type === 'dentist_production') return L('Production of ' + m.prof + ' per month', 'Producción de ' + m.prof + ' al mes');
+    if (METRICS[m.type]) return METRICS[m.type].label;
+    return m.label || m.type;
   }
 
   // ---------- Import (MN Program / Excel exports) ----------
@@ -1049,8 +1101,20 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (has(['fecha alta', 'alta'])) return 'patients';
     return null;
   }
+  // Appointment outcome from the MN state, or, when reception left the state untouched, from the colour
+  // they actually use: red "anula la consulta" (cancelled or no-show) and green "actuación realizada".
+  function apptStatus(state, colour) {
+    const sn = norm(state), cn = norm(colour);
+    if (sn.includes('refijada') && !sn.includes('no refijada')) return ST.REBOOKED;
+    if (sn.includes('no refijada') || sn === 'cancelada') return ST.CANCEL;
+    if (sn.includes('no lleg') || sn.includes('no contesta')) return ST.NOSHOW;
+    if (sn.includes('realizad') || sn.includes('en consulta') || sn.includes('sala de espera')) return ST.DONE;
+    if (cn.includes('anula') || cn.includes('rojo') || cn === 'red' || cn.includes('salmon')) return ST.ANNULLED;
+    if (cn.includes('realizad') || cn.includes('verde') || cn === 'green') return ST.DONE;
+    return ST.FUTURE;
+  }
   function fromTables(tables, label) {
-    const ds = { source: 'import', label: label || 'Imported data', patients: [], appts: [], lines: [], pays: [] };
+    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [] };
     const warn = [];
     const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v).replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
     for (const t of tables) {
@@ -1058,11 +1122,10 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       if (t.kind === 'appts') t.rows.forEach((r) => {
         const id = pid(r), day = parseDay(pick(r, COLS.date)); if (id == null || day == null) return;
         const desc = String(pick(r, ['descripcion', 'description', 'motivo']) || '');
-        const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || '');
-        let status = String(pick(r, COLS.status) || '').trim();
-        const sn = norm(status);
-        status = sn.includes('refijada') && !sn.includes('no refijada') ? ST.REBOOKED : sn.includes('no refijada') || sn === 'cancelada' ? ST.CANCEL : sn.includes('no lleg') || sn.includes('no contesta') ? ST.NOSHOW : sn.includes('realizada') || sn.includes('consulta') || sn.includes('sala') ? ST.DONE : ST.FUTURE;
-        const type = tipo.includes('primera') || norm(desc).includes('primera visita') ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
+        const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || ''), nd = norm(desc);
+        const status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
+        // MN marks first visits as "1 consulta".
+        const type = tipo.includes('primera') || nd.includes('primera visita') || /(^| )1 consulta/.test(nd) ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
         ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status });
       });
       if (t.kind === 'lines') t.rows.forEach((r, i) => {
@@ -1076,11 +1139,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept']) || '') });
       });
     }
-    if (!ds.appts.length) warn.push('No appointments table found: lost visits and first visits will be empty.');
-    if (!ds.lines.length) warn.push('No treatments table found: production, treatment mix and risk need it.');
-    if (!ds.pays.length) warn.push('No payments table found: collections and unearned revenue need it.');
+    if (!ds.appts.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
+    if (!ds.lines.length) warn.push(L('No treatments table found: production, treatment mix and risk need it.', 'No hay tabla de tratamientos: la producción, las líneas y el riesgo la necesitan.'));
+    if (!ds.pays.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
     const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done));
-    if (!days.length) throw new Error('No dated rows found. Check that the files have the expected columns.');
+    if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
     ds.asOf = Math.max.apply(null, days);
     if (!ds.patients.length) { const ids = new Set(); ds.appts.forEach((a) => ids.add(a.pid)); ds.lines.forEach((l) => ids.add(l.pid)); ids.forEach((id) => ds.patients.push({ id, first: null, age: null })); }
     prepare(ds);
@@ -1089,23 +1152,24 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
 
   const DEFINITIONS = {
-    production: 'Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.',
-    collections: 'Collections: money received in the month (card, cash, transfer, financing), by payment date.',
-    unearned: 'Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.',
-    receivable: 'Done but not paid: for each patient, value of treatment done minus payments, counted when positive.',
-    newPatients: 'New patients: patient files opened in the month (MN "Fecha Alta"). Used instead of first visits because MN has no consistent first-visit label yet.',
-    margin: 'Margin after materials and lab: production minus the direct cost of materials and laboratory work for the treatment done in the month, as a share of production. It is not net profit: salaries, rent and other overheads are not deducted.',
-    treatmentLines: 'Treatment lines: treatment categories (implants, orthodontics, prosthodontics…), with treatments done, production, margin after materials and lab, and change against the same months last year.',
-    dentist: 'Production by dentist: production of treatment done by each professional.',
-    lostVisits: 'Lost visits: no-shows plus cancellations without a new date. Only measurable once reception records appointment outcomes; today MN entries rarely carry a status.',
-    decisionEvaluation: 'Decision evaluation: for monthly metrics, the average of the three full months before the decision month against the average of the full months after it, shown next to the same months a year earlier to separate the decision from seasonality. This is a before/after comparison, not proof of cause.',
-    risk: 'Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.'
+    get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
+    get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
+    get unearned() { return L('Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.', 'Cobrado y no realizado: para cada paciente, lo cobrado menos el valor del tratamiento realizado, si es positivo, al cierre del periodo. Se calcula por paciente porque MN Program no enlaza cada cobro con un tratamiento concreto.'); },
+    get receivable() { return L('Done but not paid: for each patient, value of treatment done minus payments, counted when positive.', 'Realizado y no cobrado: para cada paciente, el valor del tratamiento realizado menos lo cobrado, si es positivo.'); },
+    get newPatients() { return L('New patients: patient files opened in the month (MN "Fecha Alta"). Without registration dates, each patient\'s first first-visit appointment ("1 consulta" in MN), counted once even if MN lists it several times.', 'Pacientes nuevos: fichas abiertas en el mes ("Fecha Alta" de MN). Sin fechas de alta, la primera cita de primera visita ("1 consulta" en MN) de cada paciente, contada una sola vez aunque MN la repita.'); },
+    get margin() { return L('Margin after materials and lab: production minus the direct cost of materials and laboratory work for the treatment done in the month, as a share of production. It is not net profit: salaries, rent and other overheads are not deducted.', 'Margen tras materiales y laboratorio: producción menos el coste directo de materiales y laboratorio del tratamiento realizado en el mes, en porcentaje de la producción. No es beneficio neto: no descuenta sueldos, alquiler ni otros gastos generales.'); },
+    get treatmentLines() { return L('Treatment lines: treatment categories (implants, orthodontics, prosthodontics…), with treatments done, production, margin after materials and lab, and change against the same months last year. MN cannot tag treatments by type, so the clinic today only knows collections by type (an initial on each payment), not production.', 'Líneas de tratamiento: categorías de tratamiento (implantes, ortodoncia, prótesis…), con tratamientos hechos, producción, margen tras materiales y laboratorio y cambio frente a los mismos meses del año pasado. MN no permite tipificar los tratamientos, así que hoy la clínica solo sabe lo que cobra por tipo (una inicial en cada cobro), no lo que produce.'); },
+    get dentist() { return L('Production by dentist: production of treatment done by each professional.', 'Producción por odontólogo: producción del tratamiento realizado por cada profesional.'); },
+    get lostVisits() { return L('Lost visits: cancellations without a new date plus no-shows. Reception marks both in red ("anula la consulta") without telling them apart, so the app counts them together as lost; the recording standard adds one choice to separate them.', 'Citas perdidas: cancelaciones sin nueva fecha más ausencias. Recepción marca ambas en rojo ("anula la consulta") sin distinguirlas, así que la app las cuenta juntas como perdidas; el estándar de registro añade una opción para separarlas.'); },
+    get decisionEvaluation() { return L('Decision evaluation: for monthly metrics, the average of the three full months before the decision month against the average of the full months after it, shown next to the same months a year earlier to separate the decision from seasonality. This is a before/after comparison, not proof of cause.', 'Evaluación de decisiones: en métricas mensuales, la media de los tres meses completos anteriores al mes de la decisión frente a la media de los meses completos posteriores, junto a los mismos meses del año anterior para separar la decisión de la estacionalidad. Es una comparación antes/después, no una prueba de causa.'); },
+    get risk() { return L('Risk: a logistic regression trained on this clinic\'s own history estimates the probability that a patient with accepted, unfinished treatment completes nothing in the next 90 days. Inputs: days since last attended visit, whether an appointment is booked in the next 3 weeks, lost visits in the last 12 months, share of the plan already done, financing, size of the pending treatment, and whether the clinic called the patient in the last 30 days (from call results recorded in the decision log). It is retrained on every import and whenever call results change. If it does not rank patients better than the simple rule "no appointment booked and no visit in 60 days" on the latest held-out month, the app uses the rule instead.', 'Riesgo: una regresión logística entrenada con el historial de la propia clínica estima la probabilidad de que un paciente con tratamiento aceptado sin terminar no complete nada en los próximos 90 días. Entradas: días desde la última visita, si tiene cita en las próximas 3 semanas, citas perdidas en los últimos 12 meses, parte del plan ya hecha, financiación, importe pendiente y si la clínica le llamó en los últimos 30 días (de los resultados de llamada anotados en el registro de decisiones). Se reentrena en cada importación y cada vez que cambian los resultados de llamada. Si en el último mes de prueba no ordena a los pacientes mejor que la regla simple "sin cita reservada y sin visita en 60 días", la app usa la regla.'); }
   };
 
   const IC = {
+    L, setLang, getLang, weekdayName,
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
-    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, eur, pct,
+    balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
@@ -1116,24 +1180,62 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 (function () {
   'use strict';
   const IC = window.IC;
+  const L = IC.L;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const eur = IC.eur;
   const pct1 = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
   const fmt = (v, f) => v == null ? '—' : f === 'eur' ? eur(v) : f === 'pct' ? pct1(v) : String(Math.round(v));
 
-  const SNAPS = [
-    { asOf: IC.dn(2026, 11, 3), label: 'Sample · 3 Nov 2026' },
-    { asOf: IC.dn(2026, 12, 3), label: 'Sample · 3 Dec 2026' },
-    { asOf: IC.dn(2027, 1, 4), label: 'Sample · 4 Jan 2027' }
-  ];
+  // ---------- Language: Spanish by default (the clinic works in Spanish), English for the course ----------
+  try { IC.setLang(localStorage.getItem('ic-lang') || 'es'); } catch (e) { IC.setLang('es'); }
+  // Text of the fixed parts of the page.
+  const STATIC = () => ({
+    brandSub: L('Management', 'Gestión'), tabOverview: L('Overview', 'Resumen'), tabRecs: L('Recommendations', 'Recomendaciones'), tabDecisions: L('Decisions', 'Decisiones'),
+    import: L('Import', 'Importar'), ask: L('Ask', 'Preguntar'), close: L('Close', 'Cerrar'), send: L('Send', 'Enviar'),
+    chatTitle: L('Ask about the data', 'Pregunta sobre los datos'), chatNote: L('Figures come from the app\'s own calculations. Patients appear by number only.', 'Las cifras salen de los cálculos de la propia app. Los pacientes aparecen solo por número.'),
+    impTitle: L('Import data', 'Importar datos'),
+    impIntro: L('Export these lists from MN Program to Excel or CSV and select them together. The files are read in this browser and are not uploaded.', 'Exporta estas listas de MN Program a Excel o CSV y selecciónalas juntas. Los archivos se leen en este navegador y no se suben a ningún sitio.'),
+    impAppts: L('<b>Appointments:</b> patient number, date, status or colour, professional, room, description', '<b>Agenda:</b> número de paciente, fecha, estado o color, profesional, gabinete, descripción'),
+    impLines: L('<b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room', '<b>Tratamientos:</b> número de paciente, tratamiento, importe, estado, fecha de aceptación, fecha de realización, gabinete'),
+    impPays: L('<b>Payments:</b> patient number, payment date, amount, payment method', '<b>Cobros:</b> número de paciente, fecha de cobro, importe, forma de cobro'),
+    impPatients: L('<b>Patients</b> (optional): patient number, registration date', '<b>Pacientes</b> (opcional): número de paciente, fecha de alta'),
+    impNote: L('Patient names are not needed. Leave them out of the export if you can.', 'No hacen falta nombres de pacientes. Déjalos fuera de la exportación si puedes.'),
+    impUse: L('Use this data', 'Usar estos datos')
+  });
+  function applyStatic() {
+    const t = STATIC();
+    document.documentElement.lang = IC.getLang();
+    document.querySelectorAll('[data-t]').forEach((el) => { const v = t[el.dataset.t]; if (v == null) return; if (el.dataset.html) el.innerHTML = v; else el.textContent = v; });
+    $('#tabsNav').setAttribute('aria-label', L('Sections', 'Secciones'));
+    $('#dataSel').setAttribute('aria-label', L('Data source', 'Origen de los datos'));
+    $('#chat').setAttribute('aria-label', L('Assistant', 'Asistente'));
+    $('#chatIn').placeholder = L('Ask a question about the clinic\'s data', 'Haz una pregunta sobre los datos de la clínica');
+    const lb = $('#langBtn');
+    lb.textContent = IC.getLang() === 'es' ? 'EN' : 'ES';
+    lb.title = IC.getLang() === 'es' ? 'Switch to English' : 'Cambiar a español';
+    lb.setAttribute('aria-label', lb.title);
+  }
+
+  const SNAPS = [IC.dn(2026, 11, 3), IC.dn(2026, 12, 3), IC.dn(2027, 1, 4)];
+  const snapLabel = (i) => L('Sample · ', 'Ejemplo · ') + IC.dayLabel(SNAPS[i]);
   const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false };
 
+  // Labels for values stored in English in the decision log.
+  const KIND_KEYS = ['risk', 'acq', 'pricing', 'dentist', 'line', 'margin'];
+  const kindLabel = (k) => ({
+    risk: L('Follow-up of paid treatments', 'Seguimiento de tratamientos pagados'), acq: L('Marketing', 'Marketing'), pricing: L('Pricing and promotions', 'Precios y promociones'),
+    dentist: L('Hiring and dentist performance', 'Contratación y rendimiento'), line: L('Treatment lines', 'Líneas de tratamiento'), margin: L('Cost and margin', 'Costes y margen')
+  })[k] || k;
+  const decLabel = (v) => ({ Accepted: L('Accepted', 'Aceptada'), Modified: L('Changed', 'Modificada'), Rejected: L('Rejected', 'Rechazada') })[v] || v;
+  const verdictLabel = (v) => ({ Worked: L('Worked', 'Funcionó'), Partly: L('Partly', 'En parte'), 'Did not work': L('Did not work', 'No funcionó') })[v] || v;
+  const callLabel = (v) => ({ Booked: L('Booked', 'Cita reservada'), Declined: L('Declined', 'No quiere'), 'No answer': L('No answer', 'No contesta') })[v] || v;
+
   // ---------- Data ----------
-  const SAMPLE_LABEL = 'Sample data (synthetic patients)';
+  const sampleLabel = () => L('Sample data (synthetic patients)', 'Datos de ejemplo (pacientes ficticios)');
   // Decisions made on the data currently loaded (sample decisions never mix with imported data).
   const relevant = () => S.decisions.filter((d) => (d.source || 'sample') === (S.ds ? S.ds.source : 'sample'));
-  const sampleSnapshot = (i) => IC.snapshot(S.full, SNAPS[i].asOf, SAMPLE_LABEL, S.decisions.filter((d) => (d.source || 'sample') === 'sample'));
+  const sampleSnapshot = (i) => IC.snapshot(S.full, SNAPS[i], sampleLabel(), S.decisions.filter((d) => (d.source || 'sample') === 'sample'));
   function useSample(i) {
     if (!S.full) S.full = IC.simulate();
     S.sampleIdx = i;
@@ -1166,13 +1268,26 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
   function fillDataSelect() {
     const sel = $('#dataSel');
-    const opts = SNAPS.map((s, i) => '<option value="s' + i + '">' + esc(s.label) + '</option>');
-    if (S.imported) opts.unshift('<option value="imp">Imported · up to ' + esc(IC.dayLabel(S.imported.asOf)) + '</option>');
+    const opts = SNAPS.map((s, i) => '<option value="s' + i + '">' + esc(snapLabel(i)) + '</option>');
+    if (S.imported) opts.unshift('<option value="imp">' + esc(L('Imported · up to ', 'Importado · hasta ') + IC.dayLabel(S.imported.asOf)) + '</option>');
     sel.innerHTML = opts.join('');
+    sel.value = S.ds && S.ds.source === 'import' ? 'imp' : 's' + S.sampleIdx;
   }
   $('#dataSel').addEventListener('change', (e) => {
     const v = e.target.value;
     if (v === 'imp') setDataset(S.imported); else useSample(+v.slice(1));
+  });
+  // Switching language rebuilds every generated text (recommendations, reasons, labels) in the new language.
+  $('#langBtn').addEventListener('click', () => {
+    IC.setLang(IC.getLang() === 'es' ? 'en' : 'es');
+    try { localStorage.setItem('ic-lang', IC.getLang()); } catch (e) { /* storage unavailable */ }
+    applyStatic();
+    if (!S.ds) return;
+    const k = S.k;
+    if (S.ds.source === 'sample' && S.full) S.ds = sampleSnapshot(S.sampleIdx);
+    fillDataSelect();
+    recompute(); S.k = Math.min(k, S.ds.lastMonth); S.open = null; render();
+    if (!$('#chat').hidden) showChips();
   });
 
   // ---------- Decision log (shared through the artifact database when available) ----------
@@ -1209,40 +1324,39 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 
   // ---------- Small render helpers ----------
   function delta(cur, prev, upIsGood, label) {
-    if (!prev) return '<span class="flat">no comparison</span>';
+    if (!prev) return '<span class="flat">' + L('no comparison', 'sin comparación') + '</span>';
     const ch = cur / prev - 1;
     if (Math.abs(ch) < 0.005) return '<span class="flat">= ' + esc(label) + '</span>';
     const good = upIsGood == null ? 'flat' : (ch > 0) === upIsGood ? 'good' : 'bad';
     return '<span class="' + good + '">' + (ch > 0 ? '▲ ' : '▼ ') + Math.abs(ch * 100).toFixed(0) + '%</span> ' + esc(label);
   }
   function barChart(rows, selK) {
-    const W = 680, H = 230, L = 46, B = 26, T = 10, R = 8;
+    const W = 680, H = 230, L0 = 46, B = 26, T = 10, R = 8;
     const max = Math.max(1, ...rows.map((r) => Math.max(r.p, r.c)));
     const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
     const step = [1, 2, 2.5, 5, 10].find((x) => x * mag >= raw) * mag;
     const top = Math.ceil(max / step) * step, nLines = Math.round(top / step);
     const y = (v) => T + (H - T - B) * (1 - v / top);
-    const bw = (W - L - R) / rows.length;
-    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Production and collections by month">';
+    const bw = (W - L0 - R) / rows.length;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(L('Production and collections by month', 'Producción y cobros por mes')) + '">';
     for (let i = 0; i <= nLines; i++) {
       const v = step * i;
-      s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
-      s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v) + '</text>';
+      s += '<line class="grid" x1="' + L0 + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+      s += '<text x="' + (L0 - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v) + '</text>';
     }
     rows.forEach((r, i) => {
-      const x = L + i * bw + bw * 0.18, w = bw * 0.64;
-      s += '<rect class="b' + (r.k === selK ? ' sel' : '') + '" data-k="' + r.k + '" x="' + x.toFixed(1) + '" y="' + y(r.p).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (y(0) - y(r.p)).toFixed(1) + '" rx="3"><title>' + esc(r.label + ': production ' + eur(r.p) + ', collections ' + eur(r.c)) + '</title></rect>';
+      const x = L0 + i * bw + bw * 0.18, w = bw * 0.64;
+      s += '<rect class="b' + (r.k === selK ? ' sel' : '') + '" data-k="' + r.k + '" x="' + x.toFixed(1) + '" y="' + y(r.p).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (y(0) - y(r.p)).toFixed(1) + '" rx="3"><title>' + esc(r.label + ': ' + L('production ', 'producción ') + eur(r.p) + ', ' + L('collections ', 'cobros ') + eur(r.c)) + '</title></rect>';
       s += '<circle class="dot" cx="' + (x + w / 2).toFixed(1) + '" cy="' + y(r.c).toFixed(1) + '" r="3.5"/>';
       s += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(r.short) + '</text>';
     });
     return s + '</svg>';
   }
-  // The six management decisions in the report (section 2.2).
-  const KIND = { risk: 'Follow-up of paid treatments', acq: 'Marketing', pricing: 'Pricing and promotions', dentist: 'Hiring and dentist performance', line: 'Treatment lines', margin: 'Cost and margin' };
 
   function hbars(rows, max, valFmt) {
     return '<div class="hbars">' + rows.map((x) => '<div class="hbar"><span>' + esc(x.label) + '</span><span class="track"><span class="fill' + (x.hot ? ' hot' : '') + '" style="width:' + (100 * Math.max(0, x.v) / max).toFixed(1) + '%;display:block"></span></span><span class="v">' + valFmt(x.v) + (x.sub != null ? '<small>' + x.sub + '</small>' : '') + '</span></div>').join('') + '</div>';
   }
+  const auc2 = (x) => x.toFixed(2).replace('.', ',');
 
   function viewOverview() {
     const ds = S.ds, k = S.k, o = IC.overview(ds, k);
@@ -1252,7 +1366,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     // Dentists individually, hygienists as one group
     const profRows = ds.profs.filter((p) => !IC.isHygienist(p)).map((p) => { const v = IC.production(ds, k, null, p), a = avg6((i) => IC.production(ds, i, null, p)); return { label: p, v, a, hot: a > 0 && v < a * 0.75 }; });
     const hyg = ds.profs.filter(IC.isHygienist);
-    if (hyg.length) { const v = hyg.reduce((s, p) => s + IC.production(ds, k, null, p), 0), a = avg6((i) => hyg.reduce((s, p) => s + IC.production(ds, i, null, p), 0)); profRows.push({ label: 'Hygienists (' + hyg.length + ')', v, a, hot: a > 0 && v < a * 0.75 }); }
+    if (hyg.length) { const v = hyg.reduce((s, p) => s + IC.production(ds, k, null, p), 0), a = avg6((i) => hyg.reduce((s, p) => s + IC.production(ds, i, null, p), 0)); profRows.push({ label: L('Hygienists (', 'Higienistas (') + hyg.length + ')', v, a, hot: a > 0 && v < a * 0.75 }); }
     profRows.sort((x, y) => y.v - x.v);
     const profMax = Math.max(1, ...profRows.map((x) => Math.max(x.v, x.a)));
     const lines = IC.treatmentLines(ds, k, k);
@@ -1261,92 +1375,96 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const m = S.model, dq = IC.dataQuality(ds);
     const synthetic = ds.source === 'sample';
     const pc = (x) => x == null ? '—' : Math.round(x * 100) + '%';
-    const marginCmp = o.marginPct != null && o.marginPctSameMonthLastYear != null ? (function () { const d = (o.marginPct - o.marginPctSameMonthLastYear) * 100; return '<span class="' + (Math.abs(d) < 0.5 ? 'flat' : d > 0 ? 'good' : 'bad') + '">' + (d >= 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1).replace('.', ',') + ' pts</span> vs ' + esc(lyLbl); })() : '';
+    const marginCmp = o.marginPct != null && o.marginPctSameMonthLastYear != null ? (function () { const d = (o.marginPct - o.marginPctSameMonthLastYear) * 100; return '<span class="' + (Math.abs(d) < 0.5 ? 'flat' : d > 0 ? 'good' : 'bad') + '">' + (d >= 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') + '</span> vs ' + esc(lyLbl); })() : '';
 
     return '' +
-    '<div class="page-head"><div><h1>' + esc(IC.mkLabel(k)) + '</h1><p class="sub">Data up to ' + esc(IC.dayLabel(ds.asOf)) + ' · ' + esc(ds.label) + '</p></div>' +
-    '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="Previous month"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="Next month"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' +
+    '<div class="page-head"><div><h1>' + esc(IC.mkLabel(k)) + '</h1><p class="sub">' + L('Data up to ', 'Datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + ' · ' + esc(ds.label) + '</p></div>' +
+    '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="' + L('Previous month', 'Mes anterior') + '"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="' + L('Next month', 'Mes siguiente') + '"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' +
 
     '<section class="tiles">' +
-      '<div class="tile"><span class="lbl">Production</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl) + '</span></div>' +
-      '<div class="tile"><span class="lbl">Margin after materials and lab</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? 'No cost data in this import' : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
-      '<div class="tile"><span class="lbl">Paid, not yet done</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + ' patients · ' + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, 'vs end of ' + prevLbl) + '</span></div>' +
-      '<div class="tile"><span class="lbl">New patients</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, 'vs 6-month average (' + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Margin after materials and lab', 'Margen tras materiales y laboratorio') + '</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? L('No cost data in this import', 'Esta importación no trae costes') : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + L(' patients · ', ' pacientes · ') + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, L('vs end of ', 'vs fin de ') + prevLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('New patients', 'Pacientes nuevos') + '</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, L('vs 6-month average (', 'vs media de 6 meses (') + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
     '</section>' +
 
-    '<section class="card"><h2>Production and collections, last 12 months</h2><p class="def">Production is treatment done (earned). Collections is money received. Select a bar to change month.</p>' +
+    '<section class="card"><h2>' + L('Production and collections, last 12 months', 'Producción y cobros, últimos 12 meses') + '</h2><p class="def">' + L('Production is treatment done (earned). Collections is money received. Select a bar to change month.', 'Producción es el tratamiento realizado (ganado). Cobros es el dinero recibido. Pulsa una barra para cambiar de mes.') + '</p>' +
       '<div class="chart" id="barChart">' + barChart(rows, k) + '</div>' +
-      '<div class="legend"><span><i style="background:var(--accent)"></i>Selected month</span><span><i style="background:var(--bar)"></i>Production</span><span><i style="background:var(--ink);border-radius:50%"></i>Collections</span></div></section>' +
+      '<div class="legend"><span><i style="background:var(--accent)"></i>' + L('Selected month', 'Mes seleccionado') + '</span><span><i style="background:var(--bar)"></i>' + L('Production', 'Producción') + '</span><span><i style="background:var(--ink);border-radius:50%"></i>' + L('Collections', 'Cobros') + '</span></div></section>' +
 
-    '<section class="card"><h2>Patients likely to abandon their treatment</h2><p class="def">Patients with accepted treatment not finished, ranked by expected loss (risk × amount pending). Risk is the probability of no progress in the next 90 days.</p>' +
-      (risk.length ? '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th>Risk</th><th class="r">Pending</th><th class="r">Already paid</th><th>Why</th></tr></thead><tbody>' +
+    '<section class="card"><h2>' + L('Patients likely to abandon their treatment', 'Pacientes con riesgo de abandonar su tratamiento') + '</h2><p class="def">' + L('Patients with accepted treatment not finished, ranked by expected loss (risk × amount pending). Risk is the probability of no progress in the next 90 days.', 'Pacientes con tratamiento aceptado sin terminar, ordenados por pérdida esperada (riesgo × importe pendiente). El riesgo es la probabilidad de no avanzar en los próximos 90 días.') + '</p>' +
+      (risk.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Risk', 'Riesgo') + '</th><th class="r">' + L('Pending', 'Pendiente') + '</th><th class="r">' + L('Already paid', 'Ya pagado') + '</th><th>' + L('Why', 'Por qué') + '</th></tr></thead><tbody>' +
         risk.map((r) => '<tr><td class="pid">Nº ' + r.patient + '</td><td><span class="pill ' + r.tier.toLowerCase() + '">' + Math.round(r.probability * 100) + '%</span></td><td class="r">' + eur(r.pending) + '</td><td class="r">' + eur(r.prepaid) + '</td><td class="why">' + esc(r.reasons.slice(0, 2).join(' · ')) + '</td></tr>').join('') +
-        '</tbody></table></div>' : '<p class="sub">No patients with unfinished treatment in the data.</p>') +
-      '<p class="note">' + high.length + ' patients at high risk (60% or more) hold ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' of pending treatment, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' of it already paid.' +
-        (S.dormant && S.dormant.patients ? ' Another ' + S.dormant.patients + ' patients have had no activity for over a year, with ' + eur(S.dormant.pending) + ' pending (' + eur(S.dormant.prepaid) + ' paid); they are not scored.' : '') + '</p>' +
-      (m ? '<p class="note">' + (m.useRule ? 'Using the simple rule this month: the model did not rank patients better than the rule on the latest test.' : 'Risk model retrained on this data: it beats the simple rule (AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' against ' + m.aucRule.toFixed(2).replace('.', ',') + ').') + '</p>' +
-        '<details class="more"><summary>How the risk is calculated</summary><p>' + esc(IC.DEFINITIONS.risk) + '</p><p>Tested on ' + m.testRows + ' patients as of ' + esc(IC.dayLabel(IC.fromIso(m.testDate))) + ', after training on ' + m.trainRows + ' earlier cases. AUC ' + m.aucModel.toFixed(2).replace('.', ',') + ' for the model against ' + m.aucRule.toFixed(2).replace('.', ',') + ' for the rule. Of the 20% of patients it rated riskiest, ' + Math.round(m.precisionTop20Model * 100) + '% did stall, against ' + Math.round(m.baseRate * 100) + '% of all patients.</p>' +
-        '<p>Calibration on that month: average predicted risk ' + Math.round(m.calibration.predictedMean * 100) + '%, observed ' + Math.round(m.calibration.observedRate * 100) + '%. For the riskiest 20%: predicted ' + Math.round(m.calibration.predictedTop20 * 100) + '%, observed ' + Math.round(m.calibration.observedTop20 * 100) + '%.</p>' +
-        '<p>' + (m.calls.trainingCases ? 'Call results: ' + m.calls.trainingCases + ' training cases had a call in the 30 days before; ' + Math.round(m.calls.stallRateCalled * 100) + '% of them stalled.' : 'Call results recorded in the Decisions tab join the training data once 90 days have passed and the outcome is known.') + '</p>' +
-        (synthetic ? '<p>With sample data these figures describe the simulation, not the clinic.</p>' : '') + '</details>' : '') +
+        '</tbody></table></div>' : '<p class="sub">' + L('No patients with unfinished treatment in the data.', 'No hay pacientes con tratamiento sin terminar en los datos.') + '</p>') +
+      '<p class="note">' + L(high.length + ' patients at high risk (60% or more) hold ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' of pending treatment, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' of it already paid.', high.length + ' pacientes con riesgo alto (60% o más) tienen ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' de tratamiento pendiente, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' ya pagados.') +
+        (S.dormant && S.dormant.patients ? L(' Another ' + S.dormant.patients + ' patients have had no activity for over a year, with ' + eur(S.dormant.pending) + ' pending (' + eur(S.dormant.prepaid) + ' paid); they are not scored.', ' Otros ' + S.dormant.patients + ' pacientes llevan más de un año sin actividad, con ' + eur(S.dormant.pending) + ' pendientes (' + eur(S.dormant.prepaid) + ' pagados); no se puntúan.') : '') + '</p>' +
+      (m ? '<p class="note">' + (m.useRule ? L('Using the simple rule this month: the model did not rank patients better than the rule on the latest test.', 'Este mes se usa la regla simple: el modelo no ordenó a los pacientes mejor que la regla en la última prueba.') : L('Risk model retrained on this data: it beats the simple rule (AUC ' + auc2(m.aucModel) + ' against ' + auc2(m.aucRule) + ').', 'Modelo de riesgo reentrenado con estos datos: mejora a la regla simple (AUC ' + auc2(m.aucModel) + ' frente a ' + auc2(m.aucRule) + ').')) + '</p>' +
+        '<details class="more"><summary>' + L('How the risk is calculated', 'Cómo se calcula el riesgo') + '</summary><p>' + esc(IC.DEFINITIONS.risk) + '</p><p>' +
+        L('Tested on ' + m.testRows + ' patients as of ' + IC.dayLabel(IC.fromIso(m.testDate)) + ', after training on ' + m.trainRows + ' earlier cases. AUC ' + auc2(m.aucModel) + ' for the model against ' + auc2(m.aucRule) + ' for the rule. Of the 20% of patients it rated riskiest, ' + Math.round(m.precisionTop20Model * 100) + '% did stall, against ' + Math.round(m.baseRate * 100) + '% of all patients.',
+          'Probado con ' + m.testRows + ' pacientes a ' + IC.dayLabel(IC.fromIso(m.testDate)) + ', tras entrenar con ' + m.trainRows + ' casos anteriores. AUC ' + auc2(m.aucModel) + ' del modelo frente a ' + auc2(m.aucRule) + ' de la regla. Del 20% de pacientes que puntuó con más riesgo, el ' + Math.round(m.precisionTop20Model * 100) + '% se paró, frente al ' + Math.round(m.baseRate * 100) + '% del total.') + '</p>' +
+        '<p>' + L('Calibration on that month: average predicted risk ' + Math.round(m.calibration.predictedMean * 100) + '%, observed ' + Math.round(m.calibration.observedRate * 100) + '%. For the riskiest 20%: predicted ' + Math.round(m.calibration.predictedTop20 * 100) + '%, observed ' + Math.round(m.calibration.observedTop20 * 100) + '%.',
+          'Calibración en ese mes: riesgo medio previsto ' + Math.round(m.calibration.predictedMean * 100) + '%, observado ' + Math.round(m.calibration.observedRate * 100) + '%. En el 20% con más riesgo: previsto ' + Math.round(m.calibration.predictedTop20 * 100) + '%, observado ' + Math.round(m.calibration.observedTop20 * 100) + '%.') + '</p>' +
+        '<p>' + (m.calls.trainingCases ? L('Call results: ' + m.calls.trainingCases + ' training cases had a call in the 30 days before; ' + Math.round(m.calls.stallRateCalled * 100) + '% of them stalled.', 'Resultados de llamada: ' + m.calls.trainingCases + ' casos de entrenamiento tuvieron una llamada en los 30 días anteriores; el ' + Math.round(m.calls.stallRateCalled * 100) + '% se paró.') : L('Call results recorded in the Decisions tab join the training data once 90 days have passed and the outcome is known.', 'Los resultados de llamada anotados en Decisiones entran en el entrenamiento cuando pasan 90 días y se conoce el desenlace.')) + '</p>' +
+        (synthetic ? '<p>' + L('With sample data these figures describe the simulation, not the clinic.', 'Con datos de ejemplo estas cifras describen la simulación, no la clínica.') + '</p>' : '') + '</details>' : '') +
     '</section>' +
 
     '<div class="grid2">' +
-      '<section class="card"><h2>Production by dentist</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Grey figure: average of the six months before. Red: more than 25% below it.</p>' +
-        (profRows.length ? hbars(profRows.map((x) => ({ label: x.label, v: x.v, hot: x.hot, sub: eur(x.a) })), profMax, eur) : '<p class="sub">The data has no professional recorded on treatments.</p>') +
+      '<section class="card"><h2>' + L('Production by dentist', 'Producción por odontólogo') + '</h2><p class="def">' + esc(IC.mkLabel(k)) + L('. Grey figure: average of the six months before. Red: more than 25% below it.', '. Cifra gris: media de los seis meses anteriores. Rojo: más de un 25% por debajo.') + '</p>' +
+        (profRows.length ? hbars(profRows.map((x) => ({ label: x.label, v: x.v, hot: x.hot, sub: eur(x.a) })), profMax, eur) : '<p class="sub">' + L('The data has no professional recorded on treatments.', 'Los datos no traen el profesional en los tratamientos.') + '</p>') +
       '</section>' +
-      '<section class="card"><h2>Treatment lines</h2><p class="def">' + esc(IC.mkLabel(k)) + '. Margin is what remains after materials and lab. Change is against ' + esc(lyLbl) + '.</p>' +
-        (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>Line</th><th class="r">Done</th><th class="r">Production</th><th class="r">Margin</th><th class="r">vs last year</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r">' + pc(x.marginPct) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No treatment done this month.</p>') +
+      '<section class="card"><h2>' + L('Treatment lines', 'Líneas de tratamiento') + '</h2><p class="def">' + esc(IC.mkLabel(k)) + L('. Margin is what remains after materials and lab. Change is against ', '. El margen es lo que queda tras materiales y laboratorio. El cambio es frente a ') + esc(lyLbl) + '.</p>' +
+        (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Hechos') + '</th><th class="r">' + L('Production', 'Producción') + '</th><th class="r">' + L('Margin', 'Margen') + '</th><th class="r">' + L('vs last year', 'vs año pasado') + '</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r">' + pc(x.marginPct) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No treatment done this month.', 'No hay tratamientos realizados este mes.') + '</p>') +
       '</section>' +
-      '<section class="card"><h2>Patients who brought most revenue</h2><p class="def">Production in the 12 months to ' + esc(IC.mkLabel(k)) + '.</p>' +
-        (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th class="r">Treatment done</th></tr></thead><tbody>' + top.map((x) => '<tr><td class="pid">Nº ' + x.patient + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">No data.</p>') +
+      '<section class="card"><h2>' + L('Patients who brought most revenue', 'Pacientes que más ingresos aportaron') + '</h2><p class="def">' + L('Production in the 12 months to ', 'Producción en los 12 meses hasta ') + esc(IC.mkLabel(k)) + '.</p>' +
+        (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th class="r">' + L('Treatment done', 'Tratamiento realizado') + '</th></tr></thead><tbody>' + top.map((x) => '<tr><td class="pid">Nº ' + x.patient + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No data.', 'Sin datos.') + '</p>') +
       '</section>' +
-      '<section class="card"><h2>Data quality</h2><p class="def">How much of what managers need is recorded, last three months. Low values mean MN entries need the reception recording standard.</p>' +
+      '<section class="card"><h2>' + L('Data quality', 'Calidad de los datos') + '</h2><p class="def">' + L('How much of what managers need is recorded, last three months. Low values mean MN entries need the reception recording standard.', 'Cuánto de lo que necesita la dirección está registrado, últimos tres meses. Valores bajos indican que las entradas de MN necesitan el estándar de registro de recepción.') + '</p>' +
         '<div class="tbl-wrap"><table><tbody>' +
-          '<tr><td>Appointments with an outcome (attended, cancelled, no-show)</td><td class="r">' + pc(dq.outcomeRecorded) + '</td></tr>' +
-          '<tr><td>Cancellations and no-shows recorded</td><td class="r">' + dq.cancellationsRecorded + '</td></tr>' +
-          '<tr><td>Treatments with the professional recorded</td><td class="r">' + pc(dq.professionalRecorded) + '</td></tr>' +
-          '<tr><td>Treatments with material and lab cost</td><td class="r">' + pc(dq.costRecorded) + '</td></tr>' +
-          '<tr><td>New patients counted from registration dates</td><td class="r">' + (dq.patientDates ? 'Yes' : 'No') + '</td></tr>' +
+          '<tr><td>' + L('Appointments with an outcome (attended, cancelled, no-show)', 'Citas con desenlace (asistió, canceló, no vino)') + '</td><td class="r">' + pc(dq.outcomeRecorded) + '</td></tr>' +
+          '<tr><td>' + L('Lost visits recorded (cancelled or no-show)', 'Citas perdidas registradas (cancelación o ausencia)') + '</td><td class="r">' + dq.cancellationsRecorded + '</td></tr>' +
+          '<tr><td>' + L('…of them only marked red, reason unknown', '…de ellas solo marcadas en rojo, sin motivo') + '</td><td class="r">' + dq.lostWithoutReason + '</td></tr>' +
+          '<tr><td>' + L('Treatments with the professional recorded', 'Tratamientos con el profesional registrado') + '</td><td class="r">' + pc(dq.professionalRecorded) + '</td></tr>' +
+          '<tr><td>' + L('Treatments with material and lab cost', 'Tratamientos con coste de materiales y laboratorio') + '</td><td class="r">' + pc(dq.costRecorded) + '</td></tr>' +
+          '<tr><td>' + L('New patients counted from registration dates', 'Pacientes nuevos contados por fecha de alta') + '</td><td class="r">' + (dq.patientDates ? L('Yes', 'Sí') : 'No') + '</td></tr>' +
         '</tbody></table></div>' +
-        (synthetic ? '<p class="note">The sample data assumes the recording standard is in place. The September–October 2026 MN export had 0 cancellations and 4 of 1,503 appointments marked as done.</p>' : '') +
+        (synthetic ? '<p class="note">' + L('The sample data assumes the recording standard is in place. In the real MN agenda, reception marks outcomes by colour (red: cancelled or no-show; green: done) and leaves the status empty: the September–October 2026 export had 0 cancellations and 4 of 1,503 appointments marked as done. The importer reads the colour.', 'Los datos de ejemplo suponen que el estándar de registro ya se aplica. En la agenda real de MN, recepción marca el desenlace con colores (rojo: canceló o no vino; verde: realizada) y deja el estado vacío: la exportación de septiembre–octubre de 2026 tenía 0 cancelaciones y 4 de 1.503 citas como realizadas. El importador lee el color.') + '</p>' : '') +
       '</section>' +
     '</div>';
   }
 
   function decisionFor(rec) { return relevant().find((d) => d.recId === rec.id); }
-  const decisionLine = (d) => '<span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(d.decision) + '</span> on ' + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? ' · owner: ' + esc(d.owner) : '') + (d.decision !== 'Rejected' ? ' · review on ' + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '');
+  const decisionLine = (d) => '<span class="pill ' + (d.decision === 'Rejected' ? 'neutral' : 'ok') + '">' + esc(decLabel(d.decision)) + '</span> ' + L('on ', 'el ') + esc(IC.dayLabel(IC.fromIso(d.decidedOn))) + (d.owner ? L(' · owner: ', ' · responsable: ') + esc(d.owner) : '') + (d.decision !== 'Rejected' ? L(' · review on ', ' · revisar el ') + esc(IC.dayLabel(IC.fromIso(d.reviewDay))) : '');
   function trackLine(t) {
     if (!t) return '';
-    const parts = [t.decided + ' decided before'];
-    if (t.reviewed) parts.push(t.worked + ' of ' + t.reviewed + ' reviewed worked' + (t.partly ? ', ' + t.partly + ' partly' : ''));
-    if (t.rejected) parts.push(t.rejected + ' rejected');
-    return '<p class="note">Track record of this kind: ' + esc(parts.join(' · ')) + '.</p>';
+    const parts = [t.decided + L(' decided before', ' decididas antes')];
+    if (t.reviewed) parts.push(L(t.worked + ' of ' + t.reviewed + ' reviewed worked' + (t.partly ? ', ' + t.partly + ' partly' : ''), t.worked + ' de ' + t.reviewed + ' revisadas funcionaron' + (t.partly ? ', ' + t.partly + ' en parte' : '')));
+    if (t.rejected) parts.push(t.rejected + L(' rejected', ' rechazadas'));
+    return '<p class="note">' + L('Track record of this kind: ', 'Historial de este tipo: ') + esc(parts.join(' · ')) + '.</p>';
   }
 
   function viewRecs() {
     const ds = S.ds;
-    const head = '<div class="page-head"><div><h1>Recommendations</h1><p class="sub">From the data up to ' + esc(IC.dayLabel(ds.asOf)) + '. You decide. Each decision goes to the log and is checked against the next data import. Kinds of decision that worked before are listed first.</p></div></div>';
-    if (!S.recs.length) return head + '<div class="empty">Nothing needs a decision in this data.</div>';
+    const head = '<div class="page-head"><div><h1>' + L('Recommendations', 'Recomendaciones') + '</h1><p class="sub">' + L('From the data up to ', 'Con los datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + L('. You decide. Each decision goes to the log and is checked against the next data import. Kinds of decision that worked before are listed first.', '. Tú decides. Cada decisión va al registro y se comprueba con la siguiente importación. Los tipos de decisión que funcionaron antes aparecen primero.') + '</p></div></div>';
+    if (!S.recs.length) return head + '<div class="empty">' + L('Nothing needs a decision in this data.', 'Nada requiere una decisión con estos datos.') + '</div>';
     return head + S.recs.map((r) => {
       const d = decisionFor(r), open = S.open && S.open.recId === r.id ? S.open : null;
       if (d) {
-        return '<article class="rec decided"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(d.title) + '</h2><p class="decided-line">' + decisionLine(d) + ' · <button class="btn quiet" data-go="decisions">See in Decisions</button></p></article>';
+        return '<article class="rec decided"><span class="kind">' + esc(kindLabel(r.kind)) + '</span><h2>' + esc(r.title) + '</h2><p class="decided-line">' + decisionLine(d) + ' · <button class="btn quiet" data-go="decisions">' + L('See in Decisions', 'Ver en Decisiones') + '</button></p></article>';
       }
       const now = IC.evalMetric(ds, r.metric);
       let foot;
       if (open) {
         foot = '<div class="form">' +
-          (open.mode === 'Modified' ? '<label>Your version of the action<textarea id="fAction" rows="3">' + esc(r.action) + '</textarea></label>' : '') +
-          (open.mode !== 'Rejected' ? '<div class="row"><label>Who is responsible<input id="fOwner" placeholder="e.g. Reception lead"></label><label>Check the result in<select id="fReview"><option value="14">2 weeks</option><option value="30" selected>1 month</option><option value="61">2 months</option></select></label></div>' : '') +
-          '<label>' + (open.mode === 'Rejected' ? 'Why not' : 'Note (optional)') + '<textarea id="fNote" rows="2"></textarea></label>' +
-          '<div class="actions"><button class="btn primary" data-save="' + esc(r.id) + '">' + (open.mode === 'Rejected' ? 'Save rejection' : 'Save decision') + '</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
+          (open.mode === 'Modified' ? '<label>' + L('Your version of the action', 'Tu versión de la acción') + '<textarea id="fAction" rows="3">' + esc(r.action) + '</textarea></label>' : '') +
+          (open.mode !== 'Rejected' ? '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="fOwner" placeholder="' + L('e.g. Reception lead', 'p. ej. Jefa de recepción') + '"></label><label>' + L('Check the result in', 'Revisar el resultado en') + '<select id="fReview"><option value="14">' + L('2 weeks', '2 semanas') + '</option><option value="30" selected>' + L('1 month', '1 mes') + '</option><option value="61">' + L('2 months', '2 meses') + '</option></select></label></div>' : '') +
+          '<label>' + (open.mode === 'Rejected' ? L('Why not', 'Por qué no') : L('Note (optional)', 'Nota (opcional)')) + '<textarea id="fNote" rows="2"></textarea></label>' +
+          '<div class="actions"><button class="btn primary" data-save="' + esc(r.id) + '">' + (open.mode === 'Rejected' ? L('Save rejection', 'Guardar rechazo') : L('Save decision', 'Guardar decisión')) + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div>';
       } else {
-        foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">Accept</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">Change</button><button class="btn danger" data-decide="Rejected" data-rec="' + esc(r.id) + '">Reject</button></div>';
+        foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">' + L('Accept', 'Aceptar') + '</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">' + L('Change', 'Modificar') + '</button><button class="btn danger" data-decide="Rejected" data-rec="' + esc(r.id) + '">' + L('Reject', 'Rechazar') + '</button></div>';
       }
-      const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>See the ' + r.metric.ids.length + ' patients</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
-      return '<article class="rec"><span class="kind">' + esc(KIND[r.kind] || r.kind) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
-        '<dl><dt>Suggested action</dt><dd>' + esc(r.action) + '</dd><dt>Expected effect</dt><dd>' + esc(r.impact) + '</dd><dt>Measured by</dt><dd>' + esc(r.metric.label) + ': now <b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + trackLine(r.track) + ids + foot + '</article>';
+      const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>' + L('See the ', 'Ver los ') + r.metric.ids.length + L(' patients', ' pacientes') + '</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
+      return '<article class="rec"><span class="kind">' + esc(kindLabel(r.kind)) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
+        '<dl><dt>' + L('Suggested action', 'Acción propuesta') + '</dt><dd>' + esc(r.action) + '</dd><dt>' + L('Expected effect', 'Efecto esperado') + '</dt><dd>' + esc(r.impact) + '</dd><dt>' + L('Measured by', 'Se mide con') + '</dt><dd>' + esc(IC.metricLabel(r.metric)) + L(': now ', ': ahora ') + '<b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + trackLine(r.track) + ids + foot + '</article>';
     }).join('');
   }
 
@@ -1354,58 +1472,59 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   function viewLearned() {
     const fu = S.learned && S.learned.followUp, m = S.model, pc = (x) => Math.round(x * 100) + '%';
     const items = [];
-    if (fu && fu.callsRecorded) items.push(fu.callsRecorded + ' call results recorded; ' + pc(fu.bookedRate) + ' ended in a booking.');
+    if (fu && fu.callsRecorded) items.push(L(fu.callsRecorded + ' call results recorded; ' + pc(fu.bookedRate) + ' ended in a booking.', fu.callsRecorded + ' resultados de llamada anotados; el ' + pc(fu.bookedRate) + ' acabó en cita.'));
     if (fu && fu.observed) {
-      let t = 'Of ' + fu.observed + ' patients on call lists at least four weeks ago, ' + pc(fu.continuedRate) + ' have continued their treatment. The next follow-up recommendation uses this rate.';
-      if (fu.reachedRate != null && fu.notReachedRate != null) t += ' Reached by phone: ' + pc(fu.reachedRate) + '. No answer: ' + pc(fu.notReachedRate) + '.';
+      let t = L('Of ' + fu.observed + ' patients on call lists at least four weeks ago, ' + pc(fu.continuedRate) + ' have continued their treatment. The next follow-up recommendation uses this rate.', 'De ' + fu.observed + ' pacientes en listas de llamada de hace al menos cuatro semanas, el ' + pc(fu.continuedRate) + ' ha continuado su tratamiento. La siguiente recomendación de seguimiento usa esta tasa.');
+      if (fu.reachedRate != null && fu.notReachedRate != null) t += L(' Reached by phone: ' + pc(fu.reachedRate) + '. No answer: ' + pc(fu.notReachedRate) + '.', ' Contestaron: ' + pc(fu.reachedRate) + '. No contestaron: ' + pc(fu.notReachedRate) + '.');
       items.push(t);
-    } else if (fu && fu.decisions) items.push('Follow-up results are measured four weeks after each call list; until then recommendations use a stated assumption.');
+    } else if (fu && fu.decisions) items.push(L('Follow-up results are measured four weeks after each call list; until then recommendations use a stated assumption.', 'Los resultados del seguimiento se miden cuatro semanas después de cada lista de llamadas; hasta entonces las recomendaciones usan una suposición declarada.'));
     const ex = S.learned && S.learned.expectations;
     if (ex && ex.n) {
       const r = ex.avgRealised;
-      items.push('Your expectations: across ' + ex.n + ' logged decision' + (ex.n > 1 ? 's' : '') + ' with an expected result and at least a month of data, the measured change was on average ' + Math.round(r * 100) + '% of what was expected' + (r < 0.8 ? '. Expectations have been optimistic; consider smaller targets or a different action.' : r > 1.2 ? '. Results have beaten expectations.' : '.'));
+      items.push(L('Your expectations: across ' + ex.n + ' logged decision' + (ex.n > 1 ? 's' : '') + ' with an expected result and at least a month of data, the measured change was on average ' + Math.round(r * 100) + '% of what was expected' + (r < 0.8 ? '. Expectations have been optimistic; consider smaller targets or a different action.' : r > 1.2 ? '. Results have beaten expectations.' : '.'),
+        'Vuestras expectativas: en ' + ex.n + ' decisi' + (ex.n > 1 ? 'ones registradas' : 'ón registrada') + ' con resultado esperado y al menos un mes de datos, el cambio medido fue de media el ' + Math.round(r * 100) + '% de lo esperado' + (r < 0.8 ? '. Las expectativas han sido optimistas; conviene fijar metas menores o cambiar la acción.' : r > 1.2 ? '. Los resultados han superado lo esperado.' : '.')));
     }
-    if (m) items.push(m.useRule ? 'Risk model: the simple rule is in use because the model did not beat it on the latest test.' : 'Risk model retrained on data up to ' + IC.dayLabel(S.ds.asOf) + (m.calls.trainingCases ? ', including ' + m.calls.trainingCases + ' cases with a recorded call.' : '. Call results join its training data once their 90-day outcome is known.'));
+    if (m) items.push(m.useRule ? L('Risk model: the simple rule is in use because the model did not beat it on the latest test.', 'Modelo de riesgo: se usa la regla simple porque el modelo no la superó en la última prueba.') : L('Risk model retrained on data up to ', 'Modelo de riesgo reentrenado con datos hasta el ') + IC.dayLabel(S.ds.asOf) + (m.calls.trainingCases ? L(', including ' + m.calls.trainingCases + ' cases with a recorded call.', ', con ' + m.calls.trainingCases + ' casos con llamada anotada.') : L('. Call results join its training data once their 90-day outcome is known.', '. Los resultados de llamada entran en el entrenamiento cuando se conoce su desenlace a 90 días.')));
     const kinds = S.learned ? Object.entries(S.learned.byKind).filter(([, s]) => s.reviewed) : [];
-    if (kinds.length) items.push('Recommendation order now reflects past results: ' + kinds.map(([k, s]) => (KIND[k] || k) + ' ' + s.worked + '/' + s.reviewed + ' worked').join(', ') + '.');
+    if (kinds.length) items.push(L('Recommendation order now reflects past results: ', 'El orden de las recomendaciones ya refleja resultados pasados: ') + kinds.map(([k, s]) => kindLabel(k) + ' ' + s.worked + '/' + s.reviewed + L(' worked', ' funcionaron')).join(', ') + '.');
     if (!items.length) return '';
-    return '<section class="card"><h2>What the app has learned</h2><ul class="learned">' + items.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></section>';
+    return '<section class="card"><h2>' + L('What the app has learned', 'Lo que la app ha aprendido') + '</h2><ul class="learned">' + items.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></section>';
   }
 
   // Metric options for a manager's own decision: clinic-wide metrics, then per treatment line and per dentist.
   function metricOptions() {
     const ds = S.ds, o = (v, l) => '<option value="' + esc(v) + '">' + esc(l) + '</option>';
-    let h = '<optgroup label="Clinic">' + ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
-    if (ds.lineCats.length) h += '<optgroup label="Treatment line">' + ds.lineCats.map((c) => o('line_production|' + c, c + ' production per month')).join('') + '</optgroup>';
+    let h = '<optgroup label="' + L('Clinic', 'Clínica') + '">' + ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
+    if (ds.lineCats.length) h += '<optgroup label="' + L('Treatment line', 'Línea de tratamiento') + '">' + ds.lineCats.map((c) => o('line_production|' + c, IC.metricLabel({ type: 'line_production', line: c }))).join('') + '</optgroup>';
     const dents = ds.profs.filter((p) => !IC.isHygienist(p));
-    if (dents.length) h += '<optgroup label="Dentist">' + dents.map((p) => o('dentist_production|' + p, 'Production of ' + p + ' per month')).join('') + '</optgroup>';
+    if (dents.length) h += '<optgroup label="' + L('Dentist', 'Odontólogo') + '">' + dents.map((p) => o('dentist_production|' + p, IC.metricLabel({ type: 'dentist_production', prof: p }))).join('') + '</optgroup>';
     return h;
   }
   function logForm() {
-    const kinds = Object.keys(KIND).filter((k) => k !== 'risk');
-    return '<section class="card form-card"><h2>Log a decision</h2><p class="def">Record a decision you have taken, what you expect, and how to measure it. The app compares the three months before with the months after.</p><div class="form">' +
-      '<label>What did you decide?<input id="lTitle" placeholder="e.g. Pay receptionists €2 per Google review"></label>' +
-      '<div class="row"><label>Type of decision<select id="lKind">' + kinds.map((k) => '<option value="' + k + '">' + esc(KIND[k]) + '</option>').join('') + '</select></label>' +
-      '<label>Date decided<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label></div>' +
-      '<div class="row"><label>Measure it by<select id="lMetric">' + metricOptions() + '</select></label>' +
-      '<label>Expected change (%)<input id="lExpected" type="number" step="1" placeholder="e.g. 10 for +10%"></label></div>' +
-      '<div class="row"><label>Who is responsible<input id="lOwner" placeholder="e.g. CEO"></label><label>Check the result in<select id="lReview"><option value="30">1 month</option><option value="61" selected>2 months</option><option value="91">3 months</option></select></label></div>' +
-      '<label>Why (optional)<textarea id="lWhy" rows="2"></textarea></label>' +
-      '<div class="actions"><button class="btn primary" data-logsave="1">Save decision</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div></section>';
+    const kinds = KIND_KEYS.filter((k) => k !== 'risk');
+    return '<section class="card form-card"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2><p class="def">' + L('Record a decision you have taken, what you expect, and how to measure it. The app compares the three months before with the months after.', 'Anota una decisión que hayáis tomado, qué esperáis y cómo medirla. La app compara los tres meses anteriores con los posteriores.') + '</p><div class="form">' +
+      '<label>' + L('What did you decide?', '¿Qué habéis decidido?') + '<input id="lTitle" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
+      '<div class="row"><label>' + L('Type of decision', 'Tipo de decisión') + '<select id="lKind">' + kinds.map((k) => '<option value="' + k + '">' + esc(kindLabel(k)) + '</option>').join('') + '</select></label>' +
+      '<label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label></div>' +
+      '<div class="row"><label>' + L('Measure it by', 'Medir con') + '<select id="lMetric">' + metricOptions() + '</select></label>' +
+      '<label>' + L('Expected change (%)', 'Cambio esperado (%)') + '<input id="lExpected" type="number" step="1" placeholder="' + L('e.g. 10 for +10%', 'p. ej. 10 para +10%') + '"></label></div>' +
+      '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="lOwner" placeholder="' + L('e.g. CEO', 'p. ej. Gerencia') + '"></label><label>' + L('Check the result in', 'Revisar el resultado en') + '<select id="lReview"><option value="30">' + L('1 month', '1 mes') + '</option><option value="61" selected>' + L('2 months', '2 meses') + '</option><option value="91">' + L('3 months', '3 meses') + '</option></select></label></div>' +
+      '<label>' + L('Why (optional)', 'Por qué (opcional)') + '<textarea id="lWhy" rows="2"></textarea></label>' +
+      '<div class="actions"><button class="btn primary" data-logsave="1">' + L('Save decision', 'Guardar decisión') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div></section>';
   }
-  const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' pts' : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
+  const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
   function evaluationHtml(d) {
     const ev = IC.evalDecision(S.ds, d), f = d.metric.fmt, better = d.metric.better === 'down' ? -1 : 1;
     const cls = (ch) => ch == null || Math.abs(ch) < 0.005 ? 'flat' : ch * better > 0 ? 'good' : 'bad';
     if (ev.kind === 'point') {
       const ch = ev.before ? ev.after / ev.before - 1 : null;
-      return '<span>At decision: <b>' + fmt(ev.before, f) + '</b></span><span>Now: <b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ch) + '">' + fmtChange(ch, 'eur') + '</span>';
+      return '<span>' + L('At decision: ', 'Al decidir: ') + '<b>' + fmt(ev.before, f) + '</b></span><span>' + L('Now: ', 'Ahora: ') + '<b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ch) + '">' + fmtChange(ch, 'eur') + '</span>';
     }
-    let h = '<span>Before (' + esc(ev.beforeFrom + '–' + ev.beforeTo) + '): <b>' + fmt(ev.before, f) + '</b></span>';
-    if (!ev.afterMonths) return h + '<span>After: measured from the first full month after the decision.</span>';
-    h += '<span>After (' + esc(ev.afterFrom + (ev.afterTo !== ev.afterFrom ? '–' + ev.afterTo : '')) + '): <b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ev.change) + '">' + fmtChange(ev.change, f) + '</span>';
-    if (d.expected && d.expected.pct != null) h += '<span>Expected: ' + fmtChange(d.expected.pct, f) + '</span>';
-    if (ev.changeLastYear != null) h += '<span class="note">Same months a year earlier: ' + fmtChange(ev.changeLastYear, f) + '</span>';
+    let h = '<span>' + L('Before (', 'Antes (') + esc(ev.beforeFrom + '–' + ev.beforeTo) + '): <b>' + fmt(ev.before, f) + '</b></span>';
+    if (!ev.afterMonths) return h + '<span>' + L('After: measured from the first full month after the decision.', 'Después: se mide desde el primer mes completo tras la decisión.') + '</span>';
+    h += '<span>' + L('After (', 'Después (') + esc(ev.afterFrom + (ev.afterTo !== ev.afterFrom ? '–' + ev.afterTo : '')) + '): <b>' + fmt(ev.after, f) + '</b></span><span class="' + cls(ev.change) + '">' + fmtChange(ev.change, f) + '</span>';
+    if (d.expected && d.expected.pct != null) h += '<span>' + L('Expected: ', 'Esperado: ') + fmtChange(d.expected.pct, f) + '</span>';
+    if (ev.changeLastYear != null) h += '<span class="note">' + L('Same months a year earlier: ', 'Mismos meses un año antes: ') + fmtChange(ev.changeLastYear, f) + '</span>';
     return h;
   }
 
@@ -1415,22 +1534,22 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const acc = list.filter((d) => d.decision !== 'Rejected'), rej = list.length - acc.length;
     const reviewed = acc.filter((d) => d.outcome), worked = reviewed.filter((d) => d.outcome.verdict === 'Worked').length;
     const logging = S.open && S.open.log;
-    const head = '<div class="page-head"><div><h1>Decisions</h1><p class="sub">What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ' + esc(IC.dayLabel(ds.asOf)) + ').</p></div>' + (logging ? '' : '<button class="btn primary" data-log="1">Log a decision</button>') + '</div>';
-    const score = '<div class="score"><div><b>' + list.length + '</b><span>decisions</span></div><div><b>' + acc.length + '</b><span>accepted or changed</span></div><div><b>' + rej + '</b><span>rejected</span></div><div><b>' + reviewed.length + '</b><span>results recorded</span></div><div><b>' + worked + '</b><span>worked</span></div></div>';
-    const where = '<p class="note">' + (S.store === 'shared' ? 'The log is shared with everyone who opens this app.' : 'The log is saved in this browser only.') + (hidden ? ' ' + hidden + ' decisions taken on other data are not shown.' : '') + (ds.source === 'sample' ? ' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.' : '') + ' ' + esc(IC.DEFINITIONS.decisionEvaluation) + '</p>';
+    const head = '<div class="page-head"><div><h1>' + L('Decisions', 'Decisiones') + '</h1><p class="sub">' + L('What was decided, who owns it, and whether it worked. Results are measured on the data currently loaded (up to ', 'Qué se decidió, quién es responsable y si funcionó. Los resultados se miden con los datos cargados (hasta el ') + esc(IC.dayLabel(ds.asOf)) + ').</p></div>' + (logging ? '' : '<button class="btn primary" data-log="1">' + L('Log a decision', 'Registrar una decisión') + '</button>') + '</div>';
+    const score = '<div class="score"><div><b>' + list.length + '</b><span>' + L('decisions', 'decisiones') + '</span></div><div><b>' + acc.length + '</b><span>' + L('accepted or changed', 'aceptadas o modificadas') + '</span></div><div><b>' + rej + '</b><span>' + L('rejected', 'rechazadas') + '</span></div><div><b>' + reviewed.length + '</b><span>' + L('results recorded', 'resultados anotados') + '</span></div><div><b>' + worked + '</b><span>' + L('worked', 'funcionaron') + '</span></div></div>';
+    const where = '<p class="note">' + (S.store === 'shared' ? L('The log is shared with everyone who opens this app.', 'El registro se comparte con todos los que abren esta app.') : L('The log is saved in this browser only.', 'El registro se guarda solo en este navegador.')) + (hidden ? L(' ' + hidden + ' decisions taken on other data are not shown.', ' No se muestran ' + hidden + ' decisiones tomadas con otros datos.') : '') + (ds.source === 'sample' ? L(' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.', ' Con datos de ejemplo, los pacientes con "Cita reservada" vuelven en la simulación; los resultados reales llegan con la siguiente exportación de MN.') : '') + ' ' + esc(IC.DEFINITIONS.decisionEvaluation) + '</p>';
     const form = logging ? logForm() : '';
-    if (!list.length) return head + form + score + '<div class="empty">No decisions yet. Log a decision you have taken, or decide on a recommendation.</div>' + where;
+    if (!list.length) return head + form + score + '<div class="empty">' + L('No decisions yet. Log a decision you have taken, or decide on a recommendation.', 'Aún no hay decisiones. Registra una decisión que hayáis tomado o decide sobre una recomendación.') + '</div>' + where;
     return head + form + score + viewLearned() + list.map((d) => {
       const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
       const open = S.open && S.open.decId === d.id;
       let foot = '';
-      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(d.outcome.verdict) + '</span> recorded with data up to ' + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
-      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>Did it work?<select id="fVerdict"><option>Worked</option><option>Partly</option><option>Did not work</option></select></label><label>What happened (optional)<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">Save result</button><button class="btn quiet" data-cancel="1">Cancel</button></div></div>';
-      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">Record result</button>' + (due ? '<span class="pill medium">Review due</span>' : '') + '</div>';
+      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(verdictLabel(d.outcome.verdict)) + '</span> ' + L('recorded with data up to ', 'anotado con datos hasta el ') + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
+      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>' + L('Did it work?', '¿Funcionó?') + '<select id="fVerdict">' + ['Worked', 'Partly', 'Did not work'].map((v) => '<option value="' + v + '">' + esc(verdictLabel(v)) + '</option>').join('') + '</select></label><label>' + L('What happened (optional)', 'Qué pasó (opcional)') + '<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">' + L('Save result', 'Guardar resultado') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div>';
+      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">' + L('Record result', 'Anotar resultado') + '</button>' + (due ? '<span class="pill medium">' + L('Review due', 'Toca revisar') + '</span>' : '') + '</div>';
       const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
-      return '<article class="rec"><span class="kind">' + esc(KIND[d.kind] || d.kind) + (d.manual ? ' · logged by a manager' : ' · from a recommendation') + '</span><h2>' + esc(d.title) + '</h2>' +
+      return '<article class="rec"><span class="kind">' + esc(kindLabel(d.kind)) + (d.manual ? L(' · logged by a manager', ' · registrada por la dirección') : L(' · from a recommendation', ' · de una recomendación')) + '</span><h2>' + esc(d.title) + '</h2>' +
         '<p class="decided-line">' + decisionLine(d) + '</p>' +
-        '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? 'Proposed action' : 'Action') + '</dt><dd>' + esc(d.action) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? 'Reason' : 'Why') + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
+        '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? L('Reason', 'Motivo') : L('Why', 'Por qué')) + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
         (d.decision !== 'Rejected' ? '<dt>' + esc(IC.metricLabel(d.metric)) + '</dt><dd class="dec-metric">' + evaluationHtml(d) + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
     }).join('') + where;
   }
@@ -1439,11 +1558,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const preds = d.predictions || d.metric.ids.map((id) => ({ id, p: null }));
     const calls = d.calls || {}, recorded = Object.values(calls).filter((c) => c && c.result).length;
     const chk = IC.followUpCheck(S.ds, d);
-    const check = chk ? '<p class="note">Model check: it expected about ' + Math.round(chk.predictedStall) + ' of ' + chk.patients + ' patients not to continue within 90 days. ' + (chk.daysElapsed <= 0 ? 'Measured from the next import.' : (chk.complete ? 'After 90 days, ' : 'So far (' + chk.daysElapsed + ' days), ') + chk.observedStall + ' have not continued.') + '</p>' : '';
-    const opt = (v, cur) => '<option' + (v === cur ? ' selected' : '') + ' value="' + v + '">' + (v || '—') + '</option>';
-    return check + '<details class="more" data-calls="' + esc(d.id) + '"' + (S.openCalls.has(d.id) ? ' open' : '') + '><summary>Call list · ' + recorded + ' of ' + preds.length + ' results recorded</summary>' +
-      '<div class="tbl-wrap"><table><thead><tr><th>Patient</th><th>Risk at decision</th><th>Call result</th></tr></thead><tbody>' +
-      preds.map((p) => { const cur = calls[p.id] ? calls[p.id].result : ''; return '<tr><td class="pid">Nº ' + p.id + '</td><td>' + (p.p != null ? Math.round(p.p * 100) + '%' : '—') + '</td><td><select class="call-sel" aria-label="Call result for patient ' + p.id + '" data-dec="' + esc(d.id) + '" data-pid="' + p.id + '">' + ['', 'Booked', 'Declined', 'No answer'].map((v) => opt(v, cur)).join('') + '</select></td></tr>'; }).join('') +
+    const check = chk ? '<p class="note">' + L('Model check: it expected about ' + Math.round(chk.predictedStall) + ' of ' + chk.patients + ' patients not to continue within 90 days. ', 'Control del modelo: esperaba que unos ' + Math.round(chk.predictedStall) + ' de ' + chk.patients + ' pacientes no continuaran en 90 días. ') + (chk.daysElapsed <= 0 ? L('Measured from the next import.', 'Se mide desde la siguiente importación.') : (chk.complete ? L('After 90 days, ', 'A los 90 días, ') : L('So far (' + chk.daysElapsed + ' days), ', 'Por ahora (' + chk.daysElapsed + ' días), ')) + chk.observedStall + L(' have not continued.', ' no han continuado.')) + '</p>' : '';
+    const opt = (v, cur) => '<option' + (v === cur ? ' selected' : '') + ' value="' + v + '">' + (v ? esc(callLabel(v)) : '—') + '</option>';
+    return check + '<details class="more" data-calls="' + esc(d.id) + '"' + (S.openCalls.has(d.id) ? ' open' : '') + '><summary>' + L('Call list · ' + recorded + ' of ' + preds.length + ' results recorded', 'Lista de llamadas · ' + recorded + ' de ' + preds.length + ' resultados anotados') + '</summary>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Risk at decision', 'Riesgo al decidir') + '</th><th>' + L('Call result', 'Resultado de la llamada') + '</th></tr></thead><tbody>' +
+      preds.map((p) => { const cur = calls[p.id] ? calls[p.id].result : ''; return '<tr><td class="pid">Nº ' + p.id + '</td><td>' + (p.p != null ? Math.round(p.p * 100) + '%' : '—') + '</td><td><select class="call-sel" aria-label="' + L('Call result for patient ', 'Resultado de la llamada al paciente ') + p.id + '" data-dec="' + esc(d.id) + '" data-pid="' + p.id + '">' + ['', 'Booked', 'Declined', 'No answer'].map((v) => opt(v, cur)).join('') + '</select></td></tr>'; }).join('') +
       '</tbody></table></div></details>';
   }
 
@@ -1458,6 +1577,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
 
   // ---------- Events ----------
+  const couldNotSave = (err) => L('Could not save: ', 'No se pudo guardar: ') + (err && err.message ? err.message : L('try again', 'inténtalo de nuevo'));
   document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { S.tab = t.dataset.tab; S.open = null; render(); window.scrollTo(0, 0); }));
   $('#view').addEventListener('click', async (e) => {
     const t = e.target.closest('button, rect.b');
@@ -1470,7 +1590,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (t.dataset.log) { S.open = { log: true }; render(); const f = $('#lTitle'); if (f) f.focus(); return; }
     if (t.dataset.logsave) {
       const title = $('#lTitle').value.trim();
-      if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = 'Write what you decided'; return; }
+      if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = L('Write what you decided', 'Escribe qué habéis decidido'); return; }
       const [type, param] = $('#lMetric').value.split('|');
       const base = IC.METRICS[type];
       const metric = { type, fmt: base.fmt, better: base.better };
@@ -1486,14 +1606,14 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         outcome: null, dataLabel: S.ds.label, source: S.ds.source
       };
       t.disabled = true;
-      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
       return;
     }
     if (t.dataset.cancel) { S.open = null; render(); return; }
     if (t.dataset.save) {
       const r = S.recs.find((x) => x.id === t.dataset.save); if (!r) return;
       const mode = S.open.mode, note = ($('#fNote') || {}).value || '';
-      if (mode === 'Rejected' && !note.trim()) { $('#fNote').focus(); $('#fNote').placeholder = 'Please say why, so the recommendations can improve'; return; }
+      if (mode === 'Rejected' && !note.trim()) { $('#fNote').focus(); $('#fNote').placeholder = L('Please say why, so the recommendations can improve', 'Di por qué, para que las recomendaciones mejoren'); return; }
       const days = Number(($('#fReview') || {}).value || 30);
       const d = {
         recId: r.id, kind: r.kind, title: r.title, decision: mode,
@@ -1504,7 +1624,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         source: S.ds.source, expectedRate: r.expectedRate || null, predictions: r.predictions || null, calls: r.kind === 'risk' ? {} : null
       };
       t.disabled = true;
-      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
       return;
     }
     if (t.dataset.outcome) {
@@ -1512,7 +1632,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       const ev = IC.evalDecision(S.ds, d);
       const patch = { outcome: { verdict: $('#fVerdict').value, note: $('#fOutNote').value.trim(), value: ev.after, change: ev.change == null ? null : ev.change, asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
       t.disabled = true;
-      try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+      try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
     }
   });
   // Call results on follow-up lists: one change saves one result.
@@ -1522,7 +1642,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const calls = Object.assign({}, d.calls || {});
     if (sel.value) calls[sel.dataset.pid] = { result: sel.value, day: IC.iso(S.ds.asOf) }; else delete calls[sel.dataset.pid];
     sel.disabled = true;
-    try { await Store.update(d.id, { calls }); } catch (err) { alertInline(sel, 'Could not save: ' + (err && err.message ? err.message : 'try again')); }
+    try { await Store.update(d.id, { calls }); } catch (err) { alertInline(sel, couldNotSave(err)); }
     sel.disabled = false;
   });
   $('#view').addEventListener('toggle', (e) => {
@@ -1542,12 +1662,12 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   $('#impClose').addEventListener('click', () => { $('#imp').hidden = true; });
   function loadXlsx() {
     if (window.XLSX) return Promise.resolve();
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('The spreadsheet reader could not load.')); document.head.appendChild(s); });
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error(L('The spreadsheet reader could not load.', 'No se pudo cargar el lector de hojas de cálculo.'))); document.head.appendChild(s); });
   }
   $('#impFiles').addEventListener('change', async (e) => {
     const out = $('#impResult'); $('#impUse').hidden = true; parsed = null;
     const files = Array.from(e.target.files || []); if (!files.length) return;
-    out.innerHTML = '<p class="sub">Reading…</p>';
+    out.innerHTML = '<p class="sub">' + L('Reading…', 'Leyendo…') + '</p>';
     try {
       await loadXlsx();
       const tables = [], skipped = [];
@@ -1559,37 +1679,37 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
           if (kind) tables.push({ kind, rows, from: f.name + (wb.SheetNames.length > 1 ? ' · ' + name : '') }); else skipped.push(f.name + (wb.SheetNames.length > 1 ? ' · ' + name : ''));
         }
       }
-      const names = { appts: 'Appointments', lines: 'Treatments', pays: 'Payments', patients: 'Patients' };
-      const ds = IC.fromTables(tables, 'Imported from ' + files.map((f) => f.name).join(', '));
+      const names = { appts: L('Appointments', 'Agenda'), lines: L('Treatments', 'Tratamientos'), pays: L('Payments', 'Cobros'), patients: L('Patients', 'Pacientes') };
+      const ds = IC.fromTables(tables, L('Imported from ', 'Importado de ') + files.map((f) => f.name).join(', '));
       parsed = ds;
-      out.innerHTML = '<ul>' + tables.map((t) => '<li>' + esc(names[t.kind]) + ': ' + t.rows.length + ' rows from ' + esc(t.from) + '</li>').join('') + skipped.map((s) => '<li class="bad">Not recognised: ' + esc(s) + '</li>').join('') + '</ul>' +
-        '<p class="sub">Data up to ' + esc(IC.dayLabel(ds.asOf)) + '.</p>' + (ds.warnings || []).map((w) => '<p class="note bad">' + esc(w) + '</p>').join('');
+      out.innerHTML = '<ul>' + tables.map((t) => '<li>' + esc(names[t.kind]) + ': ' + t.rows.length + L(' rows from ', ' filas de ') + esc(t.from) + '</li>').join('') + skipped.map((s) => '<li class="bad">' + L('Not recognised: ', 'No reconocido: ') + esc(s) + '</li>').join('') + '</ul>' +
+        '<p class="sub">' + L('Data up to ', 'Datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + '.</p>' + (ds.warnings || []).map((w) => '<p class="note bad">' + esc(w) + '</p>').join('');
       $('#impUse').hidden = false;
     } catch (err) {
-      out.innerHTML = '<p class="bad">' + esc(err && err.message ? err.message : 'The files could not be read.') + '</p>';
+      out.innerHTML = '<p class="bad">' + esc(err && err.message ? err.message : L('The files could not be read.', 'No se pudieron leer los archivos.')) + '</p>';
     }
   });
   $('#impUse').addEventListener('click', () => {
     if (!parsed) return;
-    S.imported = parsed; fillDataSelect(); $('#dataSel').value = 'imp'; $('#imp').hidden = true; setDataset(parsed);
+    S.imported = parsed; $('#imp').hidden = true; setDataset(parsed); fillDataSelect();
   });
 
   // ---------- Assistant ----------
-  const SUGGEST = ['Why did production change this month?', 'Is the new dentist paying off?', 'Did the Google reviews incentive bring new patients?'];
+  const suggestions = () => [L('Why did production change this month?', '¿Por qué ha cambiado la producción este mes?'), L('Is the new dentist paying off?', '¿Está compensando la nueva contratación?'), L('Did the Google reviews incentive bring new patients?', '¿Trajo pacientes nuevos el incentivo de reseñas en Google?')];
   const monthArg = (m) => { if (!m) return S.k; const x = String(m).match(/^(\d{4})-(\d{1,2})/); if (!x) return S.k; return Math.min(S.ds.lastMonth, Number(x[1]) * 12 + Number(x[2]) - 1); };
   const round = (o) => JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v));
   const TOOLS = [
-    { name: 'get_overview', description: 'Headline figures for one month: production, collections, unearned revenue (paid, not yet done) and patients holding it, done-but-unpaid, first visits and 6-month average, visits and lost visits (no-shows, cancelled without a new date, cancelled and rebooked), with previous-month and last-year comparisons.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM. Defaults to the month on screen.' } } }, execute: (i) => round(IC.overview(S.ds, monthArg(i && i.month))) },
+    { name: 'get_overview', description: 'Headline figures for one month: production, collections, unearned revenue (paid, not yet done) and patients holding it, done-but-unpaid, first visits and 6-month average, visits and lost visits (no-shows, cancelled without a new date, marked red without a reason, cancelled and rebooked), with previous-month and last-year comparisons.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM. Defaults to the month on screen.' } } }, execute: (i) => round(IC.overview(S.ds, monthArg(i && i.month))) },
     { name: 'get_monthly_series', description: 'A metric month by month, ending at the latest complete month.', inputSchema: { type: 'object', properties: { metric: { type: 'string', enum: ['production', 'collections', 'first_visits', 'lost_rate'] }, months: { type: 'integer', minimum: 2, maximum: 36 } }, required: ['metric'] }, execute: (i) => round(IC.series(S.ds, i.metric, i.months || 12).map((r) => ({ month: r.month, value: r.value }))) },
     { name: 'get_production_by', description: 'Production for one month per dentist (professional) or per treatment room (gabinete), with the average of the six months before.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['professional', 'room'] }, month: { type: 'string', description: 'YYYY-MM' } }, required: ['by'] }, execute: (i) => { const k = monthArg(i && i.month); const keys = i.by === 'room' ? S.ds.cabs : S.ds.profs; return round(keys.map((x) => { const f = (m) => i.by === 'room' ? IC.production(S.ds, m, x) : IC.production(S.ds, m, null, x); return { name: x, production: f(k), averagePrior6Months: [1, 2, 3, 4, 5, 6].reduce((a, j) => a + f(k - j), 0) / 6 }; })); } },
     { name: 'get_treatment_lines', description: 'Treatment lines (categories) over one or more months ending at the given month: treatments done, production, margin after materials and lab, and change against the same months last year.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' }, months: { type: 'integer', minimum: 1, maximum: 12 } } }, execute: (i) => { const k = monthArg(i && i.month); return round(IC.treatmentLines(S.ds, k - ((i && i.months) || 1) + 1, k)); } },
-    { name: 'get_data_quality', description: 'How much of what managers need is recorded in the loaded data over the last three months (appointment outcomes, cancellations, professional and cost on treatments, registration dates).', inputSchema: { type: 'object', properties: {} }, execute: () => round(IC.dataQuality(S.ds)) },
+    { name: 'get_data_quality', description: 'How much of what managers need is recorded in the loaded data over the last three months (appointment outcomes, lost visits and how many lack a reason, professional and cost on treatments, registration dates).', inputSchema: { type: 'object', properties: {} }, execute: () => round(IC.dataQuality(S.ds)) },
     { name: 'get_treatment_mix', description: 'Treatments done, by number and value, over one or more months ending at the given month.', inputSchema: { type: 'object', properties: { month: { type: 'string', description: 'YYYY-MM' }, months: { type: 'integer', minimum: 1, maximum: 12 } } }, execute: (i) => { const k = monthArg(i && i.month); return round(IC.treatmentMix(S.ds, k - ((i && i.months) || 1) + 1, k).slice(0, 15)); } },
-    { name: 'get_lost_visits_breakdown', description: 'Lost-visit rate by weekday or by professional over the last N months ending at the month on screen.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['weekday', 'professional'] }, months: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['by'] }, execute: (i) => { const n = i.months || 3; const rows = i.by === 'professional' ? IC.lostByProfessional(S.ds, S.k - n + 1, S.k) : IC.lostByWeekday(S.ds, S.k - n + 1, S.k); return round(rows.map((r) => ({ group: r.weekday || r.professional, appointments: r.total, lost: r.lost, lostRate: r.lostRate, noShows: r.noShow, cancelledNoNewDate: r.cancelled }))); } },
+    { name: 'get_lost_visits_breakdown', description: 'Lost-visit rate by weekday or by professional over the last N months ending at the month on screen.', inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['weekday', 'professional'] }, months: { type: 'integer', minimum: 1, maximum: 12 } }, required: ['by'] }, execute: (i) => { const n = i.months || 3; const rows = i.by === 'professional' ? IC.lostByProfessional(S.ds, S.k - n + 1, S.k) : IC.lostByWeekday(S.ds, S.k - n + 1, S.k); return round(rows.map((r) => ({ group: r.weekday || r.professional, appointments: r.total, lost: r.lost, lostRate: r.lostRate, noShows: r.noShow, cancelledNoNewDate: r.cancelled, markedRedNoReason: r.annulled }))); } },
     { name: 'get_top_patients', description: 'Patients (by number) with the most treatment done in the 12 months to the month on screen.', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 25 } } }, execute: (i) => round(IC.topPatients(S.ds, S.k - 11, S.k, (i && i.n) || 10)) },
     { name: 'get_risk', description: 'Patients with accepted, unfinished treatment ranked by expected loss, the model quality check, and dormant plans (no activity for over a year).', inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 1, maximum: 30 } } }, execute: (i) => { const high = S.risk.filter((r) => r.tier === 'High'); const m = S.model; return round({ patientsScored: S.risk.length, highRisk: high.length, highRiskPending: high.reduce((a, r) => a + r.pending, 0), highRiskPrepaid: high.reduce((a, r) => a + r.prepaid, 0), dormant: S.dormant, model: m ? { aucModel: m.aucModel, aucSimpleRule: m.aucRule, stallRateAllPatients: m.baseRate, stallRateTop20pct: m.precisionTop20Model, testedOn: m.testRows, testDate: m.testDate } : null, top: S.risk.slice(0, (i && i.n) || 10).map((r) => ({ patient: r.patient, probability: r.probability, pending: r.pending, prepaid: r.prepaid, daysSinceVisit: r.daysSinceVisit, appointmentBooked: r.booked, reasons: r.reasons })) }); } },
-    { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: r.metric.label, decision: d ? d.decision : 'Not decided yet' }; }) },
-    { name: 'get_decisions', description: 'The decision log: decisions taken (from recommendations or logged by managers), owners, dates, the metric used, its average in the three months before and the months after, the expected change, the change in the same months a year earlier, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => { const ev = d.decision === 'Rejected' ? null : IC.evalDecision(S.ds, d); return { title: d.title, type: KIND[d.kind] || d.kind, loggedByManager: !!d.manual, decision: d.decision, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: IC.metricLabel(d.metric), before: ev && ev.before, after: ev && ev.after, monthsAfter: ev && ev.afterMonths, change: ev && ev.change, expectedChange: d.expected ? d.expected.pct : null, sameMonthsLastYearChange: ev && ev.changeLastYear, result: d.outcome ? d.outcome.verdict : null }; })) },
+    { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: IC.metricLabel(r.metric), decision: d ? d.decision : 'Not decided yet' }; }) },
+    { name: 'get_decisions', description: 'The decision log: decisions taken (from recommendations or logged by managers), owners, dates, the metric used, its average in the three months before and the months after, the expected change, the change in the same months a year earlier, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => { const ev = d.decision === 'Rejected' ? null : IC.evalDecision(S.ds, d); return { title: d.title, type: kindLabel(d.kind), loggedByManager: !!d.manual, decision: d.decision, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: IC.metricLabel(d.metric), before: ev && ev.before, after: ev && ev.after, monthsAfter: ev && ev.afterMonths, change: ev && ev.change, expectedChange: d.expected ? d.expected.pct : null, sameMonthsLastYearChange: ev && ev.changeLastYear, result: d.outcome ? d.outcome.verdict : null }; })) },
     { name: 'get_learning', description: 'What the app has learned from the decision log: follow-up call results and how many called patients continued treatment, track record per recommendation kind, and whether the risk model or the simple rule is in use.', inputSchema: { type: 'object', properties: {} }, execute: () => { const m = S.model; return round({ followUp: S.learned && S.learned.followUp, byKind: S.learned && Object.fromEntries(Object.entries(S.learned.byKind).map(([k, s]) => [k, { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement }])), model: m ? { usingSimpleRule: m.useRule, aucModel: m.aucModel, aucRule: m.aucRule, calibration: m.calibration, trainingCasesWithCall: m.calls.trainingCases } : null }); } },
     { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
   ];
@@ -1598,7 +1718,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       'Rules:\n- Get every figure from the tools. Never estimate, compute new totals from memory, or invent numbers. If the tools cannot answer, say so.\n' +
       '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
       '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number. Never ask for or guess personal data.\n' +
-      '- Answer in the language of the question. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
+      '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not.\n' +
+      '- Answer in ' + (IC.getLang() === 'es' ? 'Spanish (Spain)' : 'English') + ' unless the question is in another language. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
       'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
   }
   function md(t) {
@@ -1623,27 +1744,28 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (S.busy || !q.trim()) return;
     S.busy = true; $('#chips').hidden = true;
     addMsg('user', q);
-    const bubble = addMsg('bot', 'Looking at the data…');
+    const bubble = addMsg('bot', L('Looking at the data…', 'Mirando los datos…'));
     const sample = await getSample();
-    if (!sample) { bubble.innerHTML = md('The assistant works when this app is opened on claude.ai.'); S.busy = false; return; }
+    if (!sample) { bubble.innerHTML = md(L('The assistant works when this app is opened on claude.ai.', 'El asistente funciona cuando la app se abre en claude.ai.')); S.busy = false; return; }
     const hist = S.chat.slice(-6).map((m) => (m.role === 'user' ? 'Manager: ' : 'Assistant: ') + m.text).join('\n');
     const prompt = instructions() + (hist ? '\n\nConversation so far:\n' + hist : '') + '\n\nManager question: ' + q;
     try {
       const res = await sample(prompt, { tools: TOOLS, cache: false, onText: (u) => { if (u && u.text) { bubble.innerHTML = md(u.text); $('#chatLog').scrollTop = $('#chatLog').scrollHeight; } } });
-      const text = res && res.text ? res.text : 'No answer came back.';
+      const text = res && res.text ? res.text : L('No answer came back.', 'No ha llegado respuesta.');
       bubble.innerHTML = md(text);
       S.chat.push({ role: 'user', text: q }, { role: 'assistant', text });
     } catch (err) {
       const code = err && err.code;
-      bubble.innerHTML = md(code === 'not_granted' ? 'The assistant needs your permission to answer. Allow it when asked, or from the artifact\'s permissions menu.' : code === 'rate_limited' ? 'Too many questions in a short time. Wait a minute and ask again.' : 'The assistant could not answer: ' + ((err && err.message) || 'unknown error') + '.');
+      bubble.innerHTML = md(code === 'not_granted' ? L('The assistant needs your permission to answer. Allow it when asked, or from the artifact\'s permissions menu.', 'El asistente necesita tu permiso para responder. Permítelo cuando te lo pida o desde el menú de permisos del artefacto.') : code === 'rate_limited' ? L('Too many questions in a short time. Wait a minute and ask again.', 'Demasiadas preguntas en poco tiempo. Espera un minuto y vuelve a preguntar.') : L('The assistant could not answer: ', 'El asistente no pudo responder: ') + ((err && err.message) || L('unknown error', 'error desconocido')) + '.');
     }
     S.busy = false;
   }
+  function showChips() { $('#chips').innerHTML = suggestions().map((s) => '<button class="chip" type="button">' + esc(s) + '</button>').join(''); }
   $('#askBtn').addEventListener('click', () => {
     const c = $('#chat'); c.hidden = !c.hidden;
     if (!c.hidden) {
-      if (!$('#chatLog').children.length) addMsg('bot', 'Ask about any figure in the app. I read the same calculations you see and can explain them, compare periods or suggest a decision.');
-      $('#chips').innerHTML = SUGGEST.map((s) => '<button class="chip" type="button">' + esc(s) + '</button>').join('');
+      if (!$('#chatLog').children.length) addMsg('bot', L('Ask about any figure in the app. I read the same calculations you see and can explain them, compare periods or suggest a decision.', 'Pregunta por cualquier cifra de la app. Leo los mismos cálculos que ves y puedo explicarlos, comparar periodos o proponer una decisión.'));
+      showChips();
       $('#chatIn').focus();
     }
   });
@@ -1654,9 +1776,10 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#chat').hidden = true; $('#imp').hidden = true; } });
 
   // ---------- Start ----------
-  fillDataSelect();
+  applyStatic();
   Store.loadLocal();
   useSample(0);
+  fillDataSelect();
   Store.init().then(() => { if (!S.open) render(); });
 })();
 </script>

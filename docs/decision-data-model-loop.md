@@ -78,6 +78,21 @@ The app **never acts**. It calculates, ranks and recommends; managers decide; st
 - Recommendations require the same drop against the previous six months **and** the same months last year before flagging a dentist, so a promotion or season does not trigger them.
 - Every evaluation is shown next to the same months a year earlier and labelled "before/after, not proof of cause".
 
+### 2.1 Evidence from the clinic (managers and accountant, 5 November 2026)
+
+What the managers and the accountant told us, and what it changes:
+
+| Finding | What it shows | Response in the app |
+|---|---|---|
+| The 2026 implant and orthodontics discount was announced with flyers. No target was set, and reception was not asked to record how new patients found the clinic ("people usually say why they come"). | D1 and D2 decisions are taken **without an expected result, without attribution data and without a measured outcome**: the loop is open today. | Logging a decision asks for the metric and the expected change; the review compares before/after with last year. The recording standard adds one question at the first visit: how did you find us? |
+| Managers' view: flyer discounts barely bring patients; discounts work once the patient is already in the clinic. Instagram giveaways worked very well. | A testable hypothesis about which channel works. Today it rests on impressions. | The D2 recommendation now suggests recording the source and reinforcing the best channel. The D4 recommendation now aims promotions at patients already in the clinic. Both are logged and measured. |
+| Reception does not tell cancellations from no-shows: both are marked **red** ("anula la consulta"); done visits are **green** ("actuación realizada"). The MN status field stays empty. | The outcome data exists, but as a colour, not as a status. | **Built:** the importer reads the colour (red = lost, green = done). Data quality shows how many lost visits have no reason. |
+| The accountant exports collections to Excel and summarises them **by day and payment method by hand**. | Recurring manual work. | Collections are computed on import. |
+| First visits are entered as "1 consulta". The export repeats some patients, and **the accountant deletes the duplicates by hand**. | A cleaning step done manually every month. | **Built:** "1 consulta" is recognised, and each patient counts once (earliest first visit not marked lost). |
+| The clinic writes an **initial letter on each payment** to mark the treatment type. The accountant sorts by letter and sums in Excel. MN cannot tag treatments by type: "we know what we collect by treatment type, but not what we produce". | Production by treatment line, which D1, D4 and D6 need, does not exist today. The payment initials are **labelled examples** for classifying the free-text treatment descriptions. | Next: the cleaning layer. Keyword rules plus an LLM classifier for treatment descriptions, trained and checked against the payment initials, with human confirmation of unclear cases. |
+| The accountant would like **profit per patient**: chair time × hourly cost plus assigned costs (prostheses, aligners) against quote, collected, pending and production. MN can store costs, but nobody maintains them. | Validates the margin view (D6). The agenda already holds chair time (start and end). | Candidate extension after the pilot, not in its scope. |
+| The managers would use the app **if importing and cleaning the data is easy**. | Adoption depends on the import, not on the dashboards. | A pilot (section 6) with an explicit stop criterion. |
+
 ---
 
 ## 3. DATA: what is captured, how, and where it is stored
@@ -94,13 +109,16 @@ What the September–October 2026 agenda export and the October Historial test s
 | Production by treatment, line and dentist | MN **Facturas** and payment concepts, mapped to treatment lines with keyword rules and an LLM-assisted classifier for the rest (about 23% cannot be classified by keywords) | Next |
 | Paid but not yet done | **Accountant's pending-production Excel** | To request |
 | Material and lab costs | **Accountant's cost Excel** | To request |
-| Appointment outcomes, first-visit label | Reception recording standard | Needs process change |
+| Appointment outcomes | Agenda **colour** (red "anula la consulta" = lost, green "actuación realizada" = done), read by the importer | Built |
+| Cancellation vs no-show; how a new patient found the clinic | Reception recording standard: one extra colour for no-shows, one question at the first visit | Needs process change |
+| Treatment type of each payment | Initial letter the clinic already writes on payment concepts | Next (labelled data for the cleaning layer) |
 
 **Collection and cleaning** (Built in the importer, column names to be adjusted to the real exports):
 1. Tables are recognised from their headers (Spanish or English, accents ignored).
 2. Dates (Excel serials, `dd/mm/yyyy`, ISO) and Spanish amounts (`1.234,50 €`) are normalised.
-3. MN agenda states map to attended / rebooked / lost / future.
-4. Missing tables and the data date are reported; a **Data quality** card shows what share of the needed fields is actually recorded.
+3. MN agenda states map to attended / rebooked / lost / future; when the state is empty, the colour decides (red = lost without reason, green = attended).
+4. First visits ("1 consulta") are de-duplicated per patient.
+5. Missing tables and the data date are reported; a **Data quality** card shows what share of the needed fields is actually recorded.
 
 **Privacy and storage** (Built): exports are made with templates that leave out names, NIF, phones, addresses and clinical notes; patient numbers are replaced by codes on the clinic's computer before analysis; imported data stays in the browser and is not uploaded; the assistant only receives figures and patient codes. The repository blocks `.xlsx`/`.csv` files. The clinic's data protection officer reviews the design (report 2.6).
 
@@ -141,7 +159,8 @@ Four parts. Only the risk model learns statistically; the rest is deterministic 
 | Margin after materials and lab | (Production − direct material and lab cost) ÷ production. Not net profit |
 | Collections | Money received in the month, by payment date |
 | Paid, not yet done | Per patient: payments − value done, summed where positive (customer advances, account 438) |
-| New patients | Patient files opened in the month (Fecha Alta), until first visits are labelled consistently |
+| New patients | Patient files opened in the month (Fecha Alta); without registration dates, each patient's earliest "1 consulta" not marked lost, counted once |
+| Lost visits | Cancellations without a new date plus no-shows; red agenda entries count as lost with the reason unknown |
 | Production by dentist | Production of treatment done by each professional |
 | Treatment lines | Count, production, margin and change vs same months last year per category |
 | Top patients | Patients ranked by value done in 12 months |
@@ -207,14 +226,40 @@ An LLM (Claude, through the claude.ai artifact runtime) answers managers' questi
    └─ Assistant ──tool calls──► core.js functions; Claude via claude.ai runtime
 ```
 
-Plain HTML/JS, no server; `core.js` is unit-testable in Node. Running cost: within the €1,000/year budget (no licence beyond the AI usage). Production path: scheduled exports to an EU-hosted store, logins for the three managers, audit trail on the log.
+Plain HTML/JS, no server; `core.js` is unit-testable in Node. The interface is in **Spanish by default**, with an EN switch for the course (Built). Every generated text, including recommendations, risk reasons and metric definitions, follows the language, and the decision log stores language-neutral codes. Running cost: within the €1,000/year budget (no licence beyond the AI usage). Production path: scheduled exports to an EU-hosted store, logins for the three managers, audit trail on the log.
 
 ---
 
-## 6. Honest limits
+## 6. Pilot
+
+The managers' condition for using the app is that importing and cleaning the data is easy. The pilot tests that first, and stops early if the decision log is not used.
+
+| Phase | Weeks | What happens | Go / stop |
+|---|---|---|---|
+| 0. Set-up | 0 | MN export templates (Agenda with colour, Pacientes, Cobros); pseudonymisation on the clinic's computer; briefing for reception: one extra colour for no-shows and the question "how did you find us?" at first visits | Exports import without manual fixes |
+| 1. Adoption test | 1–2 | Managers log every D1–D6 decision they take, with metric and expected change; reception works the first follow-up call list | **Stop** if the log is not kept for two weeks (kill criterion, report 2.6) |
+| 2. Monthly cycle | 3–8 | Import → recommendations → decisions → weekly call lists → review of due decisions | Review at week 8 against the targets below |
+
+Pilot KPIs, with **proposed targets to agree with the managers**:
+
+| KPI | Proposed target | Why it matters |
+|---|---|---|
+| Time from MN export to updated app | ≤ 30 minutes a month | The managers' stated condition |
+| The app's monthly production and collections match the accountant's figures | Within ±2% | Trust in the numbers |
+| Accountant's manual Excel work (de-duplicating first visits, summing by payment initial, daily collections summary) | Replaced; hours saved to be measured against the accountant's current hours | Business case |
+| Past appointments with an outcome colour | ≥ 90% | Lost-visit KPIs and risk inputs |
+| First visits with the source recorded | ≥ 80% | Measuring marketing decisions (D2) |
+| D1–D6 decisions logged with an expected change | All decisions taken in the period | The loop closes only if decisions enter the log |
+| Results recorded on follow-up call lists | ≥ 80% of listed patients | Learning mechanisms L5 and L6 |
+| Paid-but-unfinished amount of the listed patients | Falls; the size of the fall is set after the first measured continuation rate | Money recovered |
+
+---
+
+## 7. Honest limits
 
 - Prototype figures come from **synthetic data** sized like the clinic until the real exports are imported.
-- MN's appointment outcomes, cancellations and performed flags are almost never recorded; lost-visit KPIs and some risk inputs depend on the recording standard.
+- MN's appointment status, cancellation and performed fields are almost never filled in. Reception records outcomes as colours instead, which the importer reads, but red does not say whether the patient cancelled or did not come. Separating the two needs the recording standard.
+- Production by treatment line does not exist in MN today (only collections by payment initial); until the cleaning layer is built, real treatment-line figures depend on manual mapping.
 - Pending production comes from the accountant's Excel until treatment plans and payments are linked.
 - Before/after comparisons show association, not cause; the same-months-last-year figure and the reached-vs-no-answer comparison are partial controls.
 - With sample data, the effect of "Booked" calls and the 2026 events (promotion, reviews incentive, new dentist, endodontist's reduced hours, fewer referrals from September) are simulated to demonstrate the loop.
