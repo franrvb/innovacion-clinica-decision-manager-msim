@@ -95,7 +95,7 @@ What the managers and the accountant told us, and what it changes:
 | The accountant spends **about 8 hours a week** on these Excel tasks (salary €3,100 gross a month). Pending production is **about €60,000**, rebuilt by hand. | The manual cost and the size of the blind spot are now clinic figures, not assumptions. | Business case in report Table 2 and Table 11; €60,000 is the baseline for the D5 KPI. |
 | MN Program **cannot** produce production by treatment type, payment summaries by day and method, or profit per patient. | Confirms the gap: training on MN would not fix it. | Supports the alternatives comparison (report Table 3). |
 | The managers **accepted** the six decisions, the monthly review, the KPI targets and the cost assumptions. | Adoption intent is confirmed; the pilot tests whether it lasts. | Targets in section 6 are no longer proposals. |
-| The clinic has **no data protection officer**. | Spanish law (LOPDGDD, Art. 34) requires one for health centers that keep clinical records. MN's GDPR compliance does not cover the exports, the app or the AI provider. | An external data protection officer is appointed in pilot phase 0 and reviews the design (report Section 10). |
+| GDPR is one of the main challenges: anonymized exports slow decisions (e.g., seeing which patients spend most). | Payments at a dental clinic reveal treatment, so they are health data (CJEU, C-21/23, 2024). Managers may still use them to run the clinic (GDPR Art. 9(2)(h); Ley 41/2002 Art. 16.4, management staff see what their job needs, under secrecy). The duties come from data leaving the clinic (processor contracts, US transfer for the AI provider), new purposes (rewards need explicit consent) and health data + ranking + AI (impact assessment). MN's GDPR compliance covers MN only. | **Built:** names are re-identified in the browser from a patient key held in memory only; the data, the shared log and the assistant see numbers only. Pilot phase 0: impact assessment, processor contracts, privacy notice. Rewards only with explicit consent (phase 4). |
 
 ---
 
@@ -124,7 +124,13 @@ What the September–October 2026 agenda export and the October Historial test s
 4. First visits ("1 consulta") are de-duplicated per patient.
 5. Missing tables and the data date are reported; a **Data quality** card shows what share of the needed fields is actually recorded.
 
-**Privacy and storage** (Built): exports are made with templates that leave out names, NIF, phones, addresses and clinical notes; patient numbers are replaced by codes on the clinic's computer before analysis; imported data stays in the browser and is not uploaded; the assistant only receives figures and patient codes. The repository blocks `.xlsx`/`.csv` files. The clinic has no data protection officer today, so an external one is appointed before the pilot and reviews the design, the fields sent to the AI provider and the processing agreements (report Section 10 and Table 13, phase 0).
+**Privacy and storage** (Built): exports are made with templates that leave out names, NIF, phones, addresses and clinical notes, so patients appear only by number; imported data stays in the browser and is not uploaded; the assistant only receives figures and patient numbers. The repository blocks `.xlsx`/`.csv` files.
+
+**Names in the browser only** (Built): managers can load the clinic's patient list (number and name, Excel or CSV) under Import → "Nombres de pacientes". The app reads it into memory (`KEY` in `index.html`) and adds names next to numbers in the risk list, top patients, recommendation patient lists, call lists and the assistant's answers on screen. The key is never written to storage, never synced to the shared decision log and never part of a prompt; closing the tab forgets it. A real key applies only to imported data; "Probar con nombres ficticios" loads fictitious names for the sample data. The "Nombres: visibles/ocultos" button hides them, e.g. when projecting. In the other direction, a name typed in a question to the assistant is replaced by the patient's number before the question leaves the browser (`namesToNumbers` in `index.html`): a match needs two consecutive words of one patient's name; if several patients share them, a neutral placeholder ("[varios pacientes]") is sent instead, and the chat shows what was actually sent. To build for production: a keyed code replacing MN patient numbers in the exports.
+
+This is **pseudonymization, not anonymization**: the clinic can link each number to a person, so numbers and figures sent to the AI remain personal data under the GDPR (Recital 26). It lowers the risk (a leak outside the clinic exposes numbers and amounts, not identities) but does not remove the contracts and impact assessment.
+
+**GDPR groundwork** (pilot phase 0, owned by the clinic's data protection officer): data protection impact assessment, processor contracts with the hosting and AI providers (including the US transfer), updated privacy notice and retention schedule (report Section 10).
 
 **Cadence**: managers decide monthly; data can be imported whenever needed (daily export is possible; monthly is enough for these decisions).
 
@@ -218,14 +224,14 @@ An LLM (Claude through the claude.ai artifact runtime in the prototype; Claude S
 ## 5. Architecture (prototype)
 
 ```
- MN Program ──Excel exports (templates without identifiers)──┐
+ MN Program ──Excel exports (templates without names)───────┐
  Accountant's Excel (pending production, costs) ─────────────┤
-                                                             ▼
-                 Pseudonymization script on the clinic's computer
                                                              ▼
  Browser app (single page) ─ Import: SheetJS → table detection → normalization
    ├─ core.js: KPI engine · risk model (train + score) · rules · before/after
    ├─ UI: Overview · Recommendations · Decisions (log, call lists, learning)
+   ├─ Patient key (number → name, from the clinic's computer) ──► browser memory only;
+   │    names added on screen, never stored, synced or sent to the assistant
    ├─ Decision log ──► shared database (collection "decisions")
    └─ Assistant ──tool calls──► core.js functions; Claude via claude.ai runtime
 ```
@@ -240,11 +246,11 @@ The managers' condition for using the app is that importing and cleaning the dat
 
 | Phase | Weeks | What happens | Go / stop |
 |---|---|---|---|
-| 0. Tests | Two weeks before | Cleaning tests 1–3 on real exports (report Section 7.2); appoint an external data protection officer, who reviews the design | Pass, or keyword fallback |
+| 0. Tests | Two weeks before | Cleaning tests 1–3 on real exports (report Section 7.2); GDPR groundwork: impact assessment, processor contracts with the hosting and AI providers, updated privacy notice | Pass, or keyword fallback |
 | 1. Set-up | 0 | MN export templates (Agenda with color, Pacientes, Cobros); pseudonymization on the clinic's computer; briefing for reception: one extra color for no-shows and the question "how did you find us?" at first visits | Exports import without manual fixes |
 | 2. Adoption test | 1–2 | Managers log every D1–D6 decision they take, with metric and expected change; reception works the first follow-up call list | **Stop** if the log is not kept for two weeks (stop rule, report Section 9, Table 13) |
 | 3. Monthly cycle | 3–8 | Import → recommendations → decisions → weekly call lists → review of due decisions | Review at week 8 against the targets below |
-| 4. Scale | Months 3–12 | EU hosting and logins, classifier in production, rollout to the other three clinics | Positive review at month 6 |
+| 4. Scale | Months 3–12 | EU hosting and logins, classifier in production, rollout to the other three clinics; a rewards program for top patients, with their explicit consent (LSSI rules for messages) | Positive review at month 6 |
 
 Pilot KPIs, with targets **accepted by the managers (November 2026)**:
 
@@ -267,5 +273,6 @@ Pilot KPIs, with targets **accepted by the managers (November 2026)**:
 - MN's appointment status, cancellation and performed fields are almost never filled in. Reception records outcomes as colors instead, which the importer reads, but red does not say whether the patient canceled or did not come. Separating the two needs the recording standard.
 - Production by treatment line does not exist in MN today (only collections by payment initial); until the cleaning layer is built (only after the three tests in report Section 7.2), real treatment-line figures depend on manual mapping.
 - Pending production comes from the accountant's Excel until treatment plans and payments are linked.
+- Patients are identified by their MN number inside the app; replacing it with a keyed code is a production step. Names exist only in the browser's memory, from the patient key.
 - Before/after comparisons show association, not cause; the same-months-last-year figure and the reached-vs-no-answer comparison are partial controls.
 - With sample data, the effect of "Booked" calls and the 2026 events (promotion, reviews incentive, new dentist, endodontist's reduced hours, fewer referrals from September) are simulated to demonstrate the loop.

@@ -925,6 +925,35 @@
     return ds;
   }
 
+  // ---------- Patient key (re-identification in the browser) ----------
+  // The exports, the shared decision log and the assistant only carry patient numbers. A key file that
+  // stays on the clinic's computer maps each number to a name. The page reads it into memory and adds
+  // the names on screen; nothing here stores, shares or sends them.
+  const NAME_COLS = ['nombre', 'nombre y apellidos', 'nombre completo', 'nombre paciente', 'paciente nombre', 'name', 'full name'];
+  const SURNAME_COLS = ['apellidos', 'apellido', 'primer apellido', 'surname', 'last name'];
+  function keyFromRows(rows) {
+    const out = new Map();
+    for (const r of rows) {
+      const raw = pick(r, COLS.patient);
+      const id = parseInt(String(raw == null ? '' : raw).replace(/\D/g, ''), 10);
+      if (isNaN(id)) continue;
+      const name = [pick(r, NAME_COLS), pick(r, SURNAME_COLS)].filter((v) => v != null && String(v).trim()).map((v) => String(v).trim()).join(' ');
+      if (name) out.set(id, name);
+    }
+    return out;
+  }
+  // Fictitious names for the synthetic sample patients, so the feature can be shown without real data.
+  function sampleNames(ids) {
+    const F = ['Lucía', 'Carmen', 'María', 'Ana', 'Isabel', 'Laura', 'Elena', 'Paula', 'Marta', 'Sofía', 'Antonio', 'Manuel', 'José', 'Francisco', 'David', 'Juan', 'Javier', 'Daniel', 'Carlos', 'Miguel'];
+    const S1 = ['García', 'Martínez', 'López', 'Sánchez', 'Pérez', 'Gómez', 'Martín', 'Jiménez', 'Ruiz', 'Hernández', 'Díaz', 'Moreno', 'Muñoz', 'Álvarez', 'Romero', 'Navarro', 'Torres', 'Domínguez', 'Gil', 'Vázquez'];
+    const out = new Map();
+    for (const id of ids) {
+      const r = rng(id * 104729 + 17);
+      out.set(id, F[Math.floor(r() * F.length)] + ' ' + S1[Math.floor(r() * S1.length)] + ' ' + S1[Math.floor(r() * S1.length)]);
+    }
+    return out;
+  }
+
   const DEFINITIONS = {
     get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
     get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
@@ -944,7 +973,8 @@
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
-    METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS
+    METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
+    keyFromRows, sampleNames
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);

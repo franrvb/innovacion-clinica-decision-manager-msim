@@ -90,6 +90,10 @@ td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
 td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pid { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+.pname { font-weight: 600; margin-right: 8px; font-family: var(--font); }
+.key-box { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.key-box h3 { font-size: 15px; margin: 0 0 6px; }
+.sent-as { font-size: 12px; color: var(--ink-2); margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.high { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 .pill.medium { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
@@ -186,6 +190,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     </nav>
     <div class="top-actions">
       <select id="dataSel" class="data-sel"></select>
+      <button id="namesBtn" class="btn-top" hidden></button>
       <button id="importBtn" class="btn-top" data-t="import"></button>
       <button id="askBtn" class="btn-top btn-ask" data-t="ask"></button>
       <button id="langBtn" class="btn-top btn-lang"></button>
@@ -220,6 +225,13 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     <input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv">
     <div id="impResult"></div>
     <div class="actions"><button id="impUse" class="btn primary" hidden data-t="impUse"></button><button id="impClose" class="btn" data-t="close"></button></div>
+    <div class="key-box">
+      <h3 data-t="keyTitle"></h3>
+      <p class="note" data-t="keyIntro"></p>
+      <input type="file" id="keyFile" accept=".xlsx,.xls,.csv">
+      <div class="actions"><button id="keySample" class="btn" data-t="keySample"></button><button id="keyForget" class="btn quiet" hidden data-t="keyForget"></button></div>
+      <div id="keyResult"></div>
+    </div>
   </div>
 </div>
 
@@ -1151,6 +1163,35 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return ds;
   }
 
+  // ---------- Patient key (re-identification in the browser) ----------
+  // The exports, the shared decision log and the assistant only carry patient numbers. A key file that
+  // stays on the clinic's computer maps each number to a name. The page reads it into memory and adds
+  // the names on screen; nothing here stores, shares or sends them.
+  const NAME_COLS = ['nombre', 'nombre y apellidos', 'nombre completo', 'nombre paciente', 'paciente nombre', 'name', 'full name'];
+  const SURNAME_COLS = ['apellidos', 'apellido', 'primer apellido', 'surname', 'last name'];
+  function keyFromRows(rows) {
+    const out = new Map();
+    for (const r of rows) {
+      const raw = pick(r, COLS.patient);
+      const id = parseInt(String(raw == null ? '' : raw).replace(/\D/g, ''), 10);
+      if (isNaN(id)) continue;
+      const name = [pick(r, NAME_COLS), pick(r, SURNAME_COLS)].filter((v) => v != null && String(v).trim()).map((v) => String(v).trim()).join(' ');
+      if (name) out.set(id, name);
+    }
+    return out;
+  }
+  // Fictitious names for the synthetic sample patients, so the feature can be shown without real data.
+  function sampleNames(ids) {
+    const F = ['Lucía', 'Carmen', 'María', 'Ana', 'Isabel', 'Laura', 'Elena', 'Paula', 'Marta', 'Sofía', 'Antonio', 'Manuel', 'José', 'Francisco', 'David', 'Juan', 'Javier', 'Daniel', 'Carlos', 'Miguel'];
+    const S1 = ['García', 'Martínez', 'López', 'Sánchez', 'Pérez', 'Gómez', 'Martín', 'Jiménez', 'Ruiz', 'Hernández', 'Díaz', 'Moreno', 'Muñoz', 'Álvarez', 'Romero', 'Navarro', 'Torres', 'Domínguez', 'Gil', 'Vázquez'];
+    const out = new Map();
+    for (const id of ids) {
+      const r = rng(id * 104729 + 17);
+      out.set(id, F[Math.floor(r() * F.length)] + ' ' + S1[Math.floor(r() * S1.length)] + ' ' + S1[Math.floor(r() * S1.length)]);
+    }
+    return out;
+  }
+
   const DEFINITIONS = {
     get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
     get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
@@ -1170,7 +1211,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     dn, iso, fromIso, mk, mkStart, mkEnd, mkLabel, mkShortYear, dayLabel, weekday, WEEKDAYS, ST, FEATURES, DEFINITIONS,
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
-    METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS
+    METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
+    keyFromRows, sampleNames
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1193,15 +1235,19 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   const STATIC = () => ({
     brandSub: L('Management', 'Gestión'), tabOverview: L('Overview', 'Resumen'), tabRecs: L('Recommendations', 'Recomendaciones'), tabDecisions: L('Decisions', 'Decisiones'),
     import: L('Import', 'Importar'), ask: L('Ask', 'Preguntar'), close: L('Close', 'Cerrar'), send: L('Send', 'Enviar'),
-    chatTitle: L('Ask about the data', 'Pregunta sobre los datos'), chatNote: L('Figures come from the app\'s own calculations. Patients appear by number only.', 'Las cifras salen de los cálculos de la propia app. Los pacientes aparecen solo por número.'),
+    chatTitle: L('Ask about the data', 'Pregunta sobre los datos'), chatNote: L('Figures come from the app\'s own calculations. The assistant only sees patient numbers: names you type are replaced by numbers before sending, and names are added back on your screen only.', 'Las cifras salen de los cálculos de la propia app. El asistente solo ve números de paciente: los nombres que escribas se cambian por números antes de enviarse, y los nombres se añaden de nuevo solo en tu pantalla.'),
     impTitle: L('Import data', 'Importar datos'),
     impIntro: L('Export these lists from MN Program to Excel or CSV and select them together. The files are read in this browser and are not uploaded.', 'Exporta estas listas de MN Program a Excel o CSV y selecciónalas juntas. Los archivos se leen en este navegador y no se suben a ningún sitio.'),
     impAppts: L('<b>Appointments:</b> patient number, date, status or colour, professional, room, description', '<b>Agenda:</b> número de paciente, fecha, estado o color, profesional, gabinete, descripción'),
     impLines: L('<b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room', '<b>Tratamientos:</b> número de paciente, tratamiento, importe, estado, fecha de aceptación, fecha de realización, gabinete'),
     impPays: L('<b>Payments:</b> patient number, payment date, amount, payment method', '<b>Cobros:</b> número de paciente, fecha de cobro, importe, forma de cobro'),
     impPatients: L('<b>Patients</b> (optional): patient number, registration date', '<b>Pacientes</b> (opcional): número de paciente, fecha de alta'),
-    impNote: L('Patient names are not needed. Leave them out of the export if you can.', 'No hacen falta nombres de pacientes. Déjalos fuera de la exportación si puedes.'),
-    impUse: L('Use this data', 'Usar estos datos')
+    impNote: L('Leave patient names out of these exports: the data, the shared decision log and the assistant work with patient numbers. To see names, load the patient key below.', 'Deja los nombres de pacientes fuera de estas exportaciones: los datos, el registro de decisiones compartido y el asistente trabajan con números de paciente. Para ver nombres, carga la clave de pacientes de abajo.'),
+    impUse: L('Use this data', 'Usar estos datos'),
+    keyTitle: L('Patient names (optional)', 'Nombres de pacientes (opcional)'),
+    keyIntro: L('To see names next to patient numbers, select the patient list (patient number and name) kept on the clinic\'s computer. It is read in this browser and held in memory only: it is not saved, not shared with other managers and never sent to the assistant. Closing the tab forgets it.', 'Para ver nombres junto a los números de paciente, selecciona el listado de pacientes (número y nombre) que se guarda en el ordenador de la clínica. Se lee en este navegador y solo se guarda en memoria: no se almacena, no se comparte con otros directivos y nunca se envía al asistente. Al cerrar la pestaña se olvida.'),
+    keySample: L('Try with fictitious names (sample data)', 'Probar con nombres ficticios (datos de ejemplo)'),
+    keyForget: L('Forget names', 'Olvidar nombres')
   });
   function applyStatic() {
     const t = STATIC();
@@ -1215,11 +1261,71 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     lb.textContent = IC.getLang() === 'es' ? 'EN' : 'ES';
     lb.title = IC.getLang() === 'es' ? 'Switch to English' : 'Cambiar a español';
     lb.setAttribute('aria-label', lb.title);
+    namesBtn();
   }
 
   const SNAPS = [IC.dn(2026, 11, 3), IC.dn(2026, 12, 3), IC.dn(2027, 1, 4)];
   const snapLabel = (i) => L('Sample · ', 'Ejemplo · ') + IC.dayLabel(SNAPS[i]);
   const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false };
+
+  // ---------- Patient names: re-identification in this browser only ----------
+  // Everything the app computes, stores in the shared decision log or sends to the assistant uses
+  // patient numbers. The key (number -> name) lives only in this variable: never written to storage,
+  // never synced, never part of a prompt. Names are added when a table is drawn on screen.
+  // A real key applies only to imported data; fictitious names apply only to the sample data.
+  const KEY = { map: null, sample: false, show: true };
+  const keyActive = () => !!(KEY.map && KEY.show && S.ds && (KEY.sample ? S.ds.source === 'sample' : S.ds.source !== 'sample'));
+  const nameOf = (id) => keyActive() ? KEY.map.get(Number(id)) || null : null;
+  const pat = (id) => { const n = nameOf(id); return (n ? '<span class="pname">' + esc(n) + '</span>' : '') + '<span class="pid">Nº ' + esc(id) + '</span>'; };
+  // Adds names to the assistant's answer on screen (the stored conversation keeps numbers only).
+  const withNames = (html) => keyActive() ? html.replace(/Nº\s?(\d+)/g, (m, id) => { const n = KEY.map.get(Number(id)); return n ? '<span class="pname">' + esc(n) + '</span>' + m : m; }) : html;
+  // The reverse direction: a name typed in a question is replaced by the patient's number before the
+  // question leaves the browser. A match needs at least two consecutive words of one patient's name
+  // (e.g. "Ana Ruiz"); joining words such as "de la" never count on their own. If several patients
+  // share those words, the name is replaced by a neutral placeholder instead, so it is never sent.
+  const STOPW = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'i', 'da', 'do', 'dos', 'van', 'von', 'san', 'santa']);
+  const nrm = (s) => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  function keyPairs() {
+    if (KEY.idx && KEY.idx.map === KEY.map) return KEY.idx.pairs;
+    const pairs = new Map();
+    KEY.map.forEach((name, id) => {
+      const t = nrm(name).match(/[a-z]+/g) || [];
+      for (let i = 1; i < t.length; i++) { const k = t[i - 1] + ' ' + t[i]; let s = pairs.get(k); if (!s) { s = new Set(); pairs.set(k, s); } s.add(id); }
+    });
+    KEY.idx = { map: KEY.map, pairs };
+    return pairs;
+  }
+  function namesToNumbers(q) {
+    if (!KEY.map) return { text: q, swapped: 0, unclear: 0 };
+    const pairs = keyPairs();
+    const toks = []; const re = /\p{L}+/gu; let m;
+    while ((m = re.exec(q))) toks.push({ w: nrm(m[0]), a: m.index, b: m.index + m[0].length });
+    let out = '', last = 0, swapped = 0, unclear = 0;
+    for (let i = 0; i < toks.length; i++) {
+      if (STOPW.has(toks[i].w)) continue;
+      let cand = null, j = i;
+      while (j + 1 < toks.length) {
+        const s = pairs.get(toks[j].w + ' ' + toks[j + 1].w); if (!s) break;
+        const next = cand ? new Set([...cand].filter((x) => s.has(x))) : new Set(s);
+        if (!next.size) break;
+        cand = next; j++;
+      }
+      while (j > i && STOPW.has(toks[j].w)) j--;
+      if (!cand || toks.slice(i, j + 1).filter((t) => !STOPW.has(t.w)).length < 2) continue;
+      out += q.slice(last, toks[i].a) + (cand.size === 1 ? 'Nº ' + [...cand][0] : L('[several patients]', '[varios pacientes]'));
+      if (cand.size === 1) swapped++; else unclear++;
+      last = toks[j].b; i = j;
+    }
+    return { text: out + q.slice(last), swapped, unclear };
+  }
+  function namesBtn() {
+    const b = $('#namesBtn'); const on = !!KEY.map;
+    b.hidden = !on; $('#keyForget').hidden = !on;
+    if (!on) return;
+    b.textContent = KEY.show ? L('Names: shown', 'Nombres: visibles') : L('Names: hidden', 'Nombres: ocultos');
+    b.title = L('Names come from a key held only in this browser. They are never saved, shared or sent to the assistant. Click to show or hide them.', 'Los nombres vienen de una clave que solo está en este navegador. Nunca se guardan, se comparten ni se envían al asistente. Pulsa para mostrarlos u ocultarlos.');
+    b.setAttribute('aria-pressed', KEY.show ? 'true' : 'false');
+  }
 
   // Labels for values stored in English in the decision log.
   const KIND_KEYS = ['risk', 'acq', 'pricing', 'dentist', 'line', 'margin'];
@@ -1394,7 +1500,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 
     '<section class="card"><h2>' + L('Patients likely to abandon their treatment', 'Pacientes con riesgo de abandonar su tratamiento') + '</h2><p class="def">' + L('Patients with accepted treatment not finished, ranked by expected loss (risk × amount pending). Risk is the probability of no progress in the next 90 days.', 'Pacientes con tratamiento aceptado sin terminar, ordenados por pérdida esperada (riesgo × importe pendiente). El riesgo es la probabilidad de no avanzar en los próximos 90 días.') + '</p>' +
       (risk.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Risk', 'Riesgo') + '</th><th class="r">' + L('Pending', 'Pendiente') + '</th><th class="r">' + L('Already paid', 'Ya pagado') + '</th><th>' + L('Why', 'Por qué') + '</th></tr></thead><tbody>' +
-        risk.map((r) => '<tr><td class="pid">Nº ' + r.patient + '</td><td><span class="pill ' + r.tier.toLowerCase() + '">' + Math.round(r.probability * 100) + '%</span></td><td class="r">' + eur(r.pending) + '</td><td class="r">' + eur(r.prepaid) + '</td><td class="why">' + esc(r.reasons.slice(0, 2).join(' · ')) + '</td></tr>').join('') +
+        risk.map((r) => '<tr><td>' + pat(r.patient) + '</td><td><span class="pill ' + r.tier.toLowerCase() + '">' + Math.round(r.probability * 100) + '%</span></td><td class="r">' + eur(r.pending) + '</td><td class="r">' + eur(r.prepaid) + '</td><td class="why">' + esc(r.reasons.slice(0, 2).join(' · ')) + '</td></tr>').join('') +
         '</tbody></table></div>' : '<p class="sub">' + L('No patients with unfinished treatment in the data.', 'No hay pacientes con tratamiento sin terminar en los datos.') + '</p>') +
       '<p class="note">' + L(high.length + ' patients at high risk (60% or more) hold ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' of pending treatment, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' of it already paid.', high.length + ' pacientes con riesgo alto (60% o más) tienen ' + eur(high.reduce((a, r) => a + r.pending, 0)) + ' de tratamiento pendiente, ' + eur(high.reduce((a, r) => a + r.prepaid, 0)) + ' ya pagados.') +
         (S.dormant && S.dormant.patients ? L(' Another ' + S.dormant.patients + ' patients have had no activity for over a year, with ' + eur(S.dormant.pending) + ' pending (' + eur(S.dormant.prepaid) + ' paid); they are not scored.', ' Otros ' + S.dormant.patients + ' pacientes llevan más de un año sin actividad, con ' + eur(S.dormant.pending) + ' pendientes (' + eur(S.dormant.prepaid) + ' pagados); no se puntúan.') : '') + '</p>' +
@@ -1416,7 +1522,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Hechos') + '</th><th class="r">' + L('Production', 'Producción') + '</th><th class="r">' + L('Margin', 'Margen') + '</th><th class="r">' + L('vs last year', 'vs año pasado') + '</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r">' + pc(x.marginPct) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No treatment done this month.', 'No hay tratamientos realizados este mes.') + '</p>') +
       '</section>' +
       '<section class="card"><h2>' + L('Patients who brought most revenue', 'Pacientes que más ingresos aportaron') + '</h2><p class="def">' + L('Production in the 12 months to ', 'Producción en los 12 meses hasta ') + esc(IC.mkLabel(k)) + '.</p>' +
-        (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th class="r">' + L('Treatment done', 'Tratamiento realizado') + '</th></tr></thead><tbody>' + top.map((x) => '<tr><td class="pid">Nº ' + x.patient + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No data.', 'Sin datos.') + '</p>') +
+        (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th class="r">' + L('Treatment done', 'Tratamiento realizado') + '</th></tr></thead><tbody>' + top.map((x) => '<tr><td>' + pat(x.patient) + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No data.', 'Sin datos.') + '</p>') +
       '</section>' +
       '<section class="card"><h2>' + L('Data quality', 'Calidad de los datos') + '</h2><p class="def">' + L('How much of what managers need is recorded, last three months. Low values mean MN entries need the reception recording standard.', 'Cuánto de lo que necesita la dirección está registrado, últimos tres meses. Valores bajos indican que las entradas de MN necesitan el estándar de registro de recepción.') + '</p>' +
         '<div class="tbl-wrap"><table><tbody>' +
@@ -1462,7 +1568,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       } else {
         foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">' + L('Accept', 'Aceptar') + '</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">' + L('Change', 'Modificar') + '</button><button class="btn danger" data-decide="Rejected" data-rec="' + esc(r.id) + '">' + L('Reject', 'Rechazar') + '</button></div>';
       }
-      const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>' + L('See the ', 'Ver los ') + r.metric.ids.length + L(' patients', ' pacientes') + '</summary><p class="ids">' + r.metric.ids.map((id) => 'Nº ' + id).join(' · ') + '</p></details>' : '';
+      const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>' + L('See the ', 'Ver los ') + r.metric.ids.length + L(' patients', ' pacientes') + '</summary><p class="ids">' + r.metric.ids.map((id) => pat(id)).join(' · ') + '</p></details>' : '';
       return '<article class="rec"><span class="kind">' + esc(kindLabel(r.kind)) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
         '<dl><dt>' + L('Suggested action', 'Acción propuesta') + '</dt><dd>' + esc(r.action) + '</dd><dt>' + L('Expected effect', 'Efecto esperado') + '</dt><dd>' + esc(r.impact) + '</dd><dt>' + L('Measured by', 'Se mide con') + '</dt><dd>' + esc(IC.metricLabel(r.metric)) + L(': now ', ': ahora ') + '<b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + trackLine(r.track) + ids + foot + '</article>';
     }).join('');
@@ -1562,7 +1668,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const opt = (v, cur) => '<option' + (v === cur ? ' selected' : '') + ' value="' + v + '">' + (v ? esc(callLabel(v)) : '—') + '</option>';
     return check + '<details class="more" data-calls="' + esc(d.id) + '"' + (S.openCalls.has(d.id) ? ' open' : '') + '><summary>' + L('Call list · ' + recorded + ' of ' + preds.length + ' results recorded', 'Lista de llamadas · ' + recorded + ' de ' + preds.length + ' resultados anotados') + '</summary>' +
       '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Risk at decision', 'Riesgo al decidir') + '</th><th>' + L('Call result', 'Resultado de la llamada') + '</th></tr></thead><tbody>' +
-      preds.map((p) => { const cur = calls[p.id] ? calls[p.id].result : ''; return '<tr><td class="pid">Nº ' + p.id + '</td><td>' + (p.p != null ? Math.round(p.p * 100) + '%' : '—') + '</td><td><select class="call-sel" aria-label="' + L('Call result for patient ', 'Resultado de la llamada al paciente ') + p.id + '" data-dec="' + esc(d.id) + '" data-pid="' + p.id + '">' + ['', 'Booked', 'Declined', 'No answer'].map((v) => opt(v, cur)).join('') + '</select></td></tr>'; }).join('') +
+      preds.map((p) => { const cur = calls[p.id] ? calls[p.id].result : ''; return '<tr><td>' + pat(p.id) + '</td><td>' + (p.p != null ? Math.round(p.p * 100) + '%' : '—') + '</td><td><select class="call-sel" aria-label="' + L('Call result for patient ', 'Resultado de la llamada al paciente ') + p.id + '" data-dec="' + esc(d.id) + '" data-pid="' + p.id + '">' + ['', 'Booked', 'Declined', 'No answer'].map((v) => opt(v, cur)).join('') + '</select></td></tr>'; }).join('') +
       '</tbody></table></div></details>';
   }
 
@@ -1664,6 +1770,18 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (window.XLSX) return Promise.resolve();
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error(L('The spreadsheet reader could not load.', 'No se pudo cargar el lector de hojas de cálculo.'))); document.head.appendChild(s); });
   }
+  // Reads an Excel file, or a CSV as UTF-8 text with its separator detected (Spanish Excel saves CSV with ";").
+  // CSV values stay as text, so dd/mm/yyyy dates and 1.234,50 amounts are parsed by the app, not guessed.
+  async function readBook(f) {
+    if (/\.csv$/i.test(f.name)) {
+      const text = await f.text();
+      const first = text.split(/\r?\n/, 1)[0] || '';
+      const n = (sep) => first.split(sep).length;
+      const FS = n(';') > n(',') && n(';') >= n('\t') ? ';' : n('\t') > n(',') ? '\t' : ',';
+      return XLSX.read(text, { type: 'string', FS, raw: true });
+    }
+    return XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+  }
   $('#impFiles').addEventListener('change', async (e) => {
     const out = $('#impResult'); $('#impUse').hidden = true; parsed = null;
     const files = Array.from(e.target.files || []); if (!files.length) return;
@@ -1672,7 +1790,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       await loadXlsx();
       const tables = [], skipped = [];
       for (const f of files) {
-        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+        const wb = await readBook(f);
         for (const name of wb.SheetNames) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: true });
           const kind = rows.length ? IC.detect(Object.keys(rows[0])) : null;
@@ -1693,6 +1811,32 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     if (!parsed) return;
     S.imported = parsed; $('#imp').hidden = true; setDataset(parsed); fillDataSelect();
   });
+  // Patient key: read into memory only (see KEY above).
+  $('#keyFile').addEventListener('change', async (e) => {
+    const out = $('#keyResult'); const f = (e.target.files || [])[0]; if (!f) return;
+    out.innerHTML = '<p class="sub">' + L('Reading…', 'Leyendo…') + '</p>';
+    try {
+      await loadXlsx();
+      const wb = await readBook(f);
+      const map = new Map();
+      for (const name of wb.SheetNames) IC.keyFromRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: true })).forEach((v, k) => map.set(k, v));
+      e.target.value = '';
+      if (!map.size) { out.innerHTML = '<p class="bad">' + L('No patient number and name columns were found in this file.', 'No se encontraron columnas de número de paciente y nombre en este archivo.') + '</p>'; return; }
+      KEY.map = map; KEY.sample = false; KEY.show = true;
+      out.innerHTML = '<p class="sub">' + L('Names loaded for ', 'Nombres cargados para ') + map.size + L(' patients, in this browser only. They appear next to imported data.', ' pacientes, solo en este navegador. Aparecen junto a los datos importados.') + '</p>';
+      namesBtn(); render();
+    } catch (err) {
+      out.innerHTML = '<p class="bad">' + esc(err && err.message ? err.message : L('The file could not be read.', 'No se pudo leer el archivo.')) + '</p>';
+    }
+  });
+  $('#keySample').addEventListener('click', () => {
+    if (!S.full) S.full = IC.simulate();
+    KEY.map = IC.sampleNames(S.full.patients.map((p) => p.id)); KEY.sample = true; KEY.show = true;
+    $('#keyResult').innerHTML = '<p class="sub">' + L('Fictitious names loaded for the sample patients.', 'Nombres ficticios cargados para los pacientes de ejemplo.') + '</p>';
+    namesBtn(); render();
+  });
+  $('#keyForget').addEventListener('click', () => { KEY.map = null; KEY.sample = false; $('#keyResult').innerHTML = ''; namesBtn(); render(); });
+  $('#namesBtn').addEventListener('click', () => { KEY.show = !KEY.show; namesBtn(); render(); });
 
   // ---------- Assistant ----------
   const suggestions = () => [L('Why did production change this month?', '¿Por qué ha cambiado la producción este mes?'), L('Is the new dentist paying off?', '¿Está compensando la nueva contratación?'), L('Did the Google reviews incentive bring new patients?', '¿Trajo pacientes nuevos el incentivo de reseñas en Google?')];
@@ -1717,7 +1861,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return 'You are the analysis assistant inside the management app of Innovación Clínica, a dental clinic in Valdepeñas (Spain). You talk to the clinic\'s managers.\n' +
       'Rules:\n- Get every figure from the tools. Never estimate, compute new totals from memory, or invent numbers. If the tools cannot answer, say so.\n' +
       '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
-      '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number. Never ask for or guess personal data.\n' +
+      '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number; write them as "Nº 1234". Never ask for or guess personal data.\n' +
       '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not.\n' +
       '- Answer in ' + (IC.getLang() === 'es' ? 'Spanish (Spain)' : 'English') + ' unless the question is in another language. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
       'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
@@ -1743,16 +1887,18 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   async function ask(q) {
     if (S.busy || !q.trim()) return;
     S.busy = true; $('#chips').hidden = true;
-    addMsg('user', q);
+    const typed = q, sent = namesToNumbers(q); q = sent.text;
+    const userEl = addMsg('user', typed);
+    if (sent.swapped || sent.unclear) { const n = document.createElement('div'); n.className = 'sent-as'; n.textContent = L('Sent to the assistant as: ', 'Enviado al asistente como: ') + q; userEl.appendChild(n); }
     const bubble = addMsg('bot', L('Looking at the data…', 'Mirando los datos…'));
     const sample = await getSample();
     if (!sample) { bubble.innerHTML = md(L('The assistant works when this app is opened on claude.ai.', 'El asistente funciona cuando la app se abre en claude.ai.')); S.busy = false; return; }
     const hist = S.chat.slice(-6).map((m) => (m.role === 'user' ? 'Manager: ' : 'Assistant: ') + m.text).join('\n');
     const prompt = instructions() + (hist ? '\n\nConversation so far:\n' + hist : '') + '\n\nManager question: ' + q;
     try {
-      const res = await sample(prompt, { tools: TOOLS, cache: false, onText: (u) => { if (u && u.text) { bubble.innerHTML = md(u.text); $('#chatLog').scrollTop = $('#chatLog').scrollHeight; } } });
+      const res = await sample(prompt, { tools: TOOLS, cache: false, onText: (u) => { if (u && u.text) { bubble.innerHTML = withNames(md(u.text)); $('#chatLog').scrollTop = $('#chatLog').scrollHeight; } } });
       const text = res && res.text ? res.text : L('No answer came back.', 'No ha llegado respuesta.');
-      bubble.innerHTML = md(text);
+      bubble.innerHTML = withNames(md(text));
       S.chat.push({ role: 'user', text: q }, { role: 'assistant', text });
     } catch (err) {
       const code = err && err.code;
