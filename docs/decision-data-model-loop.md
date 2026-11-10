@@ -7,7 +7,7 @@ Status labels:
 - **To build**: production items outside the prototype.
 - **Needs process change**: the app supports it, but the clinic's MN data only allows it once reception follows the recording standard in report section 2.6.
 
-Clinic facts used throughout (report Draft 3): the largest of the group's four clinics, in Valdepeñas (province of Ciudad Real, Spain); about €75,000 revenue a month (about €1 million a year); net margin down from 17% to 12%; 17 staff (7 dentists on a rotating schedule, 4 hygienists, 2 receptionists, 1 treatment coordinator, 3 managers); 4 treatment rooms; about 40% of treatments financed; about 50 first visits a month (January–July 2026 average); pending production about €60,000 (accountant's estimate, exact figure pending). Manual work to assemble figures: about €28,980 a year (CEO 8 h, accountant 8 h and reception 5 h a week at €30 an hour). Primary user: the CEO. Budget: at most €1,000 a year to run; the tool's estimated running cost is about €590 a year.
+Clinic facts used throughout (report Draft 3): the largest of the group's four clinics, in Valdepeñas (province of Ciudad Real, Spain); about €75,000 revenue a month (about €1 million a year); net margin down from 17% to 12%; 17 staff (7 dentists on a rotating schedule, 4 hygienists, 2 receptionists, 1 treatment coordinator, 3 managers); 4 treatment rooms; about 40% of treatments financed; about 50 first visits a month (January–July 2026 average); pending production not yet known: MN lists €377,354 of accepted treatment not yet performed (173 treatments, November 9, 2026), and the paid share is being confirmed with the accountant (earlier estimate about €60,000). Manual work to assemble figures: about €28,980 a year (CEO 8 h, accountant 8 h and reception 5 h a week at €30 an hour). Primary user: the CEO. Budget: at most €1,000 a year to run; the tool's estimated running cost is about €590 a year.
 
 ---
 
@@ -18,7 +18,7 @@ The loop follows the managers' monthly cycle. The app is a management layer **on
 ```
  ┌──────────────────────────────────────────────────────────────────────────┐
  │ 1. DATA IN      MN Program exports (agenda, patients, payments, invoices)│
- │                 + accountant's Excel (pending production, costs)         │
+ │                 + MN patient balances, daily work sheets, costs          │
  │                 → import, clean, map free text, pseudonymize             │
  └───────────────┬──────────────────────────────────────────────────────────┘
                  ▼
@@ -92,7 +92,8 @@ What the managers and the accountant told us, and what it changes:
 | The clinic writes an **initial letter on each payment** to mark the treatment type. The accountant sorts by letter and sums in Excel. MN cannot tag treatments by type: "we know what we collect by treatment type, but not what we produce". | Production by treatment line, which D1, D4 and D6 need, does not exist today. The payment initials are **labeled examples** for classifying the free-text treatment descriptions. | Next: the cleaning layer. Keyword rules plus an LLM classifier for treatment descriptions, trained and checked against the payment initials, with human confirmation of unclear cases. |
 | The accountant would like **profit per patient**: chair time × hourly cost plus assigned costs (prostheses, aligners) against quote, collected, pending and production. MN can store costs, but nobody maintains them. | Validates the margin view (D6). The agenda already holds chair time (start and end). | Candidate extension after the pilot, not in its scope. |
 | The managers would use the app **if importing and cleaning the data is easy**. | Adoption depends on the import, not on the dashboards. | A pilot (section 6) with an explicit stop criterion. |
-| The accountant spends **about 8 hours a week** on these Excel tasks (salary €3,100 gross a month). Pending production is **about €60,000**, rebuilt by hand. | The manual cost and the size of the blind spot are now clinic figures, not assumptions. | Business case in report Table 2 and Table 11; €60,000 is the baseline for the D5 KPI. |
+| The accountant spends **about 8 hours a week** on these Excel tasks (salary €3,100 gross a month). | The manual cost is now a clinic figure, not an assumption. | Business case in report Table 2 and Table 11. |
+| Pending production is each patient's **balance in MN**: a payment creates the balance, and each treatment entered (patient file → Odontograma → Tratamientos) reduces it. Reception lists completed work in **daily Excel sheets by doctor**; the accountant checks them against MN (Control de tratamientos) and enters what is missing, so the balance stays overstated until then. Payments are exported monthly (Cobros), totaled by method and reconciled with the bank. On November 9, 2026, MN's "Presupuestos aceptados no realizados" listed **€377,354** (173 treatments), with no paid amount per line. | The managers cannot say whether this liability is about €60,000 (the accountant's earlier estimate) or €377,000. Changing how MN records it would need a new ERP, which is out of scope. | The app reads the balances and the list as they are, shows the figure every month with its age, and keeps the D5 KPI baseline open until the paid share is confirmed. Roadmap: an automatic check of the daily sheets against MN production. |
 | MN Program **cannot** produce production by treatment type, payment summaries by day and method, or profit per patient. | Confirms the gap: training on MN would not fix it. | Supports the alternatives comparison (report Table 3). |
 | The managers **accepted** the six decisions, the monthly review, the KPI targets and the cost assumptions. | Adoption intent is confirmed; the pilot tests whether it lasts. | Targets in section 6 are no longer proposals. |
 | GDPR is one of the main challenges: anonymized exports slow decisions (e.g., seeing which patients spend most). | Payments at a dental clinic reveal treatment, so they are health data (CJEU, C-21/23, 2024). Managers may still use them to run the clinic (GDPR Art. 9(2)(h); Ley 41/2002 Art. 16.4, management staff see what their job needs, under secrecy). The duties come from data leaving the clinic (processor contracts, US transfer for the AI provider), new purposes (rewards need explicit consent) and health data + ranking + AI (impact assessment). MN's GDPR compliance covers MN only. | **Built:** names are re-identified in the browser from a patient key held in memory only; the data, the shared log and the assistant see numbers only. Pilot phase 0: impact assessment, processor contracts, privacy notice. Rewards only with explicit consent (phase 4). |
@@ -111,7 +112,7 @@ What the September–October 2026 agenda export and the October Historial test s
 | New patients | MN **Pacientes** export: Fecha Alta (new files), plus Total cobrado / facturado per patient | Template designed |
 | Collections, payments on account, financing | MN **Control de Cobros** export (date, patient number, amount, payment method, concept) | Next |
 | Production by treatment, line and dentist | MN **Facturas** and payment concepts, mapped to treatment lines with keyword rules and an LLM-assisted classifier for the rest (about 23% cannot be classified by keywords) | Next |
-| Paid but not yet done | **Accountant's pending-production Excel** | To request |
+| Paid but not yet done | MN **patient balances** (Pacientes) and **Presupuestos aceptados no realizados**; reception's daily sheets show treatments not yet entered | To request (paid share being confirmed) |
 | Material and lab costs | **Accountant's cost Excel** | To request |
 | Appointment outcomes | Agenda **color** (red "anula la consulta" = lost, green "actuación realizada" = done), read by the importer | Built |
 | Cancellation vs no-show; how a new patient found the clinic | Reception recording standard: one extra color for no-shows, one question at the first visit | Needs process change |
@@ -185,7 +186,7 @@ Four parts. Only the risk model learns statistically; the rest is deterministic 
 - **Algorithm:** logistic regression by gradient descent (600 iterations, learning rate 0.8, L2 0.001): fast enough to retrain in the browser, explainable, outputs a probability that can be multiplied by money.
 - **Training:** 13 monthly snapshots of the clinic's own history; 12 train, the latest fully observed one tests (rolling-origin backtest).
 - **Checks shown to managers:** AUC vs the simple rule; stall rate of the riskiest 20%; calibration (predicted vs observed). Sample data: AUC 0.84 vs 0.73 for the rule on the default sample (November 3, 2026), and 0.84–0.87 vs 0.72–0.74 across the three sample months. Retraining takes about 0.25 seconds on about 6,000 rows (measured in Node). These are synthetic results, not evidence about the clinic.
-- **With real MN data** the plan-related inputs come from the accountant's pending-production Excel and payments on account; "lost visits" is only available once outcomes are recorded (Needs process change). The fallback rule keeps the list usable meanwhile.
+- **With real MN data** the plan-related inputs come from MN's patient balances, the list of accepted treatment not yet performed, and payments on account; "lost visits" is only available once outcomes are recorded (Needs process change). The fallback rule keeps the list usable meanwhile.
 
 ### 4.3 Recommendation rules, one per decision (Built)
 
@@ -227,7 +228,7 @@ An LLM (Claude through the claude.ai artifact runtime in the prototype; Claude S
 
 ```
  MN Program ──Excel exports (templates without names)───────┐
- Accountant's Excel (pending production, costs) ─────────────┤
+ MN balances + daily work sheets + cost files ───────────────┤
                                                              ▼
  Browser app (single page) ─ Import: SheetJS → table detection → normalization
    ├─ core.js: KPI engine · risk model (train + score) · rules · before/after
@@ -265,7 +266,7 @@ Pilot KPIs, with targets **accepted by the managers (November 2026)**:
 | First visits with the source recorded | ≥ 80% | Measuring marketing decisions (D2) |
 | D1–D6 decisions logged with an expected change | All decisions taken in the period | The loop closes only if decisions enter the log |
 | Results recorded on follow-up call lists | ≥ 80% of listed patients | Learning mechanisms L5 and L6 |
-| Paid-but-unfinished amount (baseline about €60,000, accountant's estimate) | Falls; the size of the fall is set after the first measured continuation rate | Money recovered |
+| Paid-but-unfinished amount (baseline to confirm: up to €377,354 accepted and not yet performed; earlier estimate about €60,000) | Falls; the size of the fall is set after the first measured continuation rate | Money recovered |
 
 ---
 
@@ -274,7 +275,7 @@ Pilot KPIs, with targets **accepted by the managers (November 2026)**:
 - Prototype figures come from **synthetic data** sized like the clinic until the real exports are imported.
 - MN's appointment status, cancellation and performed fields are almost never filled in. Reception records outcomes as colors instead, which the importer reads, but red does not say whether the patient canceled or did not come. Separating the two needs the recording standard.
 - Production by treatment line does not exist in MN today (only collections by payment initial); until the cleaning layer is built (only after the three tests in report Section 7.2), real treatment-line figures depend on manual mapping.
-- Pending production comes from the accountant's Excel until treatment plans and payments are linked.
+- Pending production is only as reliable as the treatments entered in MN, which lag behind reception's daily sheets. The app does not change how MN records it (that would need a new ERP); it shows the figure, its age and its gaps, and the roadmap adds an automatic check of the daily sheets against MN.
 - Patients are identified by their MN number inside the app; replacing it with a keyed code is a production step. Names exist only in the browser's memory, from the patient key.
 - Before/after comparisons show association, not cause; the same-months-last-year figure and the reached-vs-no-answer comparison are partial controls.
 - With sample data, the effect of "Booked" calls and the 2026 events (promotion, reviews incentive, new dentist, endodontist's reduced hours, fewer referrals from September) are simulated to demonstrate the loop.
