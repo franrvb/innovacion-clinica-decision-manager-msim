@@ -11,14 +11,22 @@ It closes a **Decision – Data – Model loop**:
 
 An assistant ("Ask") explains the figures using only the app's own calculations.
 
+Working with the clinic's real files:
+
+- **Daily sheets** (reception's Excel, one tab per doctor, plus the Clínica and PRODUCCION tabs): production, collections and each dentist's share (the clinic's own rule: 40% of the base plus fixed specials), a check against the PRODUCCION tab, and the **cleaning layer** that turns free text ("6 IOI y 5 exos") into acts, treatment lines (G, O, PF, PR, IM), teeth and events. Texts the rules cannot place go to a review queue; a person confirms (an AI suggestion can help) and the clinic's dictionary remembers it. Patient names in the sheets are separated from the data and kept only as the names key in the browser.
+- **Pending production** (MN "Presupuestos aceptados no realizados"): total, age, treatment line, the list to reconcile (older than six months) and a decision measured at the next import.
+- **Patient base** (MN patient list): patients really seen, recall list, new files against the year before.
+- **Digital daily sheet** (prototype): reception picks the treatment from a list instead of typing; it downloads as the usual Excel.
+- **Suggestions**: staff and managers send requests from the app; they are stored in the shared database (collection `feedback`) with a status the builders update.
+
 > All patient data in this repository is synthetic. Do not commit real clinic exports.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `core.js` | Logic without UI: sample-data simulation, KPI engine, risk model, recommendations, import parsing |
-| `index.html` | The interface (Overview, Recommendations, Decisions, Import, Ask) |
+| `core.js` | Logic without UI: sample-data simulation, KPI engine, risk model, recommendations, import parsing, cleaning layer, daily-sheet and pending-production reports |
+| `index.html` | The interface (Overview, Daily sheets, Pending production, Recommendations, Decisions, Import, Suggestions, Ask) |
 | `build.mjs` | Inlines `core.js` into `index.html` |
 | `dist/innovacion-clinica-management.html` | Built single-file page |
 

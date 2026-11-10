@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Innovación Clínica Management</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -169,7 +170,38 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .modal-card ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
 .modal-card p { margin: 0; }
 
-@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: minmax(0, 1fr); } }
+/* Daily sheets, cleaning, pending production, digital sheet, feedback */
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 7px 12px; font-weight: 600; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--accent-soft); }
+.stack span { display: block; height: 100%; }
+.st-rules { background: var(--accent); } .st-dict { background: var(--accent-ink); } .st-context { background: #6aa9c9; } .st-form { background: var(--good); }
+.st-event { background: var(--bar); } .st-queue { background: var(--warn); }
+.mini-sel { border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; background: var(--bg); font-size: 13px; }
+.rate-in { width: 64px; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; background: var(--bg); }
+.code { font-family: var(--mono); font-size: 12px; font-weight: 500; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); white-space: nowrap; }
+.code.q { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.code.ev { background: var(--bg); color: var(--ink-2); border: 1px solid var(--line); }
+.txt { font-family: var(--mono); font-size: 13px; }
+.scroll { max-height: 420px; overflow-y: auto; }
+tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.pd-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.pd-grid label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pd-grid input, .pd-grid select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); font-weight: 400; min-width: 0; }
+.pd-grid .wide { grid-column: span 2; }
+.btn-fb { position: relative; }
+.btn-fb .badge { position: absolute; top: -6px; right: -6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--brand-teal); color: var(--brand); font-size: 11px; line-height: 18px; text-align: center; }
+.fb-list { display: grid; gap: 10px; }
+.fb-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; background: var(--bg); }
+.fb-item p { margin: 0; white-space: pre-wrap; }
+.fb-meta { display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--ink-2); }
+.minibars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; align-items: end; height: 70px; }
+.minibars span { background: var(--bar); border-radius: 2px 2px 0 0; display: block; }
+.minibars span.cur { background: var(--accent); }
+
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: minmax(0, 1fr); } .pd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) {
   .tiles { grid-template-columns: minmax(0, 1fr); }
   .tabs { order: 3; flex-basis: 100%; overflow-x: auto; }
@@ -189,6 +221,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     </div>
     <nav class="tabs" id="tabsNav">
       <button class="tab" data-tab="overview" data-t="tabOverview"></button>
+      <button class="tab" data-tab="partes" data-t="tabPartes"></button>
+      <button class="tab" data-tab="pending" data-t="tabPending"></button>
       <button class="tab" data-tab="recs"><span data-t="tabRecs"></span><span class="badge" id="recBadge" hidden></span></button>
       <button class="tab" data-tab="decisions" data-t="tabDecisions"></button>
     </nav>
@@ -196,6 +230,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       <select id="dataSel" class="data-sel"></select>
       <button id="namesBtn" class="btn-top" hidden></button>
       <button id="importBtn" class="btn-top" data-t="import"></button>
+      <button id="fbBtn" class="btn-top btn-fb"><span data-t="fbBtn"></span><span class="badge" id="fbBadge" hidden></span></button>
       <button id="askBtn" class="btn-top btn-ask" data-t="ask"></button>
       <button id="langBtn" class="btn-top btn-lang"></button>
     </div>
@@ -224,6 +259,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       <li data-t="impLines" data-html="1"></li>
       <li data-t="impPays" data-html="1"></li>
       <li data-t="impPatients" data-html="1"></li>
+      <li data-t="impPartes" data-html="1"></li>
+      <li data-t="impPending" data-html="1"></li>
     </ul>
     <p class="note" data-t="impNote"></p>
     <input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv">
@@ -242,6 +279,21 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       <div class="actions"><button id="keySample" class="btn" data-t="keySample"></button><button id="keyForget" class="btn quiet" hidden data-t="keyForget"></button></div>
       <div id="keyResult"></div>
     </div>
+  </div>
+</div>
+
+<div id="fb" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fbTitle">
+    <h2 id="fbTitle" data-t="fbTitle"></h2>
+    <p class="note" data-t="fbIntro"></p>
+    <form id="fbForm" class="form">
+      <label><span data-t="fbTypeLbl"></span><select id="fbType"></select></label>
+      <label><span data-t="fbTextLbl"></span><textarea id="fbText" rows="4"></textarea></label>
+      <div class="actions"><button class="btn primary" type="submit" data-t="send"></button><button class="btn" type="button" id="fbClose" data-t="close"></button></div>
+      <p id="fbMsg" class="note"></p>
+    </form>
+    <h3 data-t="fbListTitle"></h3>
+    <div id="fbList" class="fb-list"></div>
   </div>
 </div>
 
@@ -488,7 +540,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       patients: full.patients.filter((p) => p.first <= asOf).map((p) => ({ id: p.id, first: p.first, age: p.age })),
       appts: full.appts.filter((a) => a.day <= H).map((a) => (a.day > asOf ? Object.assign({}, a, { status: ST.FUTURE }) : a)),
       lines: full.lines.filter((l) => l.accept <= asOf).map((l) => (l.done != null && l.done > asOf ? Object.assign({}, l, { status: 'Pendiente', done: null, prof: null, cab: null, cost: null }) : l)),
-      pays: full.pays.filter((p) => p.day <= asOf)
+      pays: full.pays.filter((p) => p.day <= asOf),
+      partes: { lines: [], pays: [] }, pending: [] // daily sheets and the pending list come only from the clinic's real files
     };
     ds.simulatedCalls = simulateCallEffects(ds, decisions);
     return prepare(ds);
@@ -827,7 +880,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       if (d.decision === 'Rejected') { s.rejected++; continue; }
       s.accepted++;
       // Managers' own expectations against what happened (for decisions logged with an expected change).
-      if (d.expected && d.expected.pct && d.metric && d.metric.type !== 'prepaid_ids') {
+      if (d.expected && d.expected.pct && d.metric && d.metric.type !== 'prepaid_ids' && d.metric.type !== 'pending_old') {
         const ev = evalDecision(ds, d);
         if (ev.change != null && ev.afterMonths >= 1) expectations.push({ title: d.title, expected: d.expected.pct, achieved: ev.change, afterMonths: ev.afterMonths });
       }
@@ -1039,7 +1092,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     line_production: { get label() { return L('Production of a treatment line per month', 'Producción de una línea de tratamiento al mes'); }, fmt: 'eur', better: 'up', param: 'line' },
     line_count: { get label() { return L('Treatments done in a line per month', 'Tratamientos hechos de una línea al mes'); }, fmt: 'int', better: 'up', param: 'line' },
     dentist_production: { get label() { return L('Production of a dentist per month', 'Producción de un odontólogo al mes'); }, fmt: 'eur', better: 'up', param: 'prof' },
-    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' }
+    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' },
+    pending_old: { get label() { return L('Pending treatment older than 6 months (MN list)', 'Pendiente con más de 6 meses (lista de MN)'); }, fmt: 'eur', better: 'down', point: true }
   };
   function monthlyValue(ds, m, k) {
     switch (m.type) {
@@ -1051,7 +1105,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       case 'line_count': { let n = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && l.cat === m.line) n++; return n; }
       case 'dentist_production': return production(ds, k, null, m.prof);
       case 'unearned': return balances(ds, Math.min(mkEnd(k), ds.asOf)).unearned;
-      default: return null;
+      default: return null; // point-in-time metrics (prepaid_ids, pending_old) have no monthly value
     }
   }
   function prepaidOf(ds, ids) {
@@ -1062,14 +1116,15 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   // Current value shown on a recommendation card.
   function evalMetric(ds, m) {
     if (m.type === 'prepaid_ids') return prepaidOf(ds, m.ids);
+    if (m.type === 'pending_old') return pendingOld(ds);
     return monthlyValue(ds, m, ds.lastMonth);
   }
   // Before/after for a decision: the three full months before the decision month against the full months
   // after it, with the same months a year earlier for seasonality.
   function evalDecision(ds, d) {
     const m = d.metric;
-    if (m.type === 'prepaid_ids') {
-      return { kind: 'point', before: d.baseline ? d.baseline.value : null, after: prepaidOf(ds, m.ids), afterMonths: Math.max(0, mk(ds.asOf) - mk(fromIso(d.decidedOn))) };
+    if (m.type === 'prepaid_ids' || m.type === 'pending_old') {
+      return { kind: 'point', before: d.baseline ? d.baseline.value : null, after: m.type === 'pending_old' ? pendingOld(ds) : prepaidOf(ds, m.ids), afterMonths: Math.max(0, mk(ds.asOf) - mk(fromIso(d.decidedOn))) };
     }
     const k0 = mk(fromIso(d.decidedOn));
     const vals = (a, b) => { const out = []; for (let i = a; i <= b; i++) { const v = monthlyValue(ds, m, i); if (v != null) out.push(v); } return out; };
@@ -1118,7 +1173,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return undefined;
   }
   const COLS = {
-    patient: ['numero paciente', 'n paciente', 'paciente', 'numero', 'id paciente', 'patient'],
+    patient: ['numero paciente', 'n paciente', 'numero cliente', 'n cliente', 'clientes numero cliente', 'paciente', 'numero', 'id paciente', 'patient'],
     date: ['fecha', 'fecha cita', 'date'],
     status: ['estado', 'status'],
     treatment: ['tratamiento', 'descripcion tratamiento', 'treatment'],
@@ -1127,6 +1182,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   function detect(headers) {
     const h = headers.map(norm);
     const has = (x) => h.some((c) => x.includes(c));
+    // MN patient list (template "MSIM Saldos"): one row per patient, with registration date and totals
+    if (has(['numero cliente', 'n cliente']) && has(['fecha alta', 'total cobrado', 'fecha ultima actuacion'])) return 'patients';
     if (has(['tratamiento', 'treatment']) && has(['importe', 'total', 'precio', 'amount'])) return 'lines';
     if (has(['forma de cobro', 'forma cobro', 'metodo de pago', 'fecha cobro'])) return 'pays';
     if (has(['estado', 'status']) && has(['fecha', 'fecha cita', 'date'])) return 'appts';
@@ -1146,11 +1203,36 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return ST.FUTURE;
   }
   function fromTables(tables, label) {
-    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [] };
+    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [], partes: { lines: [], pays: [] }, pending: [] };
     const warn = [];
-    const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v).replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v == null ? '' : v).replace(/\.0+$/, '').replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    const txt = (v) => String(v == null ? '' : v).trim();
     for (const t of tables) {
-      if (t.kind === 'patients') t.rows.forEach((r) => { const id = pid(r); if (id != null) ds.patients.push({ id, first: parseDay(pick(r, ['fecha alta', 'alta'])), age: parseNum(pick(r, ['edad', 'age'])) || null }); });
+      if (t.kind === 'patients') t.rows.forEach((r) => {
+        const id = pid(r); if (id == null) return;
+        const lastCol = pick(r, ['fecha ultima actuacion']), nextCol = pick(r, ['f proxima actuacion', 'fecha proxima actuacion']);
+        ds.patients.push({ id, first: parseDay(pick(r, ['fecha alta', 'alta'])), age: parseNum(pick(r, ['edad', 'age'])) || null,
+          last: lastCol === undefined ? undefined : parseDay(lastCol), next: nextCol === undefined ? undefined : parseDay(nextCol),
+          state: txt(pick(r, ['estado'])), baja: parseDay(pick(r, ['fecha baja'])) });
+      });
+      if (t.kind === 'parte') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha'])), id = pid(r); if (day == null || id == null) return;
+        ds.partes.lines.push({ day, doctor: txt(pick(r, ['doctor'])), pid: id, desc: txt(pick(r, ['descripcion'])), cobrado: parseNum(pick(r, ['cobrado'])), fp: txt(pick(r, ['f p'])),
+          realizada: parseNum(pick(r, ['realizada'])), valoracion: parseNum(pick(r, ['valoracion'])), especial: parseNum(pick(r, ['especial'])), seguro: parseNum(pick(r, ['seguro'])), line: txt(pick(r, ['linea'])) || null, act: txt(pick(r, ['acto'])) || null,
+          src: norm(pick(r, ['hoja'])) === 'produccion' ? 'produccion' : 'doctor' });
+      });
+      if (t.kind === 'parte_pay') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha'])); if (day == null) return;
+        const concept = txt(pick(r, ['concepto']));
+        ds.partes.pays.push({ day, tab: txt(pick(r, ['hoja'])), pid: pid(r), concept, code: txt(pick(r, ['codigo'])) || payCode(concept), method: txt(pick(r, ['forma de cobro'])), total: parseNum(pick(r, ['total'])) });
+      });
+      if (t.kind === 'pending') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha tratamiento'])); if (day == null) return;
+        const acc = norm(pick(r, ['presupuesto aceptado'])), src = pick(r, ['fuente de contacto']), b = txt(pick(r, ['n presupuesto', 'presupuesto']));
+        ds.pending.push({ day, desc: txt(pick(r, ['descripcion'])), amount: parseNum(pick(r, ['importe'])), price: parseNum(pick(r, ['precio'])), discount: parseNum(pick(r, ['descuento'])),
+          budget: b.replace(/\.0+$/, ''), accepted: acc ? (acc === 'si' || acc === 'yes' || acc === 's') : null, user: txt(pick(r, ['usuario'])), origin: txt(pick(r, ['origen'])),
+          collected: parseNum(pick(r, ['importe cobrado'])), source: src === undefined ? undefined : txt(src), pid: pid(r) });
+      });
       if (t.kind === 'appts') t.rows.forEach((r) => {
         const id = pid(r), day = parseDay(pick(r, COLS.date)); if (id == null || day == null) return;
         const desc = String(pick(r, ['descripcion', 'description', 'motivo']) || '');
@@ -1171,12 +1253,29 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
         ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept']) || '') });
       });
     }
-    if (!ds.appts.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
-    if (!ds.lines.length) warn.push(L('No treatments table found: production, treatment mix and risk need it.', 'No hay tabla de tratamientos: la producción, las líneas y el riesgo la necesitan.'));
-    if (!ds.pays.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
-    const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done));
+    // Without an MN treatment export, the daily sheets are the production record: each doctor-tab line with an
+    // amount becomes treatment done (by that doctor, in its cleaned treatment line) and what was paid that day a
+    // payment. With an MN treatment export loaded, the sheets are only checked, never counted twice.
+    const P = ds.partes;
+    if (!ds.lines.length && P.lines.length) {
+      const M = matchPartes(P);
+      const asLine = (l, value) => { const c = l.line || cleanText(l.desc).line; ds.lines.push({ pid: l.pid, plan: 'parte', accept: l.day, name: up(l.desc), cat: c ? LINE_ES[c] : 'Sin clasificar', price: value, cost: null, status: 'Realizado', done: l.day, prof: l.doctor, cab: null }); };
+      for (const l of M.doc) {
+        const v = M.clinicValue(l); if (v > 0) asLine(l, v);
+        if (l.cobrado > 0) ds.pays.push({ pid: l.pid, day: l.day, amount: l.cobrado, method: l.fp, concept: l.desc });
+      }
+      for (const l of M.extra) if (l.realizada > 0) asLine(l, l.realizada);
+      for (const p of P.pays) if (p.pid != null && p.total > 0) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
+      ds.fromPartes = true;
+    }
+    if (!ds.appts.length && !P.lines.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
+    if (!ds.lines.length) warn.push(L('No treatments table or daily sheets found: production, treatment mix and risk need one of them.', 'No hay tabla de tratamientos ni partes diarios: la producción, las líneas y el riesgo necesitan uno de los dos.'));
+    if (!ds.pays.length && !P.lines.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
+    const now = new Date(), today = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done),
+      P.lines.map((l) => l.day), P.pays.map((p) => p.day), ds.pending.map((x) => x.day), ds.patients.map((p) => p.first), ds.patients.map((p) => p.last)).filter((d) => d != null && d <= today);
     if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
-    ds.asOf = Math.max.apply(null, days);
+    ds.asOf = days.reduce((a, b) => Math.max(a, b), -Infinity);
     if (!ds.patients.length) { const ids = new Set(); ds.appts.forEach((a) => ids.add(a.pid)); ds.lines.forEach((l) => ids.add(l.pid)); ids.forEach((id) => ds.patients.push({ id, first: null, age: null })); }
     prepare(ds);
     ds.warnings = warn;
@@ -1212,7 +1311,314 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return out;
   }
 
+  // ---------- Cleaning layer v1: free text from reception's daily sheets ----------
+  // Reception describes each visit in free text ("Limp+Ortop+Cons", "6 IOI y 5 exos", "Rv. Orto."). The layer
+  // turns each text into treatment acts, the clinic's own treatment lines (the letters reception already puts
+  // on payments: G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants), tooth
+  // numbers and events (no-show, urgency, complaint). Order: the clinic's dictionary of texts a person has
+  // confirmed, then rules, then the patient's other lines the same days; what is left goes to a review queue.
+  const LINE_CODES = ['G', 'O', 'PF', 'PR', 'IM'];
+  const LINE_ORDER = ['IM', 'PF', 'PR', 'O', 'G']; // a row with several lines is counted in the first of these
+  // Line names stay in Spanish in the data (like MN's own categories); lineName() translates for display.
+  const LINE_ES = { G: 'General', O: 'Ortodoncia', PF: 'Prótesis fija', PR: 'Prótesis removible', IM: 'Implantes' };
+  const LINE_EN = { G: 'General dentistry', O: 'Orthodontics', PF: 'Fixed prosthesis', PR: 'Removable prosthesis', IM: 'Implants' };
+  const lineName = (c) => (LANG === 'es' ? LINE_ES : LINE_EN)[c] || c;
+  const up = (s) => String(s == null ? '' : s).normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const ACTS = [
+    { key: 'allon', re: /\bALL ?-?ON ?-?(FOUR|4|SIX|6)\b|QUAD-? ?CIGOMA|PROTOCOLO (QUAD|ALL)/, line: 'IM', es: 'All-on-4/6 (arcada completa)', en: 'All-on-4/6 full arch', text: 'ALL-ON-4' },
+    { key: 'implant', re: /\bIOI\b|\bIMPLANTES?\b|CIGOMATIC/, line: 'IM', tooth: true, es: 'Implante', en: 'Implant', text: 'IMPLANTE (IOI)' },
+    { key: 'graft', re: /ELEVACION|INJERTO|\bHUESO\b|\bPRF\b|MEMBRANA|REGENERACION/, line: 'IM', es: 'Injerto o elevación de seno', en: 'Bone graft or sinus lift', text: 'INJERTO / ELEVACIÓN' },
+    { key: 'hybrid', re: /HIBRIDA|ATORNILLAD|\bPMMA\b/, line: 'PF', es: 'Prótesis fija sobre implantes', en: 'Fixed prosthesis on implants', text: 'PRÓTESIS HÍBRIDA' },
+    { key: 'crown', re: /\bCSIS?\b|\bCORONAS?\b|\bFUNDAS?\b|PUENTE|ZIRCONIO|METAL ?CERAMICA|CARILLA/, line: 'PF', tooth: true, es: 'Corona, funda o puente', en: 'Crown or bridge', text: 'CORONA' },
+    { key: 'guard', re: /MICHIGAN|FERULA (DE )?DESCARGA/, line: 'PF', es: 'Férula de descarga', en: 'Night guard', text: 'FÉRULA DE DESCARGA' },
+    { key: 'prep', re: /TALLADO|\bPROVI\b|PROVISIONAL/, line: 'PF', es: 'Tallado o provisional', en: 'Preparation or temporary', text: 'TALLADO / PROVISIONAL' },
+    { key: 'removable', re: /COMPOSTURA|REMOVIBLE|DENTADURA|ESQUELETIC|ACRILIC|PROTESIS COMPLETA|ANADI+R|GANCHO|DIENTES? (DE (LA )?)?PROTESI|PIEZAS? (A |DE )?(LA )?PROTESI|ARREGLO PROTESI|REBASE/, line: 'PR', es: 'Prótesis removible o compostura', en: 'Removable prosthesis or repair', text: 'PRÓTESIS REMOVIBLE' },
+    { key: 'ortho', re: /\bBRK|\bBRACKETS?\b|\bBKTS?\b|\bORTO\b|ORTODON|TWIN ?BLOCK|ESSIX|DISYUNTOR|MASCARA|\bREFI|INVISA|ALINEAD|ALIGNER|RETENEDOR|\bFERULAS\b/, line: 'O', es: 'Ortodoncia', en: 'Orthodontics', text: 'ORTODONCIA' },
+    { key: 'endo', re: /\bENDO|APERTURA|RECUBR|PULP/, line: 'G', tooth: true, es: 'Endodoncia', en: 'Root canal', text: 'ENDODONCIA' },
+    { key: 'extraction', re: /\bEXOS?\b|EXODON|EXTRAC|QUISTE|LEGRADO|LEGARDO|CORDAL/, line: 'G', tooth: true, es: 'Extracción o cirugía menor', en: 'Extraction or minor surgery', text: 'EXTRACCIÓN' },
+    { key: 'filling', re: /EMPASTE|\bOBTU|\bRECO\b|RECONSTR|\bCIERRE\b|\bPIN\b|COMPOSITE/, line: 'G', tooth: true, es: 'Empaste o reconstrucción', en: 'Filling or build-up', text: 'EMPASTE' },
+    { key: 'hygiene', re: /\bLIMP|\bPERIO|CURETAJE|RASPADO|MANTENIMIENTO|PROFILAXIS/, line: 'G', es: 'Limpieza o periodoncia', en: 'Cleaning or periodontics', text: 'LIMPIEZA' },
+    { key: 'whitening', re: /BLANQUE/, line: 'G', es: 'Blanqueamiento', en: 'Whitening', text: 'BLANQUEAMIENTO' },
+    { key: 'xray', re: /\bORTOP\b|ORTOPANTO|\bTAC\b|RADIOG|\bRX\b|ESCANER/, line: 'G', es: 'Radiografía o TAC', en: 'X-ray or CT scan', text: 'ORTOPANTOMOGRAFÍA' },
+    { key: 'checkup', re: /\bCONS\b|CONSULTA|VALORA|\bPRESU|ESTUDIO|\bESTUD\b|\bREV|\bRV\b|\bREVI|\bRERV|PRIMERA VISITA|\bVISITA\b|URGENCIA/, line: 'G', es: 'Revisión, consulta o presupuesto', en: 'Check-up, consultation or quote', text: 'REVISIÓN' },
+    { key: 'step', re: /MEDIDAS|PRUEBA|ENTREG|DEFINITIVO|\bFASE\b|IMPRESION|\bCEMENT|\bCEMTR|AJUST|ESTRUCTURA/, line: null, es: 'Paso de una prótesis o aparato', en: 'Step of a prosthesis or appliance', text: 'PRUEBA / ENTREGA' }
+  ];
+  const ACT = Object.fromEntries(ACTS.map((a) => [a.key, a]));
+  const actLabel = (k) => (ACT[k] ? (LANG === 'es' ? ACT[k].es : ACT[k].en) : k);
+  const TEXT_EVENTS = [
+    { key: 'noshow', re: /NO VIENE|NO VINO|NO ACUDE|NO SE PRESENTA|NO LLEGO|NO ASISTE/, es: 'Falta (no vino)', en: 'No-show' },
+    { key: 'resched', re: /SE CAMBIA|CAMBIA AL|CAMBIO DE CITA|APLAZA|\bANULA/, es: 'Cambio de cita', en: 'Rescheduled' },
+    { key: 'urgent', re: /URGENCIA/, es: 'Urgencia', en: 'Urgent visit' },
+    { key: 'complaint', re: /DOLOR|MOLESTIA|PARTID|CAID[OA]|MUERDE|ENTRA COMIDA|DESPEGAD|\bROT[OA]\b|SE MUEVE|LIMAR|NO SE QUEDO BIEN/, es: 'Queja o reparación', en: 'Complaint or repair' },
+    { key: 'payment', re: /\bPAGA\b|\bPAGO\b|A CUENTA/, es: 'Nota de pago', en: 'Payment note' },
+    { key: 'nothing', re: /^NADA\b|NADA QUE|\bVER\b|\bMINUTOS?\b/, es: 'Sin tratamiento', en: 'No treatment' }
+  ];
+  const eventLabel = (k) => { const e = TEXT_EVENTS.find((x) => x.key === k); return e ? (LANG === 'es' ? e.es : e.en) : k; };
+  const QTY_NOUN = [[/^(EMPASTES?|OBTU)/, 'filling'], [/^(EXOS?|EXTRAC)/, 'extraction'], [/^(IOI|IMPLANTE)/, 'implant'], [/^(BRK|BRACKET|BKT)/, 'ortho'], [/^(CORONA|FUNDA|CARILLA|CSI)/, 'crown'], [/^ENDO/, 'endo']];
+  // Removes numbers that are not teeth: amounts, dates, durations, quantities of pieces.
+  const notTeeth = (t) => t.replace(/\d+[.,]\d+(\s*\*\s*\d+)?/g, ' ').replace(/\d+\s*€/g, ' ').replace(/\d+\s*\/\s*\d+/g, ' ')
+    .replace(/\b\d+\s*(MESES|MES|M\b|MIN\w*|H\b|HORAS?|PIEZAS?|G\b|DIAS?|SEMANAS?|ANOS?|FERULAS?)/g, ' ').replace(/\b\d+(ª|A)\b/g, ' ');
+  const mainLine = (lines) => LINE_ORDER.find((c) => lines.includes(c)) || null;
+  const dictKey = (s) => up(s).replace(/\d+/g, '#').replace(/[^A-Z#ª ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // dict: { dictKey: { line: 'G'|'O'|'PF'|'PR'|'IM'|'NONE' } } — texts a person has confirmed.
+  function cleanText(desc, dict) {
+    const t = up(desc);
+    let acts = ACTS.filter((a) => a.re.test(t)).map((a) => a.key);
+    // Package rules: a full-arch protocol includes its implants and prosthesis; a prosthesis "on implants"
+    // is prosthesis work; on a hybrid, "composite" and "zirconio" are materials; a specific act makes the
+    // generic words (check-up, try-in, delivery) part of that act.
+    if (acts.includes('allon')) acts = acts.filter((k) => ['allon', 'extraction', 'graft'].includes(k));
+    if (acts.some((k) => ['hybrid', 'crown', 'prep', 'removable', 'guard'].includes(k)) && /SOBRE\s+(\d+\s+)?(IMPLANT|IOI)/.test(t)) acts = acts.filter((k) => k !== 'implant');
+    if (acts.includes('hybrid')) acts = acts.filter((k) => k !== 'filling' && k !== 'crown');
+    if (acts.includes('removable')) acts = acts.filter((k) => k !== 'prep' && k !== 'ortho');
+    const specific = acts.filter((k) => k !== 'checkup' && k !== 'step');
+    if (specific.length) acts = specific;
+    const events = TEXT_EVENTS.filter((e) => e.re.test(t)).map((e) => e.key);
+    const clean = notTeeth(t);
+    const teeth = Array.from(new Set((clean.match(/\b([1-4][1-8]|[5-8][1-5])\b/g) || [])));
+    const qty = {};
+    for (const m of t.matchAll(/\b(\d{1,2})\s*([A-Z]+)/g)) { const q = QTY_NOUN.find(([re]) => re.test(m[2])); if (q && acts.includes(q[1]) && +m[1] > 0) qty[q[1]] = +m[1]; }
+    const toothActs = acts.filter((k) => ACT[k].tooth);
+    if (toothActs.length === 1 && !qty[toothActs[0]] && teeth.length > 1) qty[toothActs[0]] = teeth.length;
+    const money = /\d+([.,]\d+)?\s*€|\d+[.,]\d+\s*\*\s*\d|QUEDAN\s+\d+/.test(t);
+    let lines = Array.from(new Set(acts.map((k) => ACT[k].line).filter(Boolean)));
+    let status = lines.length ? 'rules' : acts.length ? 'step' : events.length ? 'event' : 'queue';
+    const d = dict && dict[dictKey(desc)];
+    if (d && d.line) { status = 'dict'; lines = d.line === 'NONE' ? [] : [d.line]; }
+    return { text: String(desc == null ? '' : desc), acts: acts.map((k) => ({ key: k, qty: qty[k] || 1 })), lines, line: mainLine(lines), events, teeth, money, status };
+  }
+  // Payment method as reception writes it (T, E, EF, E/T…) or as MN names it.
+  function payKind(v) {
+    const s = norm(v);
+    if (!s) return 'unknown';
+    if (/^(e t|t e|ef t|t ef)$/.test(s) || (s.includes('efect') && s.includes('tarj'))) return 'mixed';
+    if (s === 't' || s.includes('tarj') || s.includes('card') || s.includes('datafono')) return 'card';
+    if (s === 'e' || s === 'ef' || s.includes('efect') || s.includes('cash') || s.includes('contado')) return 'cash';
+    if (s.includes('transf') || s === 'tr' || s === 'trf') return 'transfer';
+    if (s.includes('financ') || s === 'fin') return 'financing';
+    return 'other';
+  }
+  const payCode = (concept) => { const m = String(concept || '').trim().match(/^(PF|PR|IM|I|G|O)\b/i); return m ? (m[1].toUpperCase() === 'I' ? 'IM' : m[1].toUpperCase()) : null; };
+
+  // Pairs each doctor-tab line with its copy in the PRODUCCION tab (same day, patient and text). The two can
+  // differ on purpose: the doctor's tab holds the base of the dentist's share, while PRODUCCION holds the clinic's
+  // production (implants and prosthesis at their full value). Lines only in PRODUCCION go to the doctor whose
+  // name starts the same way.
+  function matchPartes(P) {
+    const doc = P.lines.filter((l) => l.src !== 'produccion'), prod = P.lines.filter((l) => l.src === 'produccion');
+    const prodDays = new Set(prod.map((l) => l.day));
+    const key = (l) => l.day + '|' + l.pid + '|' + up(l.desc);
+    const pk = new Map(); prod.forEach((l) => { const k = key(l); if (!pk.has(k)) pk.set(k, []); pk.get(k).push(l); });
+    const pair = new Map(), used = new Set();
+    for (const r of doc) { const c = (pk.get(key(r)) || []).find((l) => !used.has(l)); if (c) { used.add(c); pair.set(r, c); } }
+    const tabs = Array.from(new Set(doc.map((l) => l.doctor)));
+    const first = (s) => norm(s).split(' ')[0];
+    const tabOf = (name) => tabs.find((t) => first(t) && first(t) === first(name)) || name;
+    const extra = prod.filter((l) => !used.has(l)).map((l) => Object.assign({}, l, { doctor: tabOf(l.doctor) }));
+    const clinicValue = (r) => (prodDays.has(r.day) && pair.has(r) ? pair.get(r).realizada || 0 : r.realizada || 0);
+    return { doc, prod, prodDays, pair, extra, clinicValue };
+  }
+
+  // Daily sheets report: production, collections and the dentist's share by doctor, the check against the
+  // PRODUCCION tab, the cleaning of the free text, production by treatment line and events written in the text.
+  // opts.rate: dentist's share of the base (the clinic's sheets use 40% of production plus insurance fees,
+  // plus the fixed amounts in the Especial column); opts.dict: texts a person has confirmed.
+  function partesReport(ds, opts) {
+    const P = ds.partes; if (!P || !P.lines || !P.lines.length) return null;
+    const rate = opts && opts.rate != null ? opts.rate : 0.4, dict = (opts && opts.dict) || {};
+    const M = matchPartes(P);
+    const days = Array.from(new Set(P.lines.map((l) => l.day).concat((P.pays || []).map((p) => p.day)))).sort((a, b) => a - b);
+    // Cleaning, then context: a try-in or delivery takes the line of the same patient's other work these days.
+    const formC = (l) => ({ text: l.desc, acts: (l.act ? [{ key: l.act, qty: 1 }] : []), lines: [l.line], line: l.line, events: [], teeth: [], money: false, status: 'form' });
+    const rows = M.doc.map((l) => Object.assign({}, l, { src0: l, clinic: M.clinicValue(l), c: l.line ? formC(l) : cleanText(l.desc, dict) }));
+    const extraRows = M.extra.filter((l) => l.realizada > 0 || l.cobrado > 0).map((l) => Object.assign({}, l, { clinic: l.realizada || 0, onlyProd: true, c: cleanText(l.desc, dict) }));
+    const all = rows.concat(extraRows);
+    const ctx = new Map();
+    const addCtx = (pid, line) => { if (pid == null || !line) return; let s = ctx.get(pid); if (!s) { s = new Set(); ctx.set(pid, s); } s.add(line); };
+    all.forEach((r) => r.c.lines.forEach((x) => addCtx(r.pid, x)));
+    (P.pays || []).forEach((p) => addCtx(p.pid, p.code || payCode(p.concept)));
+    (ds.pending || []).forEach((p) => { if (p.pid != null) addCtx(p.pid, cleanText(p.desc).line); });
+    all.forEach((r) => {
+      if (r.c.status !== 'step') return;
+      const s = ctx.get(r.pid);
+      if (s && s.size) { const line = mainLine(Array.from(s)); r.c = Object.assign({}, r.c, { lines: [line], line, status: 'context' }); } else r.c = Object.assign({}, r.c, { status: 'queue' });
+    });
+    // By doctor: clinic production, the base of the dentist's share (doctor's tab + insurance fees), share, collections
+    const byDoc = new Map();
+    const docOf = (name) => { let x = byDoc.get(name); if (!x) { x = { doctor: name, days: new Set(), lines: 0, production: 0, base: 0, insurance: 0, collected: 0, special: 0, card: 0, cash: 0, otherPay: 0 }; byDoc.set(name, x); } return x; };
+    for (const r of rows) {
+      const x = docOf(r.doctor);
+      x.days.add(r.day); x.lines++; x.production += r.clinic; x.base += (r.realizada || 0) + (r.seguro || 0); x.insurance += r.seguro || 0; x.collected += r.cobrado || 0; x.special += r.especial || 0;
+      const k = payKind(r.fp); if (r.cobrado) { if (k === 'card') x.card += r.cobrado; else if (k === 'cash') x.cash += r.cobrado; else x.otherPay += r.cobrado; }
+    }
+    for (const r of extraRows) { const x = docOf(r.doctor); x.days.add(r.day); x.production += r.clinic; }
+    const doctors = Array.from(byDoc.values()).map((x) => Object.assign(x, { days: x.days.size, share: rate * x.base + x.special })).sort((a, b) => b.production - a.production);
+    const clinicPays = (P.pays || []).reduce((a, p) => a + (p.total || 0), 0);
+    // Check against the PRODUCCION tab, on the days that have one.
+    const check = { days: Array.from(M.prodDays).sort((a, b) => a - b), missing: [], extra: [], different: [] };
+    for (const r of rows) {
+      if (!M.prodDays.has(r.day)) continue;
+      const p = M.pair.get(r.src0);
+      if (!p) { if (r.realizada > 0 || r.cobrado > 0) check.missing.push({ day: r.day, doctor: r.doctor, pid: r.pid, desc: r.desc, amount: r.realizada || r.cobrado }); continue; }
+      if (Math.abs((p.realizada || 0) - (r.realizada || 0)) > 0.5 || Math.abs((p.cobrado || 0) - (r.cobrado || 0)) > 0.5) check.different.push({ day: r.day, doctor: r.doctor, pid: r.pid, desc: r.desc, line: r.c.line, sheet: r.realizada || 0, prod: p.realizada || 0, sheetPaid: r.cobrado || 0, prodPaid: p.cobrado || 0 });
+    }
+    extraRows.forEach((l) => check.extra.push({ day: l.day, doctor: l.doctor, pid: l.pid, desc: l.desc, amount: l.realizada || l.cobrado }));
+    check.ok = !!M.prod.length && !check.missing.length && !check.extra.length && !check.different.length;
+    check.diffImplantProsthesis = check.different.filter((x) => ['IM', 'PF', 'PR'].includes(x.line) || /DEFINITIV|ENTREG|PRUEBA/.test(up(x.desc))).length;
+    // Cleaning coverage over the doctor tabs' lines
+    const cov = { total: rows.length, form: 0, dict: 0, rules: 0, context: 0, event: 0, queue: 0 };
+    rows.forEach((r) => { cov[r.c.status === 'step' ? 'queue' : r.c.status]++; });
+    const distinct = new Set(rows.map((r) => up(r.desc))).size;
+    const queueMap = new Map();
+    rows.filter((r) => r.c.status === 'queue').forEach((r) => { const k = dictKey(r.desc); const x = queueMap.get(k) || { key: k, text: r.desc, n: 0 }; x.n++; queueMap.set(k, x); });
+    // Clinic production by treatment line (each row counted once, in its main line)
+    const byLine = {}; LINE_CODES.concat(['?']).forEach((c) => { byLine[c] = { production: 0, rows: 0 }; });
+    all.forEach((r) => { if (!(r.clinic > 0)) return; const c = r.c.line || '?'; byLine[c].production += r.clinic; byLine[c].rows++; });
+    const paysByCode = {}; (P.pays || []).forEach((p) => { const c = p.code || payCode(p.concept) || '?'; paysByCode[c] = (paysByCode[c] || 0) + (p.total || 0); });
+    const events = {}; TEXT_EVENTS.forEach((e) => { events[e.key] = 0; });
+    rows.forEach((r) => r.c.events.forEach((e) => { events[e]++; }));
+    const fpWritten = Array.from(new Set(rows.map((r) => String(r.fp || '').trim()).filter(Boolean)));
+    const sum = (k) => doctors.reduce((a, x) => a + x[k], 0);
+    return {
+      days, rate, doctors, rows, extraRows, clinicPays, hasProd: M.prod.length > 0,
+      totals: { production: sum('production'), base: sum('base'), insurance: sum('insurance'), collected: sum('collected') + clinicPays, collectedInSheets: sum('collected'), special: sum('special'), share: sum('share'), lines: rows.length, withAmount: rows.filter((r) => r.realizada > 0 || r.cobrado > 0).length },
+      check, coverage: cov, distinct, queue: Array.from(queueMap.values()).sort((a, b) => b.n - a.n), byLine, paysByCode, events, fpWritten,
+      teethRows: rows.filter((r) => r.c.teeth.length).length, multiRows: rows.filter((r) => r.c.acts.length > 1).length, moneyRows: rows.filter((r) => r.c.money).length
+    };
+  }
+
+  // Pending treatment (MN "Presupuestos aceptados no realizados"): what is planned, accepted and paid (the
+  // accountant treats it all as accepted, because reception often forgets the tick) but not recorded as done.
+  const AGE_BUCKETS = [[0, 90], [91, 182], [183, 365], [366, 100000]];
+  function pendingReport(ds) {
+    const items = ds.pending; if (!items || !items.length) return null;
+    const asOf = ds.asOf, total = items.reduce((a, x) => a + x.amount, 0);
+    const age = (x) => asOf - x.day;
+    const buckets = AGE_BUCKETS.map(([a, b]) => { const xs = items.filter((x) => age(x) >= a && age(x) <= b); return { from: a, to: b, n: xs.length, amount: xs.reduce((s, x) => s + x.amount, 0) }; });
+    const byLine = {}; LINE_CODES.concat(['?']).forEach((c) => { byLine[c] = { amount: 0, n: 0 }; });
+    items.forEach((x) => { const c = cleanText(x.desc).line || '?'; byLine[c].amount += x.amount; byLine[c].n++; });
+    const old = items.filter((x) => age(x) > 182).sort((a, b) => b.amount - a.amount);
+    const budgets = new Map();
+    items.forEach((x) => { const k = x.budget || '—'; const b = budgets.get(k) || { budget: k, n: 0, amount: 0, first: x.day }; b.n++; b.amount += x.amount; b.first = Math.min(b.first, x.day); budgets.set(k, b); });
+    const top = Array.from(budgets.values()).filter((b) => b.budget !== '—').sort((a, b) => b.amount - a.amount);
+    const share = (f) => { const xs = items.filter(f); return total ? xs.reduce((s, x) => s + x.amount, 0) / total : 0; };
+    const knownFlag = items.filter((x) => x.accepted != null).length;
+    return {
+      asOf, total, n: items.length, budgets: top.length, buckets, byLine, old, oldAmount: old.reduce((a, x) => a + x.amount, 0),
+      topBudgets: top.slice(0, 10), top20Share: total ? top.slice(0, 20).reduce((a, b) => a + b.amount, 0) / total : 0,
+      flags: {
+        acceptedShare: knownFlag ? share((x) => x.accepted === true) : null, acceptedLines: items.filter((x) => x.accepted === true).length,
+        userShare: items.filter((x) => x.user).length / items.length, collectedShare: items.filter((x) => x.collected > 0).length / items.length,
+        sourceShare: items.some((x) => x.source !== undefined) ? items.filter((x) => x.source).length / items.length : null
+      },
+      oldest: Math.min.apply(null, items.map((x) => x.day)), newest: Math.max.apply(null, items.map((x) => x.day))
+    };
+  }
+  const pendingOld = (ds) => { const r = pendingReport(ds); return r ? r.oldAmount : 0; };
+
+  // Patient base: files opened, who has really been seen, who is due a recall.
+  function patientBase(ds) {
+    if (!ds.patients || !ds.patients.length) return null;
+    const asOf = ds.asOf;
+    const fromExport = ds.patients.some((p) => p.last !== undefined);
+    let active12 = 0, active24 = 0, noVisit = 0, withNext = 0, bajas = 0;
+    const recall = [];
+    for (const p of ds.patients) {
+      let last = null, next = null;
+      if (fromExport) { last = p.last != null && p.last <= asOf ? p.last : null; next = p.next != null && p.next > asOf ? p.next : null; }
+      else {
+        const x = ds.by.get(p.id);
+        if (x) for (const a of x.appts) { if (a.day <= asOf && a.status === ST.DONE) last = a.day; else if (a.day > asOf && next == null) next = a.day; }
+      }
+      if (p.baja != null) bajas++;
+      if (last == null) { noVisit++; continue; }
+      if (next != null) withNext++;
+      if (last >= asOf - 365) { active12++; if (next == null) recall.push({ patient: p.id, last }); }
+      if (last >= asOf - 730) active24++;
+    }
+    recall.sort((a, b) => a.last - b.last);
+    const k = ds.lastMonth, y = Math.floor(k / 12);
+    const count = (k1, k2) => ds.patients.filter((p) => p.first != null && p.first >= mkStart(k1) && p.first <= mkEnd(k2)).length;
+    const ytd = { from: y * 12, to: k, cur: count(y * 12, k), prev: count(y * 12 - 12, k - 12) };
+    ytd.change = ytd.prev ? ytd.cur / ytd.prev - 1 : null;
+    const months = []; for (let i = k - 23; i <= k; i++) months.push({ k: i, n: count(i, i) });
+    return { files: ds.patients.length, active12, active24, noVisit, withNext, bajas, recall, recallN: recall.length, ytd, months, fromExport };
+  }
+
+  // ---------- Reading the clinic's files: MN exports and reception's daily sheets ----------
+  // sheets: [{ name, aoa }] with each sheet as rows of cells (dates as Date, "YYYY-MM-DD" or Excel serials).
+  // Daily sheets carry patient names: they are taken out of the data and returned apart as a key (number ->
+  // name) that the page keeps only in memory or in the encrypted copy on this computer.
+  const KNOWN_HEADERS = new Set(['fecha', 'fecha alta', 'fecha actuacion', 'fecha tratamiento', 'fecha cobro', 'n paciente', 'numero cliente', 'clientes numero cliente', 'numero paciente', 'paciente', 'nombre', 'usuario', 'descripcion',
+    'cobrado', 'f p', 'realizada', 'pte cobr', 't costes', 'valoracion', 'especial', 'seguro', 'notas', 'nota', 'actuacion', 'concepto', 'forma cobro', 'forma de cobro', 'total', 'importe', 'estado', 'precio', 'descuento',
+    'presupuesto aceptado', 'n presupuesto', 'tipo tratamiento', 'origen', 'importe cobrado', 'fuente de contacto', 'realizado', 'fecha realizacion', 'fecha baja', 'fecha creacion', 'f proxima actuacion', 'edad', 'tipo paciente',
+    'total cobrado', 'total cobro', 'total facturado', 'expedientes', 'fecha ultima actuacion', 'profesional', 'gabinete', 'tratamiento', 'color', 'cobrado en el dia', 'a pagar', 'seguros', 'gastos', 'especiales']);
+  function tablesFromSheets(sheets, fileName) {
+    const tables = [], skipped = [], ignored = [], names = new Map();
+    const num = (v) => (v === '' || v == null ? 0 : parseNum(v));
+    const pidOf = (v) => { const n = parseInt(String(v == null ? '' : v).replace(/\.0+$/, '').replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    for (const sh of sheets) {
+      const aoa = (sh.aoa || []).map((r) => (Array.isArray(r) ? r : []));
+      const from = fileName + (sheets.length > 1 ? ' · ' + sh.name : '');
+      let hr = -1, best = 0;
+      for (let i = 0; i < Math.min(4, aoa.length); i++) {
+        const texts = aoa[i].filter((v) => typeof v === 'string' && /[a-zA-Z]/.test(v) && !/^\d{4}-\d\d-\d\d/.test(v));
+        const score = texts.filter((v) => KNOWN_HEADERS.has(norm(v))).length * 10 + texts.length;
+        if (texts.length >= 3 && score > best) { best = score; hr = i; }
+      }
+      if (hr < 0) { if (aoa.some((r) => r.some((v) => v !== '' && v != null))) skipped.push(from); continue; }
+      const hdr = aoa[hr].map((v) => String(v == null ? '' : v).trim()), H = hdr.map(norm);
+      const has = (k) => H.includes(k);
+      const col = (...ks) => { for (const k of ks) { const i = H.indexOf(k); if (i >= 0) return i; } return -1; };
+      const body = aoa.slice(hr + 1);
+      // Daily sheet: one tab per doctor, or the PRODUCCION tab that consolidates them
+      if (has('fecha actuacion') && col('clientes numero cliente', 'numero cliente', 'n paciente') >= 0 && (has('realizada') || has('valoracion'))) {
+        const iD = col('fecha actuacion'), iP = col('clientes numero cliente', 'numero cliente', 'n paciente'), iN = col('nombre', 'paciente'), iU = col('usuario'), iDe = col('descripcion'),
+          iC = col('cobrado'), iF = col('f p', 'fp', 'forma de pago', 'forma cobro'), iR = col('realizada'), iPt = col('pte cobr'), iV = col('valoracion'), iE = col('especial'), iS = col('seguro', 'sg');
+        const isProd = norm(sh.name) === 'produccion', rows = [];
+        for (const r of body) {
+          const day = parseDay(r[iD]), pid = pidOf(r[iP]);
+          if (day == null || pid == null) continue;
+          if (iN >= 0 && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim());
+          rows.push({ 'Fecha': iso(day), 'Doctor': isProd ? String(iU >= 0 ? r[iU] : '').trim() : sh.name, 'Nº Paciente': pid, 'Descripción': String(iDe >= 0 && r[iDe] != null ? r[iDe] : '').trim(),
+            'Cobrado': iC >= 0 ? num(r[iC]) : 0, 'F.P.': iF >= 0 ? String(r[iF] == null ? '' : r[iF]).trim() : '', 'Realizada': iR >= 0 ? num(r[iR]) : 0, 'Pte. Cobr': iPt >= 0 ? num(r[iPt]) : 0,
+            'Valoración': iV >= 0 ? num(r[iV]) : 0, 'Especial': iE >= 0 ? num(r[iE]) : 0, 'Seguro': iS >= 0 && typeof r[iS] === 'number' ? r[iS] : 0, 'Hoja': isProd ? 'PRODUCCION' : 'Doctor' });
+        }
+        tables.push({ kind: 'parte', rows, from }); continue;
+      }
+      // Daily sheet: payments not tied to a doctor (payments on account, with the line letter in front)
+      if ((has('actuacion') || has('concepto')) && has('fecha alta') && !has('fecha cobro')) {
+        const iD = col('fecha alta'), iP = col('n paciente', 'numero cliente', 'numero paciente'), iN = col('paciente', 'nombre'), iCo = col('actuacion', 'concepto'), iF = col('forma cobro', 'forma de cobro'), iT = col('total', 'importe');
+        const rows = [];
+        for (const r of body) {
+          const day = parseDay(r[iD]); if (day == null) continue;
+          const pid = iP >= 0 ? pidOf(r[iP]) : null;
+          if (pid != null && iN >= 0 && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim());
+          let amount = iT >= 0 ? num(r[iT]) : 0;
+          if (iT < 0) { for (let j = r.length - 1; j > iCo; j--) { if (j !== iF && r[j] !== '' && r[j] != null && !isNaN(parseNum(r[j])) && parseNum(r[j]) !== 0) { amount = parseNum(r[j]); break; } } }
+          const concept = String(r[iCo] == null ? '' : r[iCo]).trim();
+          rows.push({ 'Fecha': iso(day), 'Hoja': sh.name, 'Nº Paciente': pid == null ? '' : pid, 'Concepto': concept, 'Código': payCode(concept) || '', 'Forma de cobro': iF >= 0 ? String(r[iF] || '').trim() : '', 'Total': amount });
+        }
+        tables.push({ kind: 'parte_pay', rows, from }); continue;
+      }
+      // Daily sheet: reception's own summary tab (not needed: the app recomputes it)
+      if (has('cobrado en el dia') || (norm(sh.name) === 'resumen' && has('a pagar'))) { ignored.push(from); continue; }
+      const objs = body.filter((r) => r.some((v) => v !== '' && v != null)).map((r) => { const o = {}; hdr.forEach((h, i) => { if (h) o[h] = r[i] == null ? '' : r[i]; }); return o; });
+      // MN "Presupuestos aceptados no realizados": patient name and NIF columns are dropped
+      if (has('fecha tratamiento') && (has('presupuesto aceptado') || has('n presupuesto'))) {
+        objs.forEach((o) => { Object.keys(o).forEach((k) => { if (['paciente', 'nif', 'nombre', 'movil paciente', 'telefono paciente', 'domicilio', 'codigo postal'].includes(norm(k))) delete o[k]; }); });
+        tables.push({ kind: 'pending', rows: objs, from }); continue;
+      }
+      const kind = detect(hdr);
+      if (kind) tables.push({ kind, rows: objs, from }); else skipped.push(from);
+    }
+    return { tables, skipped, ignored, names };
+  }
+
   const DEFINITIONS = {
+    get partes() { return L('Daily sheets: the Excel reception fills in each day, one tab per dentist (what was done, what was paid, how), plus payments on account in the Clínica tab and the PRODUCCION tab that consolidates them. The dentist\'s share is the clinic\'s own rule written on the sheets: 40% of production plus the fixed amounts in the Especial column.', 'Partes diarios: el Excel que rellena recepción cada día, una pestaña por odontólogo (qué se hizo, qué se cobró y cómo), más los cobros a cuenta de la pestaña Clínica y la pestaña PRODUCCION que los consolida. Lo que corresponde al doctor es la regla escrita en los propios partes: el 40% de lo producido más los importes fijos de la columna Especial.'); },
+    get cleaning() { return L('Cleaning of free text: each description becomes treatment acts, a treatment line (G, O, PF, PR, IM: the letters reception already writes on payments), tooth numbers and events. First the clinic\'s dictionary of texts a person confirmed, then rules, then the same patient\'s other work those days; the rest waits in a review queue. An AI suggestion can help with the queue, but a person confirms.', 'Limpieza del texto libre: cada descripción se convierte en actos, una línea de tratamiento (G, O, PF, PR, IM: las letras que recepción ya pone en los cobros), números de diente y sucesos. Primero el diccionario de textos que una persona ha confirmado, después las reglas y después el resto del trabajo del mismo paciente esos días; lo demás espera en una cola de revisión. La IA puede proponer, pero confirma una persona.'); },
+    get pending() { return L('Pending production: treatment in MN\'s "Presupuestos aceptados no realizados" list, by the date of the treatment. The accountant treats it all as accepted and paid, because reception often forgets to tick "Presupuesto Aceptado". The figure falls as completed work is entered in MN; lines older than six months are the most likely to be work already done and not entered.', 'Producción pendiente: tratamiento de la lista "Presupuestos aceptados no realizados" de MN, por fecha del tratamiento. La contable lo considera todo aceptado y cobrado, porque recepción a menudo olvida marcar "Presupuesto Aceptado". La cifra baja a medida que el trabajo hecho se mete en MN; las líneas con más de seis meses son las más probables de ser trabajo ya hecho y no metido.'); },
     get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
     get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
     get unearned() { return L('Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.', 'Cobrado y no realizado: para cada paciente, lo cobrado menos el valor del tratamiento realizado, si es positivo, al cierre del periodo. Se calcula por paciente porque MN Program no enlaza cada cobro con un tratamiento concreto.'); },
@@ -1232,7 +1638,8 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
-    keyFromRows, sampleNames
+    keyFromRows, sampleNames,
+    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, tablesFromSheets, up
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1254,15 +1661,21 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   // Text of the fixed parts of the page.
   const STATIC = () => ({
     brandSub: L('Management', 'Gestión'), tabOverview: L('Overview', 'Resumen'), tabRecs: L('Recommendations', 'Recomendaciones'), tabDecisions: L('Decisions', 'Decisiones'),
+    tabPartes: L('Daily sheets', 'Partes diarios'), tabPending: L('Pending production', 'Producción pendiente'),
     import: L('Import', 'Importar'), ask: L('Ask', 'Preguntar'), close: L('Close', 'Cerrar'), send: L('Send', 'Enviar'),
+    fbBtn: L('Feedback', 'Sugerencias'), fbTitle: L('Suggestions for the app', 'Sugerencias para la app'),
+    fbIntro: L('Ask for an improvement, report something that does not work or leave a comment. It reaches the team that builds the app, and you can follow its status here.', 'Pide una mejora, avisa de algo que no funciona o deja un comentario. Le llega al equipo que hace la app y aquí puedes seguir en qué punto está.'),
+    fbTypeLbl: L('Type', 'Tipo'), fbTextLbl: L('What would you like?', '¿Qué te gustaría?'), fbListTitle: L('Requests', 'Peticiones'),
     chatTitle: L('Ask about the data', 'Pregunta sobre los datos'), chatNote: L('Figures come from the app\'s own calculations. The assistant only sees patient numbers: names you type are replaced by numbers before sending, and names are added back on your screen only.', 'Las cifras salen de los cálculos de la propia app. El asistente solo ve números de paciente: los nombres que escribas se cambian por números antes de enviarse, y los nombres se añaden de nuevo solo en tu pantalla.'),
     impTitle: L('Import data', 'Importar datos'),
     impIntro: L('Export these lists from MN Program to Excel or CSV and select them together. The files are read in this browser and are not uploaded.', 'Exporta estas listas de MN Program a Excel o CSV y selecciónalas juntas. Los archivos se leen en este navegador y no se suben a ningún sitio.'),
     impAppts: L('<b>Appointments:</b> patient number, date, status or colour, professional, room, description', '<b>Agenda:</b> número de paciente, fecha, estado o color, profesional, gabinete, descripción'),
     impLines: L('<b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room', '<b>Tratamientos:</b> número de paciente, tratamiento, importe, estado, fecha de aceptación, fecha de realización, gabinete'),
     impPays: L('<b>Payments:</b> patient number, payment date, amount, payment method', '<b>Cobros:</b> número de paciente, fecha de cobro, importe, forma de cobro'),
-    impPatients: L('<b>Patients</b> (optional): patient number, registration date', '<b>Pacientes</b> (opcional): número de paciente, fecha de alta'),
-    impNote: L('Leave patient names out of these exports: the data, the shared decision log and the assistant work with patient numbers. To see names, load the patient key below.', 'Deja los nombres de pacientes fuera de estas exportaciones: los datos, el registro de decisiones compartido y el asistente trabajan con números de paciente. Para ver nombres, carga la clave de pacientes de abajo.'),
+    impPatients: L('<b>Patients</b> (template "MSIM Saldos"): patient number, registration date, last and next visit', '<b>Pacientes</b> (plantilla "MSIM Saldos"): número de paciente, fecha de alta, última y próxima actuación'),
+    impPartes: L('<b>Daily sheets</b> from reception (Excel, one tab per doctor, with the Clínica and PRODUCCION tabs): several days at once', '<b>Partes diarios</b> de recepción (Excel, una pestaña por doctor, con las pestañas Clínica y PRODUCCION): varios días a la vez'),
+    impPending: L('<b>Pending production</b>: MN list "Presupuestos aceptados no realizados" (template "MSIM Pendiente")', '<b>Producción pendiente</b>: lista de MN "Presupuestos aceptados no realizados" (plantilla "MSIM Pendiente")'),
+    impNote: L('Leave patient names out of the MN exports: the data, the shared decision log and the assistant work with patient numbers. Reception\'s daily sheets do carry names: the app takes them out of the data and keeps them only as the names key in this browser (encrypted if you save the data).', 'Deja los nombres de pacientes fuera de las exportaciones de MN: los datos, el registro de decisiones compartido y el asistente trabajan con números de paciente. Los partes diarios de recepción sí traen nombres: la app los separa de los datos y los guarda solo como clave de nombres en este navegador (cifrados si guardas los datos).'),
     impUse: L('Use this data', 'Usar estos datos'),
     keyTitle: L('Patient names (optional)', 'Nombres de pacientes (opcional)'),
     keyIntro: L('To see names next to patient numbers, select the patient list (patient number and name) kept on the clinic\'s computer. It is read in this browser and held in memory only: it is not saved, not shared with other managers and never sent to the assistant. Closing the tab forgets it.', 'Para ver nombres junto a los números de paciente, selecciona el listado de pacientes (número y nombre) que se guarda en el ordenador de la clínica. Se lee en este navegador y solo se guarda en memoria: no se almacena, no se comparte con otros directivos y nunca se envía al asistente. Al cerrar la pestaña se olvida.'),
@@ -1292,7 +1705,13 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 
   const SNAPS = [IC.dn(2026, 11, 3), IC.dn(2026, 12, 3), IC.dn(2027, 1, 4)];
   const snapLabel = (i) => L('Sample · ', 'Ejemplo · ') + IC.dayLabel(SNAPS[i]);
-  const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false };
+  const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false,
+    partesFrom: 'data', cleanFilter: 'all', aiSuggest: new Map(), aiBusy: false, aiMsg: '' };
+  // Settings kept in this browser: the dentist's share used on the daily sheets, and the clinic's dictionary
+  // of free-text descriptions a person has confirmed (text pattern -> treatment line; no patient data).
+  const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const setPref = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
+  S.rate = pref('ic-rate', 0.4); S.dict = pref('ic-dict', {});
 
   // ---------- Patient names: re-identification in this browser only ----------
   // Everything the app computes, stores in the shared decision log or sends to the assistant uses
@@ -1454,6 +1873,71 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   let pendingRender = false;
   function renderSoon() { if (S.open) { pendingRender = true; return; } render(); }
 
+  // ---------- Suggestions (feedback): staff and managers ask for changes; the team that builds the app sees them ----------
+  // Saved in the app's shared database (collection "feedback"), next to the decision log: everyone who opens the
+  // app sees the requests and their status; editors (the app's builders) change the status. Outside claude.ai
+  // they stay in this browser. Patient names typed by mistake are replaced by their number before saving.
+  const FB = { db: null, user: null, items: [], canEdit: false, myId: null };
+  const FB_TYPES = () => [['improvement', L('Improvement', 'Mejora')], ['bug', L('Something does not work', 'Algo no funciona')], ['idea', L('New idea', 'Idea nueva')], ['comment', L('Comment', 'Comentario')]];
+  const FB_STATUS = () => [['new', L('New', 'Nueva')], ['doing', L('In progress', 'En curso')], ['done', L('Done', 'Hecha')]];
+  const tabName = (t) => ({ overview: L('Overview', 'Resumen'), partes: L('Daily sheets', 'Partes diarios'), parte: L('Digital sheet', 'Parte digital'), pending: L('Pending production', 'Producción pendiente'), recs: L('Recommendations', 'Recomendaciones'), decisions: L('Decisions', 'Decisiones') })[t] || t;
+  const fbLocal = () => { FB.items = pref('ic-feedback', []); };
+  function fbBadge() {
+    const n = FB.items.filter((x) => (x.status || 'new') === 'new').length, b = $('#fbBadge');
+    b.hidden = !(FB.canEdit && n); b.textContent = n;
+  }
+  async function fbInit() {
+    fbLocal(); fbBadge();
+    if (!window.claude || !window.claude.use) return;
+    try { FB.user = await window.claude.use('user'); } catch (e) { FB.user = null; }
+    if (FB.user) { try { FB.canEdit = await FB.user.canEdit(); FB.myId = await FB.user.id(); } catch (e) { /* no identity here */ } }
+    let db = null; try { db = await window.claude.use('db'); } catch (e) { db = null; }
+    if (!db) return;
+    FB.db = db;
+    db.collection('feedback').onSnapshot((snap) => { FB.items = snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); fbBadge(); if (!$('#fb').hidden) fbList(); },
+      () => { FB.db = null; fbLocal(); fbBadge(); });
+  }
+  function fbList() {
+    const box = $('#fbList'), items = FB.items.slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    if (!items.length) { box.innerHTML = '<p class="note">' + L('No requests yet.', 'Aún no hay peticiones.') + '</p>'; return; }
+    const typeL = Object.fromEntries(FB_TYPES()), stL = Object.fromEntries(FB_STATUS());
+    box.innerHTML = items.map((x) => {
+      const st = x.status || 'new';
+      const status = FB.canEdit && FB.db
+        ? '<select class="mini-sel fb-status" data-id="' + esc(x.id) + '" aria-label="' + esc(L('Status', 'Estado')) + '">' + FB_STATUS().map(([v, l]) => '<option value="' + v + '"' + (v === st ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>'
+        : '<span class="pill ' + (st === 'done' ? 'ok' : st === 'doing' ? 'medium' : 'neutral') + '">' + esc(stL[st] || st) + '</span>';
+      const when = x.at ? new Date(x.at).toLocaleDateString(IC.getLang() === 'es' ? 'es-ES' : 'en-GB') : '';
+      return '<div class="fb-item"><div class="fb-meta"><span class="pill neutral">' + esc(typeL[x.type] || x.type) + '</span>' + status + '<span>' + esc(when) + '</span>' + (x.author ? '<span class="fb-author" data-uid="' + esc(x.author) + '"></span>' : '') + (x.screen ? '<span>' + esc(tabName(x.screen)) + '</span>' : '') + '</div><p>' + esc(x.text) + '</p></div>';
+    }).join('');
+    if (FB.user) {
+      const ids = Array.from(new Set(items.map((x) => x.author).filter(Boolean)));
+      if (ids.length) FB.user.profiles(ids).then((ps) => { box.querySelectorAll('.fb-author').forEach((el) => { const p = ps[el.dataset.uid]; el.textContent = (p && p.name) || L('Someone', 'Alguien'); }); }).catch(() => { /* names stay blank */ });
+    }
+  }
+  $('#fbBtn').addEventListener('click', () => {
+    $('#fbType').innerHTML = FB_TYPES().map(([v, l]) => '<option value="' + v + '">' + esc(l) + '</option>').join('');
+    $('#fbMsg').textContent = FB.db ? '' : L('This copy of the app is not connected to claude.ai: suggestions are kept in this browser only.', 'Esta copia de la app no está conectada a claude.ai: las sugerencias se guardan solo en este navegador.');
+    $('#fb').hidden = false; fbList(); $('#fbText').focus();
+  });
+  $('#fbClose').addEventListener('click', () => { $('#fb').hidden = true; });
+  $('#fbForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const raw = $('#fbText').value.trim(); if (!raw) { $('#fbText').focus(); return; }
+    const item = { type: $('#fbType').value, text: namesToNumbers(raw).text, screen: S.tab, at: new Date().toISOString(), author: FB.myId || null, status: 'new' };
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      if (FB.db) await FB.db.collection('feedback').add(item); else { item.id = 'l' + Date.now(); FB.items.push(item); setPref('ic-feedback', FB.items); }
+      $('#fbText').value = ''; $('#fbMsg').textContent = L('Thank you: your request has been sent.', 'Gracias: tu petición se ha enviado.'); fbList(); fbBadge();
+    } catch (err) { $('#fbMsg').textContent = couldNotSave(err); }
+    btn.disabled = false;
+  });
+  $('#fbList').addEventListener('change', async (e) => {
+    const sel = e.target.closest('.fb-status'); if (!sel || !FB.db) return;
+    sel.disabled = true;
+    try { await FB.db.collection('feedback').doc(sel.dataset.id).update({ status: sel.value, statusAt: new Date().toISOString() }); } catch (err) { $('#fbMsg').textContent = couldNotSave(err); }
+    sel.disabled = false;
+  });
+
   // ---------- Small render helpers ----------
   function delta(cur, prev, upIsGood, label) {
     if (!prev) return '<span class="flat">' + L('no comparison', 'sin comparación') + '</span>';
@@ -1507,6 +1991,12 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     const m = S.model, dq = IC.dataQuality(ds);
     const synthetic = ds.source === 'sample';
     const pc = (x) => x == null ? '—' : Math.round(x * 100) + '%';
+    const partesDaysIn = ds.fromPartes ? new Set(ds.partes.lines.filter((l) => l.day >= IC.mkStart(k) && l.day <= IC.mkEnd(k)).map((l) => l.day)).size : 0;
+    // Fields MN has but the clinic does not fill in, from the imported lists (shown under data quality).
+    const Q = IC.pendingReport(ds), PR = ds.source !== 'sample' ? IC.partesReport(ds, { rate: S.rate, dict: S.dict }) : null, PB = ds.source !== 'sample' && ds.patients.some((p) => p.last !== undefined) ? IC.patientBase(ds) : null;
+    const mnRows = (Q ? '<tr><td>' + L('Pending lines with a payment linked (MN)', 'Líneas pendientes con un cobro ligado (MN)') + '</td><td class="r">' + pc(Q.flags.collectedShare) + '</td></tr><tr><td>' + L('Pending amount with the quote marked accepted', 'Pendiente con el presupuesto marcado como aceptado') + '</td><td class="r">' + pc(Q.flags.acceptedShare) + '</td></tr><tr><td>' + L('Pending lines with the doctor recorded', 'Líneas pendientes con el doctor registrado') + '</td><td class="r">' + pc(Q.flags.userShare) + '</td></tr>' + (Q.flags.sourceShare != null ? '<tr><td>' + L('How the patient found the clinic, recorded', 'Cómo conoció la clínica el paciente, registrado') + '</td><td class="r">' + pc(Q.flags.sourceShare) + '</td></tr>' : '') : '') +
+      (PR ? '<tr><td>' + L('Different texts in the daily sheets', 'Textos distintos en los partes diarios') + '</td><td class="r">' + PR.distinct + L(' of ', ' de ') + PR.totals.lines + '</td></tr><tr><td>' + L('Ways of writing the payment method', 'Formas de escribir la forma de pago') + '</td><td class="r">' + esc(PR.fpWritten.join(', ') || '—') + '</td></tr>' : '') +
+      (PB ? '<tr><td>' + L('Files marked "Alta" seen in the last 12 months', 'Fichas en "Alta" vistas en los últimos 12 meses') + '</td><td class="r">' + PB.active12.toLocaleString('es-ES') + L(' of ', ' de ') + PB.files.toLocaleString('es-ES') + '</td></tr><tr><td>' + L('Files ever discharged (Fecha Baja)', 'Fichas dadas de baja alguna vez (Fecha Baja)') + '</td><td class="r">' + PB.bajas + '</td></tr>' : '');
     const marginCmp = o.marginPct != null && o.marginPctSameMonthLastYear != null ? (function () { const d = (o.marginPct - o.marginPctSameMonthLastYear) * 100; return '<span class="' + (Math.abs(d) < 0.5 ? 'flat' : d > 0 ? 'good' : 'bad') + '">' + (d >= 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') + '</span> vs ' + esc(lyLbl); })() : '';
 
     return '' +
@@ -1514,9 +2004,10 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="' + L('Previous month', 'Mes anterior') + '"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="' + L('Next month', 'Mes siguiente') + '"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' +
 
     '<section class="tiles">' +
-      '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + (partesDaysIn ? esc(L('Only the ' + partesDaysIn + ' days with a daily sheet this month', 'Solo los ' + partesDaysIn + ' días con parte de este mes')) : delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl)) + '</span></div>' +
       '<div class="tile"><span class="lbl">' + L('Margin after materials and lab', 'Margen tras materiales y laboratorio') + '</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? L('No cost data in this import', 'Esta importación no trae costes') : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
-      '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + L(' patients · ', ' pacientes · ') + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, L('vs end of ', 'vs fin de ') + prevLbl) + '</span></div>' +
+      (ds.fromPartes ? '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">—</span><span class="cmp">' + L('Needs the full MN payments export; see Pending production', 'Necesita la exportación completa de cobros de MN; ver Producción pendiente') + '</span></div>'
+        : '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + L(' patients · ', ' pacientes · ') + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, L('vs end of ', 'vs fin de ') + prevLbl) + '</span></div>') +
       '<div class="tile"><span class="lbl">' + L('New patients', 'Pacientes nuevos') + '</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, L('vs 6-month average (', 'vs media de 6 meses (') + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
     '</section>' +
 
@@ -1550,6 +2041,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       '<section class="card"><h2>' + L('Patients who brought most revenue', 'Pacientes que más ingresos aportaron') + '</h2><p class="def">' + L('Production in the 12 months to ', 'Producción en los 12 meses hasta ') + esc(IC.mkLabel(k)) + '.</p>' +
         (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th class="r">' + L('Treatment done', 'Tratamiento realizado') + '</th></tr></thead><tbody>' + top.map((x) => '<tr><td>' + pat(x.patient) + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No data.', 'Sin datos.') + '</p>') +
       '</section>' +
+      patientCard(ds) +
       '<section class="card"><h2>' + L('Data quality', 'Calidad de los datos') + '</h2><p class="def">' + L('How much of what managers need is recorded, last three months. Low values mean MN entries need the reception recording standard.', 'Cuánto de lo que necesita la dirección está registrado, últimos tres meses. Valores bajos indican que las entradas de MN necesitan el estándar de registro de recepción.') + '</p>' +
         '<div class="tbl-wrap"><table><tbody>' +
           '<tr><td>' + L('Appointments with an outcome (attended, cancelled, no-show)', 'Citas con desenlace (asistió, canceló, no vino)') + '</td><td class="r">' + pc(dq.outcomeRecorded) + '</td></tr>' +
@@ -1558,10 +2050,248 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
           '<tr><td>' + L('Treatments with the professional recorded', 'Tratamientos con el profesional registrado') + '</td><td class="r">' + pc(dq.professionalRecorded) + '</td></tr>' +
           '<tr><td>' + L('Treatments with material and lab cost', 'Tratamientos con coste de materiales y laboratorio') + '</td><td class="r">' + pc(dq.costRecorded) + '</td></tr>' +
           '<tr><td>' + L('New patients counted from registration dates', 'Pacientes nuevos contados por fecha de alta') + '</td><td class="r">' + (dq.patientDates ? L('Yes', 'Sí') : 'No') + '</td></tr>' +
+          mnRows +
         '</tbody></table></div>' +
         (synthetic ? '<p class="note">' + L('The sample data assumes the recording standard is in place. In the real MN agenda, reception marks outcomes by colour (red: cancelled or no-show; green: done) and leaves the status empty: the September–October 2026 export had 0 cancellations and 4 of 1,503 appointments marked as done. The importer reads the colour.', 'Los datos de ejemplo suponen que el estándar de registro ya se aplica. En la agenda real de MN, recepción marca el desenlace con colores (rojo: canceló o no vino; verde: realizada) y deja el estado vacío: la exportación de septiembre–octubre de 2026 tenía 0 cancelaciones y 4 de 1.503 citas como realizadas. El importador lee el color.') + '</p>' : '') +
       '</section>' +
     '</div>';
+  }
+
+  // ---------- Daily sheets (partes diarios), cleaning of their free text, and the digital sheet ----------
+  const PD_KEY = 'ic-parte-digital';
+  const PD = { lines: pref(PD_KEY, []) };
+  const savePD = () => setPref(PD_KEY, PD.lines);
+  // The digital sheet in the same shape as an imported one: structured lines, so nothing needs cleaning.
+  const digitalPartes = () => ({ lines: PD.lines.map((l) => ({ day: IC.fromIso(l.date), doctor: l.doctor, pid: l.pid, desc: l.desc, cobrado: l.paid || 0, fp: l.fp || '', realizada: l.done || 0, valoracion: l.done || 0, especial: l.special || 0, seguro: 0, line: l.line, act: l.act, src: 'doctor' })), pays: [] });
+  const partesSource = () => (S.partesFrom === 'digital' ? Object.assign({}, S.ds, { partes: digitalPartes() }) : S.ds);
+  const partesReportNow = () => (S.ds ? IC.partesReport(partesSource(), { rate: S.rate, dict: S.dict }) : null);
+  // Names on the digital sheet come from the real names key whatever data is loaded.
+  const patAny = (id) => { const n = KEY.map && KEY.show && !KEY.sample ? KEY.map.get(Number(id)) : null; return (n ? '<span class="pname">' + esc(n) + '</span>' : '') + '<span class="pid">Nº ' + esc(id) + '</span>'; };
+  const codePill = (c, title) => c ? '<span class="code" title="' + esc(title || IC.lineName(c)) + '">' + esc(c) + '</span>' : '<span class="code q">?</span>';
+  const CLEAN_ST = () => ({ form: L('Form (no free text)', 'Formulario (sin texto libre)'), dict: L('Clinic dictionary', 'Diccionario de la clínica'), rules: L('Rules', 'Reglas'), context: L('Same patient\'s other work', 'Resto del trabajo del paciente'), event: L('Event, no treatment', 'Suceso, sin tratamiento'), queue: L('To review', 'Por revisar') });
+  const tile = (lbl, val, cmp) => '<div class="tile"><span class="lbl">' + esc(lbl) + '</span><span class="val">' + esc(val) + '</span><span class="cmp">' + esc(cmp) + '</span></div>';
+  const pct0 = (x) => x == null ? '—' : Math.round(x * 100) + '%';
+  const emptyImport = (msg) => '<div class="empty">' + esc(msg) + '<div class="actions" style="justify-content:center;margin-top:12px"><button class="btn primary" data-import="1">' + L('Import files', 'Importar archivos') + '</button></div></div>';
+  const isImplantOrProsthesis = (x) => ['IM', 'PF', 'PR'].includes(x.line) || /DEFINITIV|ENTREG|PRUEBA/.test(IC.up(x.desc));
+
+  function viewPartes() {
+    const R = partesReportNow(), digital = S.partesFrom === 'digital', P = digital ? patAny : pat, nDig = PD.lines.length;
+    const seg = '<div class="seg" role="group" aria-label="' + esc(L('Which sheets', 'Qué partes')) + '"><button data-pfrom="data" aria-pressed="' + !digital + '">' + L('Imported sheets', 'Partes importados') + '</button><button data-pfrom="digital" aria-pressed="' + digital + '">' + L('Digital sheet', 'Parte digital') + (nDig ? ' (' + nDig + ')' : '') + '</button></div>';
+    const head = '<div class="page-head"><div><h1>' + L('Daily sheets', 'Partes diarios') + '</h1><p class="sub">' + (R ? esc(L('Days: ', 'Días: ') + R.days.map((d) => IC.dayLabel(d)).join(', ')) + ' · ' : '') + esc(digital ? L('Digital sheet on this computer', 'Parte digital de este ordenador') : S.ds.label) + '</p></div><div class="toolbar">' + seg + '<button class="btn" data-go="parte">' + L('Fill in today\'s sheet', 'Rellenar el parte de hoy') + '</button></div></div>';
+    if (!R) {
+      if (digital) return head + '<div class="empty">' + L('The digital sheet is empty. Fill in today\'s sheet to see it here.', 'El parte digital está vacío. Rellena el parte de hoy para verlo aquí.') + '</div>';
+      return head + emptyImport(S.ds.source === 'sample' ? L('The sample data has no daily sheets. Import reception\'s Excel sheets (one tab per doctor) to see production, collections and each dentist\'s share, the check against the PRODUCCION tab and the cleaning of the free text.', 'Los datos de ejemplo no traen partes diarios. Importa los Excel de recepción (una pestaña por doctor) para ver la producción, los cobros y lo que corresponde a cada doctor, la comprobación con la pestaña PRODUCCION y la limpieza del texto libre.') : L('The imported data has no daily sheets. Import reception\'s Excel sheets to see them here.', 'Los datos importados no traen partes diarios. Importa los Excel de recepción para verlos aquí.'));
+    }
+    const T = R.totals, cov = R.coverage, st = CLEAN_ST();
+    const understood = cov.total ? (cov.rules + cov.dict + cov.context + cov.form) / cov.total : 0;
+    const tiles = '<section class="tiles">' +
+      tile(L('Clinic production', 'Producción de la clínica'), eur(T.production), R.days.length + L(' days · ', ' días · ') + T.lines + L(' lines', ' líneas')) +
+      tile(L('Collected', 'Cobrado'), eur(T.collected), L('In the sheets ', 'En los partes ') + eur(T.collectedInSheets) + L(' · on account ', ' · a cuenta ') + eur(R.clinicPays)) +
+      tile(L('Dentists\' share', 'A percibir doctores'), eur(T.share), Math.round(R.rate * 100) + L('% of the base + specials', '% de la base + especiales')) +
+      tile(L('Free text understood', 'Texto libre entendido'), Math.round(understood * 100) + '%', cov.queue + L(' to review · ', ' por revisar · ') + cov.event + L(' events', ' sucesos')) +
+      '</section>';
+    const docTbl = '<section class="card"><h2>' + L('By doctor', 'Por doctor') + '</h2><p class="def">' + esc(IC.DEFINITIONS.partes) + '</p>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>' + L('Doctor', 'Doctor') + '</th><th class="r">' + L('Days', 'Días') + '</th><th class="r">' + L('Lines', 'Líneas') + '</th><th class="r">' + L('Clinic production', 'Producción clínica') + '</th><th class="r">' + L('Doctor\'s base', 'Base del doctor') + '</th><th class="r">' + L('Specials', 'Especiales') + '</th><th class="r">' + L('Share', 'A percibir') + '</th><th class="r">' + L('Collected', 'Cobrado') + '</th></tr></thead><tbody>' +
+      R.doctors.map((d) => '<tr><td>' + esc(d.doctor) + '</td><td class="r">' + d.days + '</td><td class="r">' + d.lines + '</td><td class="r">' + eur(d.production) + '</td><td class="r">' + eur(d.base) + (d.insurance ? '<br><small class="note">' + L('incl. insurance ', 'incl. seguros ') + eur(d.insurance) + '</small>' : '') + '</td><td class="r">' + eur(d.special) + '</td><td class="r"><b>' + eur(d.share) + '</b></td><td class="r">' + eur(d.collected) + (d.collected ? '<br><small class="note">' + L('card ', 'tarjeta ') + eur(d.card) + ' · ' + L('cash ', 'efectivo ') + eur(d.cash) + '</small>' : '') + '</td></tr>').join('') +
+      '</tbody></table></div><p class="note"><label>' + L('Dentist\'s share of the base: ', 'Parte del doctor sobre la base: ') + '<input id="rateIn" class="rate-in" type="number" min="0" max="100" step="1" value="' + Math.round(S.rate * 100) + '"> %</label> ' +
+      L('The base is the doctor\'s tab (what they did that day, even if it was paid another day) plus insurance fees; specials are the fixed amounts in the Especial column (implants, All-on-4…). Clinic production takes the PRODUCCION tab where there is one.', 'La base es la pestaña del doctor (lo que hizo ese día, aunque se cobrara otro día) más las tarifas de seguros; los especiales son los importes fijos de la columna Especial (implantes, All-on-4…). La producción de la clínica sale de la pestaña PRODUCCION cuando la hay.') + '</p></section>';
+    // Check against the PRODUCCION tab
+    const C = R.check;
+    let check = '<section class="card"><h2>' + L('Check against the PRODUCCION tab', 'Comprobación con la pestaña PRODUCCION') + '</h2>';
+    if (!R.hasProd) check += '<p class="sub">' + L('These sheets have no PRODUCCION tab to check against.', 'Estos partes no traen pestaña PRODUCCION con la que comprobar.') + '</p>';
+    else if (C.ok) check += '<p>' + L('Everything matches: every line with an amount is in PRODUCCION, once, with the same amount.', 'Todo cuadra: cada línea con importe está en PRODUCCION, una vez y con el mismo importe.') + '</p>';
+    else {
+      const dS = C.different.reduce((a, x) => a + x.sheet, 0), dP = C.different.reduce((a, x) => a + x.prod, 0), parts = [];
+      if (C.different.length) parts.push(L(C.different.length + ' lines with a different amount (doctor\'s tab ' + eur(dS) + ', PRODUCCION ' + eur(dP) + ')', C.different.length + ' líneas con importe distinto (pestaña del doctor ' + eur(dS) + ', PRODUCCION ' + eur(dP) + ')'));
+      if (C.missing.length) parts.push(L(C.missing.length + ' lines with an amount missing from PRODUCCION', C.missing.length + ' líneas con importe que faltan en PRODUCCION'));
+      if (C.extra.length) parts.push(L(C.extra.length + ' lines only in PRODUCCION', C.extra.length + ' líneas que solo están en PRODUCCION'));
+      check += '<p>' + esc(parts.join('; ')) + '.</p>';
+      if (C.diffImplantProsthesis) check += '<p class="note">' + esc(L(C.diffImplantProsthesis + ' of the differences are implants or prosthesis: PRODUCCION records their full value, while the doctor\'s tab holds only the base of the dentist\'s share (implants are paid as a fixed amount in Especial). The rest, highlighted, are worth checking.', C.diffImplantProsthesis + ' de las diferencias son implantes o prótesis: PRODUCCION recoge su valor completo y la pestaña del doctor solo la base de su comisión (los implantes se pagan con un importe fijo en Especial). Las demás, resaltadas, conviene revisarlas.')) + '</p>';
+      const items = C.different.map((x) => ({ x, what: L('Different amount', 'Importe distinto'), a: eur(x.sheet), b: eur(x.prod), flag: !isImplantOrProsthesis(x) }))
+        .concat(C.missing.map((x) => ({ x, what: L('Missing in PRODUCCION', 'Falta en PRODUCCION'), a: eur(x.amount), b: '—', flag: true })), C.extra.map((x) => ({ x, what: L('Only in PRODUCCION', 'Solo en PRODUCCION'), a: '—', b: eur(x.amount), flag: true })));
+      check += '<div class="tbl-wrap"><table><thead><tr><th>' + L('Day', 'Día') + '</th><th>' + L('Doctor', 'Doctor') + '</th><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Text', 'Texto') + '</th><th>' + L('What', 'Qué pasa') + '</th><th class="r">' + L('Doctor\'s tab', 'Pestaña doctor') + '</th><th class="r">PRODUCCION</th></tr></thead><tbody>' +
+        items.map((i) => '<tr' + (i.flag ? ' class="flag"' : '') + '><td>' + esc(IC.dayLabel(i.x.day)) + '</td><td>' + esc(i.x.doctor) + '</td><td>' + P(i.x.pid) + '</td><td class="txt">' + esc(i.x.desc) + '</td><td>' + esc(i.what) + (i.flag ? ' <span class="pill medium">' + L('Check', 'Revisar') + '</span>' : '') + '</td><td class="r">' + i.a + '</td><td class="r">' + i.b + '</td></tr>').join('') + '</tbody></table></div>';
+    }
+    check += '</section>';
+    // Cleaning of the free text
+    const order = ['form', 'dict', 'rules', 'context', 'event', 'queue'];
+    const bar = '<div class="stack" role="img" aria-label="' + esc(order.filter((k) => cov[k]).map((k) => st[k] + ' ' + cov[k]).join(', ')) + '">' + order.filter((k) => cov[k]).map((k) => '<span class="st-' + k + '" style="width:' + (100 * cov[k] / cov.total).toFixed(1) + '%" title="' + esc(st[k] + ': ' + cov[k]) + '"></span>').join('') + '</div>';
+    const legend = '<div class="legend">' + order.filter((k) => cov[k]).map((k) => '<span><i class="st-' + k + '"></i>' + esc(st[k]) + ' · ' + cov[k] + '</span>').join('') + '</div>';
+    const rowsShown = S.cleanFilter === 'queue' ? R.rows.filter((r) => r.c.status === 'queue') : R.rows;
+    const actsTxt = (c) => c.acts.map((a) => (a.qty > 1 ? a.qty + ' × ' : '') + IC.actLabel(a.key)).join(' + ');
+    const lineCell = (c) => c.status === 'event' ? c.events.map((e) => '<span class="code ev">' + esc(IC.eventLabel(e)) + '</span>').join(' ') : (c.lines.length ? c.lines.map((x) => codePill(x)).join(' ') : codePill(null)) + (c.events.length ? ' ' + c.events.map((e) => '<span class="code ev">' + esc(IC.eventLabel(e)) + '</span>').join(' ') : '');
+    const opts = (cur) => '<option value="">—</option>' + IC.LINE_CODES.map((c) => '<option value="' + c + '"' + (cur === c ? ' selected' : '') + '>' + c + ' · ' + esc(IC.lineName(c)) + '</option>').join('') + '<option value="NONE"' + (cur === 'NONE' ? ' selected' : '') + '>' + L('Not a treatment', 'No es tratamiento') + '</option>';
+    const dictN = Object.keys(S.dict).length;
+    const queueHtml = R.queue.length ? '<h3>' + L('Review queue', 'Cola de revisión') + '</h3><p class="note">' + L('Texts the rules cannot place, for example a try-in or a delivery with no other work of the same patient those days. Choose the line once: the clinic\'s dictionary remembers it for every text written the same way (numbers aside).', 'Textos que las reglas no saben colocar, por ejemplo una prueba o una entrega sin otro trabajo del mismo paciente esos días. Elige la línea una vez: el diccionario de la clínica la recuerda para todos los textos escritos igual (sin contar los números).') + '</p>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>' + L('Text', 'Texto') + '</th><th class="r">' + L('Times', 'Veces') + '</th><th>' + L('AI suggestion', 'Propuesta de la IA') + '</th><th>' + L('Line', 'Línea') + '</th></tr></thead><tbody>' +
+      R.queue.map((q) => { const s = S.aiSuggest.get(q.key); return '<tr><td class="txt">' + esc(q.text) + '</td><td class="r">' + q.n + '</td><td>' + (s ? (s.line && s.line !== '?' ? codePill(s.line === 'NONE' ? null : s.line, s.why) + (s.line === 'NONE' ? ' ' + L('not a treatment', 'no es tratamiento') : '') + ' <button class="btn quiet" data-aiok="' + esc(q.key) + '">' + L('Accept', 'Aceptar') + '</button>' : '<span class="note">' + L('needs context', 'necesita contexto') + '</span>') + (s.why ? '<br><small class="note">' + esc(s.why) + '</small>' : '') : '—') + '</td><td><select class="mini-sel dict-sel" data-key="' + esc(q.key) + '" aria-label="' + esc(L('Line for ', 'Línea para ') + q.text) + '">' + opts('') + '</select></td></tr>'; }).join('') +
+      '</tbody></table></div><div class="actions"><button class="btn" data-ai="1"' + (S.aiBusy ? ' disabled' : '') + '>' + (S.aiBusy ? L('Asking…', 'Preguntando…') : L('Suggest with AI', 'Proponer con IA')) + '</button><span class="note">' + esc(S.aiMsg || L('The AI only receives these texts, without patient numbers, names or dates. A person confirms.', 'La IA solo recibe estos textos, sin números de paciente, nombres ni fechas. Confirma una persona.')) + '</span></div>' : '';
+    const clean = '<section class="card"><h2>' + L('Cleaning of the free text', 'Limpieza del texto libre') + '</h2><p class="def">' + esc(IC.DEFINITIONS.cleaning) + '</p>' + bar + legend +
+      '<p class="note">' + esc(L(R.distinct + ' different texts in ' + T.lines + ' lines; ' + R.multiRows + ' lines hold more than one treatment, ' + R.teethRows + ' carry tooth numbers and ' + R.moneyRows + ' carry amounts written in the text. Payment method written as: ' + (R.fpWritten.join(', ') || '—') + '.', R.distinct + ' textos distintos en ' + T.lines + ' líneas; ' + R.multiRows + ' líneas llevan más de un tratamiento, ' + R.teethRows + ' llevan número de diente y ' + R.moneyRows + ' llevan importes escritos en el texto. Forma de pago escrita como: ' + (R.fpWritten.join(', ') || '—') + '.')) + '</p>' +
+      queueHtml +
+      '<div class="toolbar"><div class="seg" role="group"><button data-cfilter="all" aria-pressed="' + (S.cleanFilter !== 'queue') + '">' + L('All lines', 'Todas las líneas') + ' (' + R.rows.length + ')</button><button data-cfilter="queue" aria-pressed="' + (S.cleanFilter === 'queue') + '">' + L('To review', 'Por revisar') + ' (' + cov.queue + ')</button></div>' +
+      (dictN ? '<span class="note">' + L('Clinic dictionary: ', 'Diccionario de la clínica: ') + dictN + L(' confirmed texts', ' textos confirmados') + '</span><button class="btn quiet" data-dictclear="1">' + L('Clear dictionary', 'Borrar diccionario') + '</button>' : '') + '</div>' +
+      '<div class="tbl-wrap scroll"><table><thead><tr><th>' + L('Text in the sheet', 'Texto del parte') + '</th><th>' + L('Treatments', 'Tratamientos') + '</th><th>' + L('Teeth', 'Dientes') + '</th><th>' + L('Line', 'Línea') + '</th><th>' + L('How', 'Cómo') + '</th></tr></thead><tbody>' +
+      rowsShown.map((r) => '<tr><td class="txt">' + esc(r.desc || '—') + '</td><td>' + esc(actsTxt(r.c) || '—') + '</td><td class="num">' + esc(r.c.teeth.join(', ')) + '</td><td>' + lineCell(r.c) + '</td><td class="note">' + esc(st[r.c.status === 'step' ? 'queue' : r.c.status]) + '</td></tr>').join('') +
+      '</tbody></table></div></section>';
+    // Production by treatment line, payments on account by letter, events written in the text
+    const lineRows = IC.LINE_CODES.concat(['?']).filter((c) => R.byLine[c] && R.byLine[c].production > 0).map((c) => ({ label: c === '?' ? L('? to review', '? por revisar') : c + ' · ' + IC.lineName(c), v: R.byLine[c].production, sub: R.byLine[c].rows + L(' lines', ' líneas') }));
+    const lineMax = Math.max(1, ...lineRows.map((x) => x.v));
+    const codes = Object.entries(R.paysByCode).sort((a, b) => b[1] - a[1]);
+    const lines = '<section class="card"><h2>' + L('Production by treatment line', 'Producción por línea de tratamiento') + '</h2><p class="def">' + L('Clinic production of these days by the line the cleaning gave each line (G general, O orthodontics, PF fixed prosthesis, PR removable, IM implants). Until now the clinic only knew collections by line, from the letter on each payment.', 'Producción de la clínica de estos días por la línea que la limpieza dio a cada línea del parte (G general, O ortodoncia, PF prótesis fija, PR removible, IM implantes). Hasta ahora la clínica solo sabía lo cobrado por línea, por la letra de cada cobro.') + '</p>' +
+      (lineRows.length ? hbars(lineRows, lineMax, eur) : '<p class="sub">' + L('No production in these sheets.', 'Sin producción en estos partes.') + '</p>') +
+      (codes.length ? '<p class="note">' + L('Payments on account in the Clínica tab, by letter: ', 'Cobros a cuenta de la pestaña Clínica, por letra: ') + esc(codes.map(([c, v]) => c + ' ' + eur(v)).join(' · ')) + '</p>' : '') + '</section>';
+    const evRows = R.rows.filter((r) => r.c.events.length);
+    const events = '<section class="card"><h2>' + L('Events written in the sheets', 'Sucesos escritos en los partes') + '</h2><p class="def">' + L('What reception writes besides treatments. MN\'s agenda does not tell a no-show from a cancellation; the sheets sometimes do.', 'Lo que recepción escribe además de los tratamientos. La agenda de MN no distingue una falta de una cancelación; los partes a veces sí.') + '</p>' +
+      '<div class="tbl-wrap"><table><tbody>' + IC.TEXT_EVENTS.filter((e) => R.events[e.key]).map((e) => '<tr><td>' + esc(IC.eventLabel(e.key)) + '</td><td class="r">' + R.events[e.key] + '</td></tr>').join('') + '</tbody></table></div>' +
+      (evRows.length ? '<details class="more"><summary>' + L('See the lines', 'Ver las líneas') + '</summary><div class="tbl-wrap"><table><tbody>' + evRows.map((r) => '<tr><td>' + esc(IC.dayLabel(r.day)) + '</td><td>' + esc(r.doctor) + '</td><td>' + P(r.pid) + '</td><td class="txt">' + esc(r.desc) + '</td></tr>').join('') + '</tbody></table></div></details>' : '<p class="sub">' + L('None.', 'Ninguno.') + '</p>') + '</section>';
+    return head + tiles + docTbl + check + clean + '<div class="grid2">' + lines + events + '</div>';
+  }
+
+  // The digital sheet: reception picks the treatment from a list instead of typing free text. It stays on this
+  // computer and downloads as the same Excel reception uses today.
+  function viewParteDigital() {
+    const now = new Date(), today = IC.iso(IC.dn(now.getFullYear(), now.getMonth() + 1, now.getDate()));
+    const known = PD.lines.map((l) => l.doctor).concat(S.ds && S.ds.partes ? S.ds.partes.lines.filter((l) => l.src !== 'produccion').map((l) => l.doctor) : []);
+    const docs = Array.from(new Set(known.filter(Boolean))).sort();
+    const catalogue = IC.ACTS.filter((a) => a.line).map((a) => '<option value="' + a.key + '"' + (S.pdAct === a.key ? ' selected' : '') + '>' + esc(IC.actLabel(a.key)) + ' · ' + a.line + '</option>').join('');
+    const head = '<div class="page-head"><div><h1>' + L('Digital daily sheet', 'Parte digital') + ' <span class="pill medium">' + L('Prototype', 'Prototipo') + '</span></h1><p class="sub">' + L('Replaces reception\'s daily Excel: one line per patient and doctor, with the treatment chosen from a list. It is kept on this computer only and downloads as the usual Excel (one tab per doctor and the PRODUCCION tab). Payments are still recorded in MN.', 'Sustituye al Excel diario de recepción: una línea por paciente y doctor, con el tratamiento elegido de una lista. Se guarda solo en este ordenador y se descarga como el Excel de siempre (una pestaña por doctor y la pestaña PRODUCCION). Los cobros se siguen registrando en MN.') + '</p></div><div class="toolbar"><button class="btn" data-go="partes">' + L('Back to daily sheets', 'Volver a partes diarios') + '</button></div></div>';
+    const form = '<section class="card"><h2>' + L('New line', 'Nueva línea') + '</h2><div class="pd-grid">' +
+      '<label>' + L('Date', 'Fecha') + '<input id="pdDate" type="date" value="' + esc(S.pdDate || today) + '"></label>' +
+      '<label>' + L('Doctor', 'Doctor') + '<input id="pdDoctor" list="pdDocs" value="' + esc(S.pdDoctor || '') + '" autocomplete="off"><datalist id="pdDocs">' + docs.map((d) => '<option value="' + esc(d) + '">').join('') + '</datalist></label>' +
+      '<label>' + L('Patient number', 'Nº de paciente') + '<input id="pdPid" type="number" min="1" inputmode="numeric"></label>' +
+      '<label class="wide">' + L('Treatment', 'Tratamiento') + '<select id="pdAct">' + catalogue + '</select></label>' +
+      '<label class="wide">' + L('Detail (teeth, note)', 'Detalle (dientes, nota)') + '<input id="pdDetail" placeholder="' + esc(L('e.g. 36 and 37', 'p. ej. 36 y 37')) + '"></label>' +
+      '<label>' + L('Done today (€)', 'Realizado hoy (€)') + '<input id="pdDone" type="number" min="0" step="0.01"></label>' +
+      '<label>' + L('Paid today (€)', 'Cobrado hoy (€)') + '<input id="pdPaid" type="number" min="0" step="0.01"></label>' +
+      '<label>' + L('Payment method', 'Forma de pago') + '<select id="pdFp"><option value="">—</option><option value="T">' + L('Card (T)', 'Tarjeta (T)') + '</option><option value="E">' + L('Cash (E)', 'Efectivo (E)') + '</option><option value="TRF">' + L('Transfer', 'Transferencia') + '</option><option value="FIN">' + L('Financing', 'Financiación') + '</option></select></label>' +
+      '<label>' + L('Special (€)', 'Especial (€)') + '<input id="pdSpecial" type="number" min="0" step="0.01"></label>' +
+      '</div><div class="actions"><button class="btn primary" data-pdadd="1">' + L('Add line', 'Añadir línea') + '</button><span id="pdMsg" class="note"></span></div></section>';
+    let list;
+    if (!PD.lines.length) list = '<div class="empty">' + L('No lines yet. Each line added here appears in the daily sheets view, already classified.', 'Aún no hay líneas. Cada línea que añadas aparece en la vista de partes diarios, ya clasificada.') + '</div>';
+    else {
+      const groups = new Map();
+      PD.lines.forEach((l, i) => { const k = l.date + '|' + l.doctor; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(Object.assign({ i }, l)); });
+      const body = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, ls]) => {
+        const done = ls.reduce((a, l) => a + (l.done || 0), 0), paid = ls.reduce((a, l) => a + (l.paid || 0), 0), sp = ls.reduce((a, l) => a + (l.special || 0), 0);
+        return '<tr><th colspan="7">' + esc(IC.dayLabel(IC.fromIso(ls[0].date)) + ' · ' + ls[0].doctor) + '</th></tr>' + ls.map((l) => '<tr><td>' + patAny(l.pid) + '</td><td class="txt">' + esc(l.desc) + '</td><td>' + codePill(l.line) + '</td><td class="r">' + eur(l.done || 0) + '</td><td class="r">' + eur(l.paid || 0) + (l.fp ? ' <small class="note">' + esc(l.fp) + '</small>' : '') + '</td><td class="r">' + eur(l.special || 0) + '</td><td class="r"><button class="btn quiet" data-pddel="' + l.i + '" aria-label="' + esc(L('Delete line', 'Borrar línea')) + '">×</button></td></tr>').join('') +
+          '<tr><td colspan="3" class="note">' + esc(L('Share at ', 'A percibir al ') + Math.round(S.rate * 100) + '%: ' + eur(S.rate * done + sp)) + '</td><td class="r"><b>' + eur(done) + '</b></td><td class="r"><b>' + eur(paid) + '</b></td><td class="r"><b>' + eur(sp) + '</b></td><td></td></tr>';
+      }).join('');
+      list = '<section class="card"><h2>' + L('Lines on this computer', 'Líneas en este ordenador') + ' (' + PD.lines.length + ')</h2><div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Treatment', 'Tratamiento') + '</th><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Realizado') + '</th><th class="r">' + L('Paid', 'Cobrado') + '</th><th class="r">' + L('Special', 'Especial') + '</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+        '<div class="actions"><button class="btn primary" data-pdxlsx="1">' + L('Download the day\'s Excel', 'Descargar el Excel del día') + '</button><button class="btn" data-pdview="1">' + L('See it in daily sheets', 'Verlo en partes diarios') + '</button><button class="btn quiet" data-pdclear="1">' + L('Empty the sheet', 'Vaciar el parte') + '</button><span id="pdOut" class="note"></span></div></section>';
+    }
+    return head + form + list;
+  }
+  function addDigitalLine() {
+    const msg = (t) => { const el = $('#pdMsg'); if (el) el.textContent = t; };
+    const date = $('#pdDate').value, doctor = $('#pdDoctor').value.trim(), pid = parseInt($('#pdPid').value, 10), act = IC.ACTS.find((a) => a.key === $('#pdAct').value);
+    if (!date) { msg(L('Choose the date.', 'Elige la fecha.')); $('#pdDate').focus(); return; }
+    if (!doctor) { msg(L('Write the doctor.', 'Escribe el doctor.')); $('#pdDoctor').focus(); return; }
+    if (isNaN(pid) || pid <= 0) { msg(L('Write the patient number.', 'Escribe el número de paciente.')); $('#pdPid').focus(); return; }
+    const detail = $('#pdDetail').value.trim(), num = (id) => { const v = parseFloat($(id).value); return isNaN(v) ? 0 : v; };
+    PD.lines.push({ date, doctor, pid, act: act.key, line: act.line, desc: act.text + (detail ? ' ' + detail : ''), done: num('#pdDone'), paid: num('#pdPaid'), fp: $('#pdFp').value, special: num('#pdSpecial') });
+    savePD(); S.pdDate = date; S.pdDoctor = doctor; S.pdAct = act.key;
+    render(); const f = $('#pdPid'); if (f) f.focus();
+  }
+  // The day's Excel in the clinic's own layout, so it fits the current process and imports back into the app.
+  async function downloadParte() {
+    await loadXlsx();
+    const lines = PD.lines; if (!lines.length) return '';
+    const H = ['Fecha Actuación', 'Clientes.Número Cliente', 'Nombre', 'Usuario', 'Descripción', 'Cobrado', 'F.P.', 'Realizada', 'Pte. Cobr', 'T  Costes', 'Valoración', 'Especial', 'Seguro', 'Notas'];
+    const nm = (pid) => (KEY.map && !KEY.sample ? KEY.map.get(Number(pid)) || '' : '');
+    const row = (l) => [l.date.split('-').reverse().join('/'), l.pid, nm(l.pid), l.doctor, l.desc, l.paid || 0, l.fp || '', l.done || 0, 0, 0, l.done || 0, l.special || 0, '', ''];
+    const wb = XLSX.utils.book_new(), safe = (s) => String(s).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || 'Doctor';
+    const docs = Array.from(new Set(lines.map((l) => l.doctor)));
+    for (const d of docs) {
+      const ls = lines.filter((l) => l.doctor === d), prod = ls.reduce((a, l) => a + (l.done || 0), 0), sp = ls.reduce((a, l) => a + (l.special || 0), 0);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([H].concat(ls.map(row), [[], ['', '', '', '', 'TOTAL PRODUCIDO HOY', '', '', prod], ['', '', '', '', S.rate, '', '', Math.round(S.rate * prod * 100) / 100], ['', '', '', '', 'A PERCIBIR', '', '', Math.round((S.rate * prod + sp) * 100) / 100]])), safe(d));
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([H].concat(lines.filter((l) => l.done || l.paid).map(row))), 'PRODUCCION');
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const [y, m, dd] = lines.map((l) => l.date).sort().pop().split('-');
+    const filename = 'Parte diario ' + dd + '.' + m + '.' + y.slice(2) + '.xlsx';
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+    if (dl) {
+      try { await dl.save({ filename, data: blob }); return L('Saved: ', 'Guardado: ') + filename; }
+      catch (err) { if (err && err.code === 'declined') return L('Download cancelled.', 'Descarga cancelada.'); if (err && err.code === 'rate_limited') return L('Another download is waiting for your answer.', 'Hay otra descarga esperando tu respuesta.'); }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    return L('Downloaded: ', 'Descargado: ') + filename;
+  }
+  // AI suggestion for the review queue: only the texts travel (no patient numbers, names or dates); a person accepts.
+  async function suggestQueue() {
+    const R = partesReportNow(); if (!R || !R.queue.length || S.aiBusy) return;
+    const sample = await getSample();
+    if (!sample) { S.aiMsg = L('The AI suggestion works when the app is opened on claude.ai.', 'La propuesta con IA funciona cuando la app se abre en claude.ai.'); render(); return; }
+    S.aiBusy = true; S.aiMsg = ''; render();
+    const items = R.queue.map((q) => ({ key: q.key, text: namesToNumbers(q.text).text.replace(/Nº\s?\d+/g, '[paciente]') }));
+    const prompt = 'You classify short free-text notes written by the reception of a Spanish dental clinic in its daily sheets. Lines: G (general dentistry: check-ups, cleanings, fillings, root canals, extractions, x-rays, whitening), O (orthodontics: brackets, aligners, retainers), PF (fixed prosthesis: crowns, bridges, fixed prostheses on implants, night guards), PR (removable prosthesis: dentures and their repairs), IM (implants, implant surgery, bone grafts), NONE (not a treatment: notes, complaints, no-shows, payments). If the note is only a step of some treatment (a try-in "prueba", a delivery "entregar", "definitivo", taking impressions "medidas") and the line cannot be known without more context, answer "?". Answer only with JSON, an array like [{"i":0,"line":"PF","why":"motivo breve en español"}].\nNotes:\n' + items.map((x, i) => i + ': ' + x.text).join('\n');
+    try {
+      const res = await sample(prompt, { modelTier: 'quick', cache: false });
+      const t = (res && res.text) || '', a = t.indexOf('['), b = t.lastIndexOf(']');
+      const arr = a >= 0 && b > a ? JSON.parse(t.slice(a, b + 1)) : [];
+      arr.forEach((x) => { const it = items[x.i]; if (it && ['G', 'O', 'PF', 'PR', 'IM', 'NONE', '?'].includes(x.line)) S.aiSuggest.set(it.key, { line: x.line, why: String(x.why || '').slice(0, 140) }); });
+      S.aiMsg = L('Suggestions below. Accept or choose the line yourself.', 'Propuestas en la tabla. Acepta o elige tú la línea.');
+    } catch (err) {
+      const code = err && err.code;
+      S.aiMsg = code === 'not_granted' ? L('The AI needs your permission; allow it when asked.', 'La IA necesita tu permiso; permítelo cuando te lo pida.') : code === 'rate_limited' ? L('Too many requests; try again in a minute.', 'Demasiadas peticiones; prueba en un minuto.') : L('The AI could not answer.', 'La IA no pudo responder.');
+    }
+    S.aiBusy = false; render();
+  }
+
+  // ---------- Pending production (MN "Presupuestos aceptados no realizados") ----------
+  function viewPending() {
+    const Q = IC.pendingReport(S.ds);
+    const head = '<div class="page-head"><div><h1>' + L('Pending production', 'Producción pendiente') + '</h1><p class="sub">' + (Q ? esc(L('MN list "Presupuestos aceptados no realizados", treatments dated ', 'Lista de MN "Presupuestos aceptados no realizados", tratamientos del ') + IC.dayLabel(Q.oldest) + L(' to ', ' al ') + IC.dayLabel(Q.newest) + L(' · age at ', ' · antigüedad a ') + IC.dayLabel(Q.asOf)) : '') + '</p></div></div>';
+    if (!Q) return head + emptyImport(S.ds.source === 'sample' ? L('The sample data has no pending list. Import MN\'s "Presupuestos aceptados no realizados" (template "MSIM Pendiente", without names) to see how much is pending, how old it is, by treatment line, and the list to reconcile.', 'Los datos de ejemplo no traen la lista de pendientes. Importa de MN "Presupuestos aceptados no realizados" (plantilla "MSIM Pendiente", sin nombres) para ver cuánto hay, su antigüedad, por línea de tratamiento y la lista para cuadrar.') : L('The imported data has no pending list. Import MN\'s "Presupuestos aceptados no realizados" to see it here.', 'Los datos importados no traen la lista de pendientes. Importa de MN "Presupuestos aceptados no realizados" para verla aquí.'));
+    const F = Q.flags, ageM = (d) => Math.floor((Q.asOf - d) / 30.44);
+    const tiles = '<section class="tiles">' +
+      tile(L('Pending', 'Pendiente'), eur(Q.total), Q.n + L(' lines · ', ' líneas · ') + Q.budgets + L(' quotes', ' presupuestos')) +
+      tile(L('Older than 6 months', 'Más de 6 meses'), eur(Q.oldAmount), pct0(Q.oldAmount / Q.total) + L(' of the total · list to reconcile', ' del total · lista para cuadrar')) +
+      tile(L('20 largest quotes', '20 presupuestos mayores'), pct0(Q.top20Share), L('of the pending amount', 'del importe pendiente')) +
+      tile(L('Marked "accepted" in MN', 'Marcado "aceptado" en MN'), pct0(F.acceptedShare), L('of the amount; all treated as accepted', 'del importe; se trata todo como aceptado')) +
+      '</section>';
+    const ageLbl = [L('0–3 months', '0–3 meses'), L('3–6 months', '3–6 meses'), L('6–12 months', '6–12 meses'), L('Over 12 months', 'Más de 12 meses')];
+    const ageRows = Q.buckets.map((b, i) => ({ label: ageLbl[i], v: b.amount, sub: b.n + L(' lines', ' líneas'), hot: i >= 2 && b.amount > 0 }));
+    const lineRows = IC.LINE_CODES.concat(['?']).filter((c) => Q.byLine[c] && Q.byLine[c].amount > 0).sort((a, b) => Q.byLine[b].amount - Q.byLine[a].amount).map((c) => ({ label: c === '?' ? L('? unclassified', '? sin clasificar') : c + ' · ' + IC.lineName(c), v: Q.byLine[c].amount, sub: Q.byLine[c].n + L(' lines', ' líneas') }));
+    const grid = '<div class="grid2"><section class="card"><h2>' + L('How old it is', 'Antigüedad') + '</h2><p class="def">' + esc(IC.DEFINITIONS.pending) + '</p>' + hbars(ageRows, Math.max(1, ...ageRows.map((x) => x.v)), eur) + '</section>' +
+      '<section class="card"><h2>' + L('By treatment line', 'Por línea de tratamiento') + '</h2><p class="def">' + L('Each description classified by the cleaning layer (PF fixed prosthesis, PR removable, IM implants, O orthodontics, G general).', 'Cada descripción clasificada por la capa de limpieza (PF prótesis fija, PR removible, IM implantes, O ortodoncia, G general).') + '</p>' + hbars(lineRows, Math.max(1, ...lineRows.map((x) => x.v)), eur) + '</section></div>';
+    const oldRow = (x) => '<tr><td>' + esc(IC.dayLabel(x.day)) + '</td><td class="r">' + ageM(x.day) + '</td><td class="txt">' + esc(x.desc) + '</td><td class="num">' + esc(x.budget || '—') + '</td><td>' + esc(x.user || '—') + '</td><td class="r">' + eur(x.amount) + '</td></tr>';
+    const oldHead = '<thead><tr><th>' + L('Date', 'Fecha') + '</th><th class="r">' + L('Months', 'Meses') + '</th><th>' + L('Treatment', 'Tratamiento') + '</th><th>' + L('Quote Nº', 'Nº presupuesto') + '</th><th>' + L('Doctor', 'Doctor') + '</th><th class="r">' + L('Amount', 'Importe') + '</th></tr></thead>';
+    const old = '<section class="card"><h2>' + L('List to reconcile: older than 6 months', 'Lista para cuadrar: más de 6 meses') + '</h2><p class="def">' + L('Largest first. For each line, the accountant checks in MN (by quote number) whether the work was done and not entered — entering it lowers the figure — or the treatment is late, and then the patient is called.', 'De mayor a menor importe. Para cada línea, contabilidad comprueba en MN (por número de presupuesto) si el trabajo ya se hizo y no se metió —al meterlo, la cifra baja— o si el tratamiento va con retraso, y entonces se llama al paciente.') + '</p>' +
+      (Q.old.length ? '<div class="tbl-wrap"><table>' + oldHead + '<tbody>' + Q.old.slice(0, 25).map(oldRow).join('') + '</tbody></table></div>' + (Q.old.length > 25 ? '<details class="more"><summary>' + L('See the other ', 'Ver las otras ') + (Q.old.length - 25) + L(' lines', ' líneas') + '</summary><div class="tbl-wrap"><table>' + oldHead + '<tbody>' + Q.old.slice(25).map(oldRow).join('') + '</tbody></table></div></details>' : '') +
+        '<p class="note">' + esc(Q.old.length + L(' lines, ', ' líneas, ') + eur(Q.oldAmount) + '.') + '</p><div class="actions"><button class="btn primary" data-logpending="1">' + L('Log the decision to reconcile this list', 'Registrar la decisión de cuadrar esta lista') + '</button><span class="note">' + L('Measured by the pending amount older than 6 months at the next import.', 'Se mide con el pendiente de más de 6 meses en la siguiente importación.') + '</span></div>'
+        : '<p class="sub">' + L('Nothing older than 6 months.', 'Nada con más de 6 meses.') + '</p>') + '</section>';
+    const budgets = '<section class="card"><h2>' + L('Quotes with most pending', 'Presupuestos con más pendiente') + '</h2><div class="tbl-wrap"><table><thead><tr><th>' + L('Quote Nº', 'Nº presupuesto') + '</th><th class="r">' + L('Lines', 'Líneas') + '</th><th>' + L('Since', 'Desde') + '</th><th class="r">' + L('Amount', 'Importe') + '</th><th class="r">' + L('Share', 'Peso') + '</th></tr></thead><tbody>' +
+      Q.topBudgets.map((b) => '<tr><td class="num">' + esc(b.budget) + '</td><td class="r">' + b.n + '</td><td>' + esc(IC.dayLabel(b.first)) + '</td><td class="r">' + eur(b.amount) + '</td><td class="r">' + pct0(b.amount / Q.total) + '</td></tr>').join('') + '</tbody></table></div></section>';
+    const mn = '<section class="card"><h2>' + L('What MN does not record in this list', 'Lo que MN no registra en esta lista') + '</h2><div class="tbl-wrap"><table><tbody>' +
+      '<tr><td>' + L('Lines with a payment linked', 'Líneas con un cobro ligado') + '</td><td class="r">' + pct0(F.collectedShare) + '</td></tr>' +
+      '<tr><td>' + L('Amount with the quote marked as accepted', 'Importe con el presupuesto marcado como aceptado') + '</td><td class="r">' + pct0(F.acceptedShare) + '</td></tr>' +
+      '<tr><td>' + L('Lines with the doctor recorded', 'Líneas con el doctor registrado') + '</td><td class="r">' + pct0(F.userShare) + '</td></tr>' +
+      (F.sourceShare != null ? '<tr><td>' + L('Lines with how the patient found the clinic', 'Líneas con cómo conoció el paciente la clínica') + '</td><td class="r">' + pct0(F.sourceShare) + '</td></tr>' : '') +
+      '</tbody></table></div><p class="note">' + L('Payments are not linked to treatments in MN, so the paid share of each line cannot be read from MN; the accountant reconciles it by hand.', 'En MN los cobros no se ligan a los tratamientos, así que lo cobrado de cada línea no se puede leer de MN; contabilidad lo cuadra a mano.') + '</p></section>';
+    return head + tiles + grid + old + '<div class="grid2">' + budgets + mn + '</div>';
+  }
+
+  // Patient base card for the overview: files, who has really been seen, who is due a recall, new files.
+  function patientCard(ds) {
+    const B = IC.patientBase(ds); if (!B) return '';
+    const y = B.ytd, max = Math.max(1, ...B.months.map((m) => m.n));
+    const bars = '<div class="minibars" role="img" aria-label="' + esc(L('New patient files per month, last 24 months', 'Fichas nuevas por mes, últimos 24 meses')) + '">' + B.months.map((m) => '<span' + (m.k === S.k ? ' class="cur"' : '') + ' style="height:' + Math.max(2, 100 * m.n / max).toFixed(0) + '%" title="' + esc(IC.mkShortYear(m.k) + ': ' + m.n) + '"></span>').join('') + '</div>';
+    const chg = y.change == null ? '' : ' (' + (y.change >= 0 ? '+' : '') + Math.round(y.change * 100) + '%)';
+    return '<section class="card"><h2>' + L('Patient base', 'Base de pacientes') + '</h2><p class="def">' + (B.fromExport ? L('From MN\'s patient list (last and next visit as MN records them).', 'De la lista de pacientes de MN (última y próxima actuación según MN).') : L('From the appointments in the loaded data.', 'De las citas de los datos cargados.')) + '</p>' +
+      '<div class="tbl-wrap"><table><tbody>' +
+      '<tr><td>' + L('Patient files', 'Fichas de pacientes') + '</td><td class="r">' + B.files.toLocaleString('es-ES') + '</td></tr>' +
+      '<tr><td>' + L('Seen in the last 12 months', 'Vistos en los últimos 12 meses') + '</td><td class="r"><b>' + B.active12.toLocaleString('es-ES') + '</b></td></tr>' +
+      '<tr><td>' + L('Seen in the last 24 months', 'Vistos en los últimos 24 meses') + '</td><td class="r">' + B.active24.toLocaleString('es-ES') + '</td></tr>' +
+      '<tr><td>' + L('No visit recorded', 'Sin ninguna visita registrada') + '</td><td class="r">' + B.noVisit.toLocaleString('es-ES') + '</td></tr>' +
+      '<tr><td>' + L('With a next appointment', 'Con próxima cita') + '</td><td class="r">' + B.withNext.toLocaleString('es-ES') + '</td></tr>' +
+      '<tr><td>' + L('Due a recall: seen in 12 months, no appointment', 'Para recordar revisión: vistos en 12 meses, sin cita') + '</td><td class="r"><b>' + B.recallN.toLocaleString('es-ES') + '</b></td></tr>' +
+      '<tr><td>' + esc(L('New files ', 'Fichas nuevas ') + IC.mkLabel(y.from, true) + '–' + IC.mkLabel(y.to, true) + L(' against a year earlier', ' frente al año anterior')) + '</td><td class="r"><b>' + y.cur + '</b> / ' + y.prev + esc(chg) + '</td></tr>' +
+      '</tbody></table></div>' + bars + '<p class="note">' + L('New patient files per month, last 24 months.', 'Fichas nuevas por mes, últimos 24 meses.') + '</p>' +
+      (B.recall.length ? '<details class="more"><summary>' + L('See the 40 who have waited longest', 'Ver los 40 que más tiempo llevan sin venir') + '</summary><p class="ids">' + B.recall.slice(0, 40).map((r) => pat(r.patient) + ' <span class="note">' + esc(IC.dayLabel(r.last)) + '</span>').join(' · ') + '</p></details>' : '') + '</section>';
   }
 
   function decisionFor(rec) { return relevant().find((d) => d.recId === rec.id); }
@@ -1624,21 +2354,23 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
 
   // Metric options for a manager's own decision: clinic-wide metrics, then per treatment line and per dentist.
-  function metricOptions() {
-    const ds = S.ds, o = (v, l) => '<option value="' + esc(v) + '">' + esc(l) + '</option>';
-    let h = '<optgroup label="' + L('Clinic', 'Clínica') + '">' + ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
+  function metricOptions(selected) {
+    const ds = S.ds, o = (v, l) => '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(l) + '</option>';
+    const clinic = ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
+    let h = '<optgroup label="' + L('Clinic', 'Clínica') + '">' + clinic.map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
     if (ds.lineCats.length) h += '<optgroup label="' + L('Treatment line', 'Línea de tratamiento') + '">' + ds.lineCats.map((c) => o('line_production|' + c, IC.metricLabel({ type: 'line_production', line: c }))).join('') + '</optgroup>';
     const dents = ds.profs.filter((p) => !IC.isHygienist(p));
     if (dents.length) h += '<optgroup label="' + L('Dentist', 'Odontólogo') + '">' + dents.map((p) => o('dentist_production|' + p, IC.metricLabel({ type: 'dentist_production', prof: p }))).join('') + '</optgroup>';
     return h;
   }
   function logForm() {
-    const kinds = KIND_KEYS.filter((k) => k !== 'risk');
+    const p = (S.open && S.open.preset) || {};
+    const kinds = KIND_KEYS.filter((k) => k !== 'risk' || p.kind === 'risk');
     return '<section class="card form-card"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2><p class="def">' + L('Record a decision you have taken, what you expect, and how to measure it. The app compares the three months before with the months after.', 'Anota una decisión que hayáis tomado, qué esperáis y cómo medirla. La app compara los tres meses anteriores con los posteriores.') + '</p><div class="form">' +
-      '<label>' + L('What did you decide?', '¿Qué habéis decidido?') + '<input id="lTitle" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
-      '<div class="row"><label>' + L('Type of decision', 'Tipo de decisión') + '<select id="lKind">' + kinds.map((k) => '<option value="' + k + '">' + esc(kindLabel(k)) + '</option>').join('') + '</select></label>' +
+      '<label>' + L('What did you decide?', '¿Qué habéis decidido?') + '<input id="lTitle" value="' + esc(p.title || '') + '" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
+      '<div class="row"><label>' + L('Type of decision', 'Tipo de decisión') + '<select id="lKind">' + kinds.map((k) => '<option value="' + k + '"' + (k === p.kind ? ' selected' : '') + '>' + esc(kindLabel(k)) + '</option>').join('') + '</select></label>' +
       '<label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label></div>' +
-      '<div class="row"><label>' + L('Measure it by', 'Medir con') + '<select id="lMetric">' + metricOptions() + '</select></label>' +
+      '<div class="row"><label>' + L('Measure it by', 'Medir con') + '<select id="lMetric">' + metricOptions(p.metric) + '</select></label>' +
       '<label>' + L('Expected change (%)', 'Cambio esperado (%)') + '<input id="lExpected" type="number" step="1" placeholder="' + L('e.g. 10 for +10%', 'p. ej. 10 para +10%') + '"></label></div>' +
       '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="lOwner" placeholder="' + L('e.g. CEO', 'p. ej. Gerencia') + '"></label><label>' + L('Check the result in', 'Revisar el resultado en') + '<select id="lReview"><option value="30">' + L('1 month', '1 mes') + '</option><option value="61" selected>' + L('2 months', '2 meses') + '</option><option value="91">' + L('3 months', '3 meses') + '</option></select></label></div>' +
       '<label>' + L('Why (optional)', 'Por qué (opcional)') + '<textarea id="lWhy" rows="2"></textarea></label>' +
@@ -1702,10 +2434,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   function render() {
     if (!S.ds) return;
     pendingRender = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-current', t.dataset.tab === S.tab ? 'page' : 'false'));
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-current', t.dataset.tab === S.tab || (S.tab === 'parte' && t.dataset.tab === 'partes') ? 'page' : 'false'));
     const undecided = S.recs.filter((r) => !decisionFor(r)).length;
     const b = $('#recBadge'); b.hidden = !undecided; b.textContent = undecided;
-    $('#view').innerHTML = S.tab === 'recs' ? viewRecs() : S.tab === 'decisions' ? viewDecisions() : viewOverview();
+    const V = { recs: viewRecs, decisions: viewDecisions, partes: viewPartes, parte: viewParteDigital, pending: viewPending }[S.tab] || viewOverview;
+    $('#view').innerHTML = V();
   }
 
   // ---------- Events ----------
@@ -1714,6 +2447,23 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   $('#view').addEventListener('click', async (e) => {
     const t = e.target.closest('button, rect.b');
     if (!t) return;
+    // Daily sheets, digital sheet, pending production
+    if (t.dataset.import) { $('#importBtn').click(); return; }
+    if (t.dataset.pfrom) { S.partesFrom = t.dataset.pfrom; render(); return; }
+    if (t.dataset.cfilter) { S.cleanFilter = t.dataset.cfilter; render(); return; }
+    if (t.dataset.ai) { suggestQueue(); return; }
+    if (t.dataset.aiok) { const s = S.aiSuggest.get(t.dataset.aiok); if (s && s.line && s.line !== '?') { S.dict[t.dataset.aiok] = { line: s.line, by: 'ai', at: new Date().toISOString() }; setPref('ic-dict', S.dict); } render(); return; }
+    if (t.dataset.dictclear) { if (window.confirm(L('Clear the clinic dictionary on this computer? The texts will go back to the review queue.', '¿Borrar el diccionario de la clínica de este ordenador? Los textos volverán a la cola de revisión.'))) { S.dict = {}; setPref('ic-dict', S.dict); render(); } return; }
+    if (t.dataset.pdadd) { addDigitalLine(); return; }
+    if (t.dataset.pddel) { PD.lines.splice(Number(t.dataset.pddel), 1); savePD(); render(); return; }
+    if (t.dataset.pdclear) { if (window.confirm(L('Empty the digital sheet on this computer? Download its Excel first if you need it.', '¿Vaciar el parte digital de este ordenador? Descarga antes su Excel si lo necesitas.'))) { PD.lines = []; savePD(); render(); } return; }
+    if (t.dataset.pdview) { S.partesFrom = 'digital'; S.tab = 'partes'; render(); window.scrollTo(0, 0); return; }
+    if (t.dataset.pdxlsx) {
+      t.disabled = true;
+      let m; try { m = await downloadParte(); } catch (err) { m = L('The Excel could not be made: ', 'No se pudo generar el Excel: ') + ((err && err.message) || ''); }
+      t.disabled = false; const out = $('#pdOut'); if (out) out.textContent = m; return;
+    }
+    if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; render(); window.scrollTo(0, 0); const f = $('#lOwner'); if (f) f.focus(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
@@ -1769,6 +2519,10 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   });
   // Call results on follow-up lists: one change saves one result.
   $('#view').addEventListener('change', async (e) => {
+    // A person confirms the line of a free text: the clinic's dictionary remembers it on this computer.
+    const dsel = e.target.closest('.dict-sel');
+    if (dsel) { const k = dsel.dataset.key; if (dsel.value) S.dict[k] = { line: dsel.value, by: 'person', at: new Date().toISOString() }; else delete S.dict[k]; setPref('ic-dict', S.dict); render(); return; }
+    if (e.target.id === 'rateIn') { const v = Number(e.target.value); if (!isNaN(v) && v >= 0 && v <= 100) { S.rate = v / 100; setPref('ic-rate', S.rate); render(); } return; }
     const sel = e.target.closest('.call-sel'); if (!sel) return;
     const d = S.decisions.find((x) => x.id === sel.dataset.dec); if (!d) return;
     const calls = Object.assign({}, d.calls || {});
@@ -1777,13 +2531,17 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     try { await Store.update(d.id, { calls }); } catch (err) { alertInline(sel, couldNotSave(err)); }
     sel.disabled = false;
   });
+  // Enter in the digital sheet's fields adds the line, so reception can type without the mouse.
+  $('#view').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.closest('.pd-grid') && e.target.tagName === 'INPUT') { e.preventDefault(); addDigitalLine(); }
+  });
   $('#view').addEventListener('toggle', (e) => {
     const el = e.target; if (!el.dataset || !el.dataset.calls) return;
     if (el.open) S.openCalls.add(el.dataset.calls); else S.openCalls.delete(el.dataset.calls);
   }, true);
   // The value a decision starts from: the three months before it for monthly metrics, today's amount otherwise.
   function baselineFor(metric, decidedOn) {
-    if (metric.type === 'prepaid_ids') return IC.evalMetric(S.ds, metric);
+    if (metric.type === 'prepaid_ids' || metric.type === 'pending_old') return IC.evalMetric(S.ds, metric);
     return IC.evalDecision(S.ds, { metric, decidedOn }).before;
   }
   function alertInline(el, msg) { const p = document.createElement('p'); p.className = 'note bad'; p.textContent = msg; el.parentNode.appendChild(p); }
@@ -1815,8 +2573,11 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     async remove() { try { const db = await this.db(); await new Promise((res) => { const t = db.transaction('v', 'readwrite'); t.objectStore('v').delete('data'); t.oncomplete = res; t.onerror = res; }); } catch (e) { /* nothing saved */ } Object.assign(this, { exists: false, info: null, pass: null, tables: null, key: null }); }
   };
   const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  // The spreadsheet reader turns a date into local time with a historical time-zone offset, so in some zones
+  // (China, Spain…) a date arrives as 23:59 of the day before. Dates in the exports carry no time: round up.
+  const dayOf = (d) => ymd(d.getHours() >= 23 ? new Date(d.getTime() + 3600e3) : d);
   // Dates become plain days ("2026-09-20") before saving, so a time zone can never move them.
-  const plainRows = (rows) => rows.map((r) => { const o = {}; for (const k of Object.keys(r)) { const v = r[k]; o[k] = v instanceof Date ? (isNaN(v) ? '' : ymd(v)) : v; } return o; });
+  const plainRows = (rows) => rows.map((r) => { const o = {}; for (const k of Object.keys(r)) { const v = r[k]; o[k] = v instanceof Date ? (isNaN(v) ? '' : dayOf(v)) : v; } return o; });
   // Monthly update: the new export is added to what is saved. A row in the new export replaces the saved
   // version of the same record, which is recognised by its stable columns (patient, dates of creation or
   // acceptance, treatment, amount...). Columns that change over time (status, date done, colour, paid)
@@ -1864,7 +2625,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   }
 
   // ---------- Import ----------
-  let parsed = null, parsedTables = null;
+  let parsed = null, parsedTables = null, parsedNames = null;
   $('#importBtn').addEventListener('click', () => { $('#imp').hidden = false; $('#vaultForget').hidden = !Vault.exists; });
   $('#vaultForget').addEventListener('click', forgetSaved);
   $('#impClose').addEventListener('click', () => { $('#imp').hidden = true; });
@@ -1885,24 +2646,27 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     return XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
   }
   $('#impFiles').addEventListener('change', async (e) => {
-    const out = $('#impResult'); $('#impUse').hidden = true; $('#impSave').hidden = true; parsed = null; parsedTables = null;
+    const out = $('#impResult'); $('#impUse').hidden = true; $('#impSave').hidden = true; parsed = null; parsedTables = null; parsedNames = null;
     const files = Array.from(e.target.files || []); if (!files.length) return;
     out.innerHTML = '<p class="sub">' + L('Reading…', 'Leyendo…') + '</p>';
     try {
       await loadXlsx();
-      const tables = [], skipped = [];
+      const tables = [], skipped = [], names = new Map();
       for (const f of files) {
         const wb = await readBook(f);
-        for (const name of wb.SheetNames) {
-          const rows = plainRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: true }));
-          const kind = rows.length ? IC.detect(Object.keys(rows[0])) : null;
-          if (kind) tables.push({ kind, rows, from: f.name + (wb.SheetNames.length > 1 ? ' · ' + name : '') }); else skipped.push(f.name + (wb.SheetNames.length > 1 ? ' · ' + name : ''));
-        }
+        // Each sheet as rows of cells; dates become plain days ("2026-10-26") so a time zone can never move them.
+        const sheets = wb.SheetNames.map((name) => ({ name, aoa: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }).map((r) => r.map((v) => (v instanceof Date ? (isNaN(v) ? '' : dayOf(v)) : v))) }));
+        const r = IC.tablesFromSheets(sheets, f.name);
+        tables.push(...r.tables); skipped.push(...r.skipped); r.names.forEach((v, k) => names.set(k, v));
       }
-      const names = { appts: L('Appointments', 'Agenda'), lines: L('Treatments', 'Tratamientos'), pays: L('Payments', 'Cobros'), patients: L('Patients', 'Pacientes') };
-      const ds = IC.fromTables(tables, L('Imported from ', 'Importado de ') + files.map((f) => f.name).join(', '));
-      parsed = ds; parsedTables = tables;
-      out.innerHTML = '<ul>' + tables.map((t) => '<li>' + esc(names[t.kind]) + ': ' + t.rows.length + L(' rows from ', ' filas de ') + esc(t.from) + '</li>').join('') + skipped.map((s) => '<li class="bad">' + L('Not recognised: ', 'No reconocido: ') + esc(s) + '</li>').join('') + '</ul>' +
+      const kindName = { appts: L('Appointments', 'Agenda'), lines: L('Treatments', 'Tratamientos'), pays: L('Payments', 'Cobros'), patients: L('Patients', 'Pacientes'), parte: L('Daily sheet', 'Parte diario'), parte_pay: L('Payments in the daily sheet', 'Cobros del parte'), pending: L('Pending production', 'Producción pendiente') };
+      // One line per kind and file (a daily sheet has a tab per doctor).
+      const groups = new Map();
+      tables.forEach((t) => { const file = String(t.from).split(' · ')[0], k = t.kind + '|' + file; const g = groups.get(k) || { kind: t.kind, file, rows: 0, tabs: 0 }; g.rows += t.rows.length; g.tabs++; groups.set(k, g); });
+      const ds = IC.fromTables(tables, files.length > 2 ? L('Imported: ', 'Importado: ') + files.length + L(' files', ' archivos') : L('Imported from ', 'Importado de ') + files.map((f) => f.name).join(', '));
+      parsed = ds; parsedTables = tables; parsedNames = names;
+      out.innerHTML = '<ul>' + Array.from(groups.values()).map((g) => '<li>' + esc(kindName[g.kind] || g.kind) + ': ' + g.rows + L(' rows from ', ' filas de ') + esc(g.file) + (g.tabs > 1 ? ' (' + g.tabs + L(' tabs', ' pestañas') + ')' : '') + '</li>').join('') + skipped.map((s) => '<li class="bad">' + L('Not recognised: ', 'No reconocido: ') + esc(s) + '</li>').join('') + '</ul>' +
+        (names.size ? '<p class="note">' + esc(L('Patient names found in the daily sheets: ' + names.size + '. They were taken out of the data and will be kept only as the names key in this browser.', 'Nombres de pacientes en los partes diarios: ' + names.size + '. Se han separado de los datos y se guardarán solo como clave de nombres en este navegador.')) + '</p>' : '') +
         '<p class="sub">' + L('Data up to ', 'Datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + '.</p>' + (ds.warnings || []).map((w) => '<p class="note bad">' + esc(w) + '</p>').join('');
       $('#impUse').hidden = false; showSaveOptions();
     } catch (err) {
@@ -1925,6 +2689,9 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       }
       const tables = add && Vault.tables ? mergeTables(Vault.tables, parsedTables) : parsedTables;
       S.imported = add && Vault.tables ? IC.fromTables(tables, importedLabel()) : parsed;
+      // Names from the daily sheets join the names key (memory, and the encrypted copy if the data is saved).
+      if (Vault.key && !(KEY.map && !KEY.sample)) { KEY.map = new Map(Vault.key); KEY.sample = false; KEY.show = true; }
+      if (parsedNames && parsedNames.size) { const k = KEY.map && !KEY.sample ? new Map(KEY.map) : new Map(); parsedNames.forEach((v, id) => k.set(id, v)); KEY.map = k; KEY.sample = false; KEY.idx = null; }
       if (save) { Vault.tables = tables; Vault.key = KEY.map && !KEY.sample ? Array.from(KEY.map) : Vault.key; await Vault.save(); }
     } catch (e) {
       msg(L('The data could not be saved on this computer; they are open for this session only.', 'No se pudieron guardar los datos en este ordenador; están abiertos solo para esta sesión.'));
@@ -1981,7 +2748,13 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   $('#namesBtn').addEventListener('click', () => { KEY.show = !KEY.show; namesBtn(); render(); });
 
   // ---------- Assistant ----------
-  const suggestions = () => [L('Why did production change this month?', '¿Por qué ha cambiado la producción este mes?'), L('Is the new dentist paying off?', '¿Está compensando la nueva contratación?'), L('Did the Google reviews incentive bring new patients?', '¿Trajo pacientes nuevos el incentivo de reseñas en Google?')];
+  const suggestions = () => {
+    const s = [];
+    if (S.ds && IC.pendingReport(S.ds)) s.push(L('How much pending production is older than 6 months?', '¿Cuánta producción pendiente tiene más de 6 meses?'));
+    if (partesReportNow()) s.push(L('Which doctor produced most in the daily sheets?', '¿Qué doctor produjo más en los partes diarios?'));
+    if (S.ds && S.ds.source !== 'sample' && S.ds.patients.some((p) => p.last !== undefined)) s.push(L('Are we getting fewer new patients than last year?', '¿Tenemos menos pacientes nuevos que el año pasado?'));
+    return s.concat([L('Why did production change this month?', '¿Por qué ha cambiado la producción este mes?'), L('Is the new dentist paying off?', '¿Está compensando la nueva contratación?'), L('Did the Google reviews incentive bring new patients?', '¿Trajo pacientes nuevos el incentivo de reseñas en Google?')]).slice(0, 3);
+  };
   const monthArg = (m) => { if (!m) return S.k; const x = String(m).match(/^(\d{4})-(\d{1,2})/); if (!x) return S.k; return Math.min(S.ds.lastMonth, Number(x[1]) * 12 + Number(x[2]) - 1); };
   const round = (o) => JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v));
   const TOOLS = [
@@ -1997,6 +2770,12 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
     { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: IC.metricLabel(r.metric), decision: d ? d.decision : 'Not decided yet' }; }) },
     { name: 'get_decisions', description: 'The decision log: decisions taken (from recommendations or logged by managers), owners, dates, the metric used, its average in the three months before and the months after, the expected change, the change in the same months a year earlier, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => { const ev = d.decision === 'Rejected' ? null : IC.evalDecision(S.ds, d); return { title: d.title, type: kindLabel(d.kind), loggedByManager: !!d.manual, decision: d.decision, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: IC.metricLabel(d.metric), before: ev && ev.before, after: ev && ev.after, monthsAfter: ev && ev.afterMonths, change: ev && ev.change, expectedChange: d.expected ? d.expected.pct : null, sameMonthsLastYearChange: ev && ev.changeLastYear, result: d.outcome ? d.outcome.verdict : null }; })) },
     { name: 'get_learning', description: 'What the app has learned from the decision log: follow-up call results and how many called patients continued treatment, track record per recommendation kind, and whether the risk model or the simple rule is in use.', inputSchema: { type: 'object', properties: {} }, execute: () => { const m = S.model; return round({ followUp: S.learned && S.learned.followUp, byKind: S.learned && Object.fromEntries(Object.entries(S.learned.byKind).map(([k, s]) => [k, { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement }])), model: m ? { usingSimpleRule: m.useRule, aucModel: m.aucModel, aucRule: m.aucRule, calibration: m.calibration, trainingCasesWithCall: m.calls.trainingCases } : null }); } },
+    { name: 'get_daily_sheets', description: 'Reception\'s daily sheets loaded in the app (or the digital sheet, if that is the view selected): days covered; per doctor the clinic production (PRODUCCION tab where there is one), the base of the dentist\'s share (doctor\'s tab plus insurance fees), fixed specials, the dentist\'s share at the current rate and collections by card or cash; the check against the PRODUCCION tab; how much free text the cleaning layer understood; clinic production by treatment line (G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants); payments on account by line letter; events written in the text (no-shows, rescheduled, urgencies, complaints).', inputSchema: { type: 'object', properties: {} },
+      execute: () => { const R = partesReportNow(); if (!R) return { available: false, note: 'No daily sheets loaded.' }; const C = R.check; return round({ view: S.partesFrom, days: R.days.map(IC.iso), dentistShareRate: R.rate, totals: R.totals, doctors: R.doctors.map((d) => ({ doctor: d.doctor, days: d.days, lines: d.lines, clinicProduction: d.production, shareBase: d.base, insuranceFees: d.insurance, specials: d.special, share: d.share, collected: d.collected, card: d.card, cash: d.cash })), checkAgainstProduccion: { hasProduccionTab: R.hasProd, linesWithDifferentAmount: C.different.length, ofWhichImplantOrProsthesis: C.diffImplantProsthesis, doctorTabsAmount: C.different.reduce((a, x) => a + x.sheet, 0), produccionAmount: C.different.reduce((a, x) => a + x.prod, 0), linesMissingInProduccion: C.missing.length, linesOnlyInProduccion: C.extra.length }, freeTextCleaning: Object.assign({ distinctTexts: R.distinct, linesWithSeveralTreatments: R.multiRows, linesWithTeeth: R.teethRows }, R.coverage), productionByLine: R.byLine, paymentsOnAccountByLine: R.paysByCode, eventsWritten: R.events, paymentMethodWrittenAs: R.fpWritten }); } },
+    { name: 'get_pending_production', description: 'MN list "Presupuestos aceptados no realizados" (treatment planned and paid, not recorded as done): total, lines, quotes, amount by age (0-3, 3-6, 6-12, over 12 months), by treatment line, the amount older than 6 months (the list to reconcile), share of the 20 largest quotes, the largest quotes, the oldest lines, and how often MN records the acceptance tick, the doctor, a linked payment and how the patient found the clinic.', inputSchema: { type: 'object', properties: {} },
+      execute: () => { const Q = IC.pendingReport(S.ds); if (!Q) return { available: false, note: 'No pending list loaded.' }; return round({ asOf: IC.iso(Q.asOf), total: Q.total, lines: Q.n, quotes: Q.budgets, olderThan6Months: Q.oldAmount, linesOlderThan6Months: Q.old.length, byAgeMonths: Q.buckets.map((b, i) => ({ band: ['0-3', '3-6', '6-12', '12+'][i], lines: b.n, amount: b.amount })), byLine: Q.byLine, top20QuotesShare: Q.top20Share, topQuotes: Q.topBudgets.map((b) => ({ quote: b.budget, lines: b.n, amount: b.amount, since: IC.iso(b.first) })), oldestLargest: Q.old.slice(0, 10).map((x) => ({ date: IC.iso(x.day), treatment: x.desc, quote: x.budget, amount: x.amount })), recordedInMN: { acceptedTickShareOfAmount: Q.flags.acceptedShare, doctorShareOfLines: Q.flags.userShare, linkedPaymentShareOfLines: Q.flags.collectedShare, contactSourceShareOfLines: Q.flags.sourceShare } }); } },
+    { name: 'get_patient_base', description: 'Patient files: how many, seen in the last 12 and 24 months, with no visit recorded, with a next appointment, due a recall (seen in 12 months without an appointment), discharged, and new files per month with this year to date against the same months a year earlier.', inputSchema: { type: 'object', properties: {} },
+      execute: () => { const B = IC.patientBase(S.ds); if (!B) return { available: false }; return round({ files: B.files, seenLast12Months: B.active12, seenLast24Months: B.active24, noVisitRecorded: B.noVisit, withNextAppointment: B.withNext, dueRecall: B.recallN, discharged: B.bajas, newFilesYearToDate: B.ytd.cur, newFilesSameMonthsLastYear: B.ytd.prev, change: B.ytd.change, newFilesByMonth: B.months.map((m) => ({ month: IC.mkShortYear(m.k), n: m.n })) }); } },
     { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
   ];
   function instructions() {
@@ -2005,6 +2784,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
       '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
       '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number; write them as "Nº 1234". Never ask for or guess personal data.\n' +
       '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not.\n' +
+      '- Daily sheets: each doctor\'s tab holds the base of the dentist\'s share (40% of it plus fixed specials such as implants); the PRODUCCION tab holds the clinic\'s production, with implants and prosthesis at full value, so the two differ on purpose. Pending production: the accountant treats the whole MN list as accepted and paid because reception often forgets the acceptance tick; lines older than six months are the most likely to be work done but not entered in MN.\n' +
       '- Answer in ' + (IC.getLang() === 'es' ? 'Spanish (Spain)' : 'English') + ' unless the question is in another language. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
       'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
   }
@@ -2061,7 +2841,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) ask(b.textContent); });
   $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const q = $('#chatIn').value; $('#chatIn').value = ''; ask(q); });
   $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#chat').hidden = true; $('#imp').hidden = true; $('#unlock').hidden = true; } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#chat').hidden = true; $('#imp').hidden = true; $('#unlock').hidden = true; $('#fb').hidden = true; } });
 
   // ---------- Start ----------
   applyStatic();
@@ -2069,6 +2849,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
   useSample(0);
   fillDataSelect();
   Store.init().then(() => { if (!S.open) render(); });
+  fbInit();
   offerSaved();
 })();
 </script>

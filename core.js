@@ -230,7 +230,8 @@
       patients: full.patients.filter((p) => p.first <= asOf).map((p) => ({ id: p.id, first: p.first, age: p.age })),
       appts: full.appts.filter((a) => a.day <= H).map((a) => (a.day > asOf ? Object.assign({}, a, { status: ST.FUTURE }) : a)),
       lines: full.lines.filter((l) => l.accept <= asOf).map((l) => (l.done != null && l.done > asOf ? Object.assign({}, l, { status: 'Pendiente', done: null, prof: null, cab: null, cost: null }) : l)),
-      pays: full.pays.filter((p) => p.day <= asOf)
+      pays: full.pays.filter((p) => p.day <= asOf),
+      partes: { lines: [], pays: [] }, pending: [] // daily sheets and the pending list come only from the clinic's real files
     };
     ds.simulatedCalls = simulateCallEffects(ds, decisions);
     return prepare(ds);
@@ -569,7 +570,7 @@
       if (d.decision === 'Rejected') { s.rejected++; continue; }
       s.accepted++;
       // Managers' own expectations against what happened (for decisions logged with an expected change).
-      if (d.expected && d.expected.pct && d.metric && d.metric.type !== 'prepaid_ids') {
+      if (d.expected && d.expected.pct && d.metric && d.metric.type !== 'prepaid_ids' && d.metric.type !== 'pending_old') {
         const ev = evalDecision(ds, d);
         if (ev.change != null && ev.afterMonths >= 1) expectations.push({ title: d.title, expected: d.expected.pct, achieved: ev.change, afterMonths: ev.afterMonths });
       }
@@ -781,7 +782,8 @@
     line_production: { get label() { return L('Production of a treatment line per month', 'Producción de una línea de tratamiento al mes'); }, fmt: 'eur', better: 'up', param: 'line' },
     line_count: { get label() { return L('Treatments done in a line per month', 'Tratamientos hechos de una línea al mes'); }, fmt: 'int', better: 'up', param: 'line' },
     dentist_production: { get label() { return L('Production of a dentist per month', 'Producción de un odontólogo al mes'); }, fmt: 'eur', better: 'up', param: 'prof' },
-    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' }
+    unearned: { get label() { return L('Paid, not yet done (end of month)', 'Cobrado y no realizado (fin de mes)'); }, fmt: 'eur', better: 'down' },
+    pending_old: { get label() { return L('Pending treatment older than 6 months (MN list)', 'Pendiente con más de 6 meses (lista de MN)'); }, fmt: 'eur', better: 'down', point: true }
   };
   function monthlyValue(ds, m, k) {
     switch (m.type) {
@@ -793,7 +795,7 @@
       case 'line_count': { let n = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, k) && l.cat === m.line) n++; return n; }
       case 'dentist_production': return production(ds, k, null, m.prof);
       case 'unearned': return balances(ds, Math.min(mkEnd(k), ds.asOf)).unearned;
-      default: return null;
+      default: return null; // point-in-time metrics (prepaid_ids, pending_old) have no monthly value
     }
   }
   function prepaidOf(ds, ids) {
@@ -804,14 +806,15 @@
   // Current value shown on a recommendation card.
   function evalMetric(ds, m) {
     if (m.type === 'prepaid_ids') return prepaidOf(ds, m.ids);
+    if (m.type === 'pending_old') return pendingOld(ds);
     return monthlyValue(ds, m, ds.lastMonth);
   }
   // Before/after for a decision: the three full months before the decision month against the full months
   // after it, with the same months a year earlier for seasonality.
   function evalDecision(ds, d) {
     const m = d.metric;
-    if (m.type === 'prepaid_ids') {
-      return { kind: 'point', before: d.baseline ? d.baseline.value : null, after: prepaidOf(ds, m.ids), afterMonths: Math.max(0, mk(ds.asOf) - mk(fromIso(d.decidedOn))) };
+    if (m.type === 'prepaid_ids' || m.type === 'pending_old') {
+      return { kind: 'point', before: d.baseline ? d.baseline.value : null, after: m.type === 'pending_old' ? pendingOld(ds) : prepaidOf(ds, m.ids), afterMonths: Math.max(0, mk(ds.asOf) - mk(fromIso(d.decidedOn))) };
     }
     const k0 = mk(fromIso(d.decidedOn));
     const vals = (a, b) => { const out = []; for (let i = a; i <= b; i++) { const v = monthlyValue(ds, m, i); if (v != null) out.push(v); } return out; };
@@ -860,7 +863,7 @@
     return undefined;
   }
   const COLS = {
-    patient: ['numero paciente', 'n paciente', 'paciente', 'numero', 'id paciente', 'patient'],
+    patient: ['numero paciente', 'n paciente', 'numero cliente', 'n cliente', 'clientes numero cliente', 'paciente', 'numero', 'id paciente', 'patient'],
     date: ['fecha', 'fecha cita', 'date'],
     status: ['estado', 'status'],
     treatment: ['tratamiento', 'descripcion tratamiento', 'treatment'],
@@ -869,6 +872,8 @@
   function detect(headers) {
     const h = headers.map(norm);
     const has = (x) => h.some((c) => x.includes(c));
+    // MN patient list (template "MSIM Saldos"): one row per patient, with registration date and totals
+    if (has(['numero cliente', 'n cliente']) && has(['fecha alta', 'total cobrado', 'fecha ultima actuacion'])) return 'patients';
     if (has(['tratamiento', 'treatment']) && has(['importe', 'total', 'precio', 'amount'])) return 'lines';
     if (has(['forma de cobro', 'forma cobro', 'metodo de pago', 'fecha cobro'])) return 'pays';
     if (has(['estado', 'status']) && has(['fecha', 'fecha cita', 'date'])) return 'appts';
@@ -888,11 +893,36 @@
     return ST.FUTURE;
   }
   function fromTables(tables, label) {
-    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [] };
+    const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [], partes: { lines: [], pays: [] }, pending: [] };
     const warn = [];
-    const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v).replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v == null ? '' : v).replace(/\.0+$/, '').replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    const txt = (v) => String(v == null ? '' : v).trim();
     for (const t of tables) {
-      if (t.kind === 'patients') t.rows.forEach((r) => { const id = pid(r); if (id != null) ds.patients.push({ id, first: parseDay(pick(r, ['fecha alta', 'alta'])), age: parseNum(pick(r, ['edad', 'age'])) || null }); });
+      if (t.kind === 'patients') t.rows.forEach((r) => {
+        const id = pid(r); if (id == null) return;
+        const lastCol = pick(r, ['fecha ultima actuacion']), nextCol = pick(r, ['f proxima actuacion', 'fecha proxima actuacion']);
+        ds.patients.push({ id, first: parseDay(pick(r, ['fecha alta', 'alta'])), age: parseNum(pick(r, ['edad', 'age'])) || null,
+          last: lastCol === undefined ? undefined : parseDay(lastCol), next: nextCol === undefined ? undefined : parseDay(nextCol),
+          state: txt(pick(r, ['estado'])), baja: parseDay(pick(r, ['fecha baja'])) });
+      });
+      if (t.kind === 'parte') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha'])), id = pid(r); if (day == null || id == null) return;
+        ds.partes.lines.push({ day, doctor: txt(pick(r, ['doctor'])), pid: id, desc: txt(pick(r, ['descripcion'])), cobrado: parseNum(pick(r, ['cobrado'])), fp: txt(pick(r, ['f p'])),
+          realizada: parseNum(pick(r, ['realizada'])), valoracion: parseNum(pick(r, ['valoracion'])), especial: parseNum(pick(r, ['especial'])), seguro: parseNum(pick(r, ['seguro'])), line: txt(pick(r, ['linea'])) || null, act: txt(pick(r, ['acto'])) || null,
+          src: norm(pick(r, ['hoja'])) === 'produccion' ? 'produccion' : 'doctor' });
+      });
+      if (t.kind === 'parte_pay') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha'])); if (day == null) return;
+        const concept = txt(pick(r, ['concepto']));
+        ds.partes.pays.push({ day, tab: txt(pick(r, ['hoja'])), pid: pid(r), concept, code: txt(pick(r, ['codigo'])) || payCode(concept), method: txt(pick(r, ['forma de cobro'])), total: parseNum(pick(r, ['total'])) });
+      });
+      if (t.kind === 'pending') t.rows.forEach((r) => {
+        const day = parseDay(pick(r, ['fecha tratamiento'])); if (day == null) return;
+        const acc = norm(pick(r, ['presupuesto aceptado'])), src = pick(r, ['fuente de contacto']), b = txt(pick(r, ['n presupuesto', 'presupuesto']));
+        ds.pending.push({ day, desc: txt(pick(r, ['descripcion'])), amount: parseNum(pick(r, ['importe'])), price: parseNum(pick(r, ['precio'])), discount: parseNum(pick(r, ['descuento'])),
+          budget: b.replace(/\.0+$/, ''), accepted: acc ? (acc === 'si' || acc === 'yes' || acc === 's') : null, user: txt(pick(r, ['usuario'])), origin: txt(pick(r, ['origen'])),
+          collected: parseNum(pick(r, ['importe cobrado'])), source: src === undefined ? undefined : txt(src), pid: pid(r) });
+      });
       if (t.kind === 'appts') t.rows.forEach((r) => {
         const id = pid(r), day = parseDay(pick(r, COLS.date)); if (id == null || day == null) return;
         const desc = String(pick(r, ['descripcion', 'description', 'motivo']) || '');
@@ -913,12 +943,29 @@
         ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept']) || '') });
       });
     }
-    if (!ds.appts.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
-    if (!ds.lines.length) warn.push(L('No treatments table found: production, treatment mix and risk need it.', 'No hay tabla de tratamientos: la producción, las líneas y el riesgo la necesitan.'));
-    if (!ds.pays.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
-    const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done));
+    // Without an MN treatment export, the daily sheets are the production record: each doctor-tab line with an
+    // amount becomes treatment done (by that doctor, in its cleaned treatment line) and what was paid that day a
+    // payment. With an MN treatment export loaded, the sheets are only checked, never counted twice.
+    const P = ds.partes;
+    if (!ds.lines.length && P.lines.length) {
+      const M = matchPartes(P);
+      const asLine = (l, value) => { const c = l.line || cleanText(l.desc).line; ds.lines.push({ pid: l.pid, plan: 'parte', accept: l.day, name: up(l.desc), cat: c ? LINE_ES[c] : 'Sin clasificar', price: value, cost: null, status: 'Realizado', done: l.day, prof: l.doctor, cab: null }); };
+      for (const l of M.doc) {
+        const v = M.clinicValue(l); if (v > 0) asLine(l, v);
+        if (l.cobrado > 0) ds.pays.push({ pid: l.pid, day: l.day, amount: l.cobrado, method: l.fp, concept: l.desc });
+      }
+      for (const l of M.extra) if (l.realizada > 0) asLine(l, l.realizada);
+      for (const p of P.pays) if (p.pid != null && p.total > 0) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
+      ds.fromPartes = true;
+    }
+    if (!ds.appts.length && !P.lines.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
+    if (!ds.lines.length) warn.push(L('No treatments table or daily sheets found: production, treatment mix and risk need one of them.', 'No hay tabla de tratamientos ni partes diarios: la producción, las líneas y el riesgo necesitan uno de los dos.'));
+    if (!ds.pays.length && !P.lines.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
+    const now = new Date(), today = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done),
+      P.lines.map((l) => l.day), P.pays.map((p) => p.day), ds.pending.map((x) => x.day), ds.patients.map((p) => p.first), ds.patients.map((p) => p.last)).filter((d) => d != null && d <= today);
     if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
-    ds.asOf = Math.max.apply(null, days);
+    ds.asOf = days.reduce((a, b) => Math.max(a, b), -Infinity);
     if (!ds.patients.length) { const ids = new Set(); ds.appts.forEach((a) => ids.add(a.pid)); ds.lines.forEach((l) => ids.add(l.pid)); ids.forEach((id) => ds.patients.push({ id, first: null, age: null })); }
     prepare(ds);
     ds.warnings = warn;
@@ -954,7 +1001,314 @@
     return out;
   }
 
+  // ---------- Cleaning layer v1: free text from reception's daily sheets ----------
+  // Reception describes each visit in free text ("Limp+Ortop+Cons", "6 IOI y 5 exos", "Rv. Orto."). The layer
+  // turns each text into treatment acts, the clinic's own treatment lines (the letters reception already puts
+  // on payments: G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants), tooth
+  // numbers and events (no-show, urgency, complaint). Order: the clinic's dictionary of texts a person has
+  // confirmed, then rules, then the patient's other lines the same days; what is left goes to a review queue.
+  const LINE_CODES = ['G', 'O', 'PF', 'PR', 'IM'];
+  const LINE_ORDER = ['IM', 'PF', 'PR', 'O', 'G']; // a row with several lines is counted in the first of these
+  // Line names stay in Spanish in the data (like MN's own categories); lineName() translates for display.
+  const LINE_ES = { G: 'General', O: 'Ortodoncia', PF: 'Prótesis fija', PR: 'Prótesis removible', IM: 'Implantes' };
+  const LINE_EN = { G: 'General dentistry', O: 'Orthodontics', PF: 'Fixed prosthesis', PR: 'Removable prosthesis', IM: 'Implants' };
+  const lineName = (c) => (LANG === 'es' ? LINE_ES : LINE_EN)[c] || c;
+  const up = (s) => String(s == null ? '' : s).normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const ACTS = [
+    { key: 'allon', re: /\bALL ?-?ON ?-?(FOUR|4|SIX|6)\b|QUAD-? ?CIGOMA|PROTOCOLO (QUAD|ALL)/, line: 'IM', es: 'All-on-4/6 (arcada completa)', en: 'All-on-4/6 full arch', text: 'ALL-ON-4' },
+    { key: 'implant', re: /\bIOI\b|\bIMPLANTES?\b|CIGOMATIC/, line: 'IM', tooth: true, es: 'Implante', en: 'Implant', text: 'IMPLANTE (IOI)' },
+    { key: 'graft', re: /ELEVACION|INJERTO|\bHUESO\b|\bPRF\b|MEMBRANA|REGENERACION/, line: 'IM', es: 'Injerto o elevación de seno', en: 'Bone graft or sinus lift', text: 'INJERTO / ELEVACIÓN' },
+    { key: 'hybrid', re: /HIBRIDA|ATORNILLAD|\bPMMA\b/, line: 'PF', es: 'Prótesis fija sobre implantes', en: 'Fixed prosthesis on implants', text: 'PRÓTESIS HÍBRIDA' },
+    { key: 'crown', re: /\bCSIS?\b|\bCORONAS?\b|\bFUNDAS?\b|PUENTE|ZIRCONIO|METAL ?CERAMICA|CARILLA/, line: 'PF', tooth: true, es: 'Corona, funda o puente', en: 'Crown or bridge', text: 'CORONA' },
+    { key: 'guard', re: /MICHIGAN|FERULA (DE )?DESCARGA/, line: 'PF', es: 'Férula de descarga', en: 'Night guard', text: 'FÉRULA DE DESCARGA' },
+    { key: 'prep', re: /TALLADO|\bPROVI\b|PROVISIONAL/, line: 'PF', es: 'Tallado o provisional', en: 'Preparation or temporary', text: 'TALLADO / PROVISIONAL' },
+    { key: 'removable', re: /COMPOSTURA|REMOVIBLE|DENTADURA|ESQUELETIC|ACRILIC|PROTESIS COMPLETA|ANADI+R|GANCHO|DIENTES? (DE (LA )?)?PROTESI|PIEZAS? (A |DE )?(LA )?PROTESI|ARREGLO PROTESI|REBASE/, line: 'PR', es: 'Prótesis removible o compostura', en: 'Removable prosthesis or repair', text: 'PRÓTESIS REMOVIBLE' },
+    { key: 'ortho', re: /\bBRK|\bBRACKETS?\b|\bBKTS?\b|\bORTO\b|ORTODON|TWIN ?BLOCK|ESSIX|DISYUNTOR|MASCARA|\bREFI|INVISA|ALINEAD|ALIGNER|RETENEDOR|\bFERULAS\b/, line: 'O', es: 'Ortodoncia', en: 'Orthodontics', text: 'ORTODONCIA' },
+    { key: 'endo', re: /\bENDO|APERTURA|RECUBR|PULP/, line: 'G', tooth: true, es: 'Endodoncia', en: 'Root canal', text: 'ENDODONCIA' },
+    { key: 'extraction', re: /\bEXOS?\b|EXODON|EXTRAC|QUISTE|LEGRADO|LEGARDO|CORDAL/, line: 'G', tooth: true, es: 'Extracción o cirugía menor', en: 'Extraction or minor surgery', text: 'EXTRACCIÓN' },
+    { key: 'filling', re: /EMPASTE|\bOBTU|\bRECO\b|RECONSTR|\bCIERRE\b|\bPIN\b|COMPOSITE/, line: 'G', tooth: true, es: 'Empaste o reconstrucción', en: 'Filling or build-up', text: 'EMPASTE' },
+    { key: 'hygiene', re: /\bLIMP|\bPERIO|CURETAJE|RASPADO|MANTENIMIENTO|PROFILAXIS/, line: 'G', es: 'Limpieza o periodoncia', en: 'Cleaning or periodontics', text: 'LIMPIEZA' },
+    { key: 'whitening', re: /BLANQUE/, line: 'G', es: 'Blanqueamiento', en: 'Whitening', text: 'BLANQUEAMIENTO' },
+    { key: 'xray', re: /\bORTOP\b|ORTOPANTO|\bTAC\b|RADIOG|\bRX\b|ESCANER/, line: 'G', es: 'Radiografía o TAC', en: 'X-ray or CT scan', text: 'ORTOPANTOMOGRAFÍA' },
+    { key: 'checkup', re: /\bCONS\b|CONSULTA|VALORA|\bPRESU|ESTUDIO|\bESTUD\b|\bREV|\bRV\b|\bREVI|\bRERV|PRIMERA VISITA|\bVISITA\b|URGENCIA/, line: 'G', es: 'Revisión, consulta o presupuesto', en: 'Check-up, consultation or quote', text: 'REVISIÓN' },
+    { key: 'step', re: /MEDIDAS|PRUEBA|ENTREG|DEFINITIVO|\bFASE\b|IMPRESION|\bCEMENT|\bCEMTR|AJUST|ESTRUCTURA/, line: null, es: 'Paso de una prótesis o aparato', en: 'Step of a prosthesis or appliance', text: 'PRUEBA / ENTREGA' }
+  ];
+  const ACT = Object.fromEntries(ACTS.map((a) => [a.key, a]));
+  const actLabel = (k) => (ACT[k] ? (LANG === 'es' ? ACT[k].es : ACT[k].en) : k);
+  const TEXT_EVENTS = [
+    { key: 'noshow', re: /NO VIENE|NO VINO|NO ACUDE|NO SE PRESENTA|NO LLEGO|NO ASISTE/, es: 'Falta (no vino)', en: 'No-show' },
+    { key: 'resched', re: /SE CAMBIA|CAMBIA AL|CAMBIO DE CITA|APLAZA|\bANULA/, es: 'Cambio de cita', en: 'Rescheduled' },
+    { key: 'urgent', re: /URGENCIA/, es: 'Urgencia', en: 'Urgent visit' },
+    { key: 'complaint', re: /DOLOR|MOLESTIA|PARTID|CAID[OA]|MUERDE|ENTRA COMIDA|DESPEGAD|\bROT[OA]\b|SE MUEVE|LIMAR|NO SE QUEDO BIEN/, es: 'Queja o reparación', en: 'Complaint or repair' },
+    { key: 'payment', re: /\bPAGA\b|\bPAGO\b|A CUENTA/, es: 'Nota de pago', en: 'Payment note' },
+    { key: 'nothing', re: /^NADA\b|NADA QUE|\bVER\b|\bMINUTOS?\b/, es: 'Sin tratamiento', en: 'No treatment' }
+  ];
+  const eventLabel = (k) => { const e = TEXT_EVENTS.find((x) => x.key === k); return e ? (LANG === 'es' ? e.es : e.en) : k; };
+  const QTY_NOUN = [[/^(EMPASTES?|OBTU)/, 'filling'], [/^(EXOS?|EXTRAC)/, 'extraction'], [/^(IOI|IMPLANTE)/, 'implant'], [/^(BRK|BRACKET|BKT)/, 'ortho'], [/^(CORONA|FUNDA|CARILLA|CSI)/, 'crown'], [/^ENDO/, 'endo']];
+  // Removes numbers that are not teeth: amounts, dates, durations, quantities of pieces.
+  const notTeeth = (t) => t.replace(/\d+[.,]\d+(\s*\*\s*\d+)?/g, ' ').replace(/\d+\s*€/g, ' ').replace(/\d+\s*\/\s*\d+/g, ' ')
+    .replace(/\b\d+\s*(MESES|MES|M\b|MIN\w*|H\b|HORAS?|PIEZAS?|G\b|DIAS?|SEMANAS?|ANOS?|FERULAS?)/g, ' ').replace(/\b\d+(ª|A)\b/g, ' ');
+  const mainLine = (lines) => LINE_ORDER.find((c) => lines.includes(c)) || null;
+  const dictKey = (s) => up(s).replace(/\d+/g, '#').replace(/[^A-Z#ª ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // dict: { dictKey: { line: 'G'|'O'|'PF'|'PR'|'IM'|'NONE' } } — texts a person has confirmed.
+  function cleanText(desc, dict) {
+    const t = up(desc);
+    let acts = ACTS.filter((a) => a.re.test(t)).map((a) => a.key);
+    // Package rules: a full-arch protocol includes its implants and prosthesis; a prosthesis "on implants"
+    // is prosthesis work; on a hybrid, "composite" and "zirconio" are materials; a specific act makes the
+    // generic words (check-up, try-in, delivery) part of that act.
+    if (acts.includes('allon')) acts = acts.filter((k) => ['allon', 'extraction', 'graft'].includes(k));
+    if (acts.some((k) => ['hybrid', 'crown', 'prep', 'removable', 'guard'].includes(k)) && /SOBRE\s+(\d+\s+)?(IMPLANT|IOI)/.test(t)) acts = acts.filter((k) => k !== 'implant');
+    if (acts.includes('hybrid')) acts = acts.filter((k) => k !== 'filling' && k !== 'crown');
+    if (acts.includes('removable')) acts = acts.filter((k) => k !== 'prep' && k !== 'ortho');
+    const specific = acts.filter((k) => k !== 'checkup' && k !== 'step');
+    if (specific.length) acts = specific;
+    const events = TEXT_EVENTS.filter((e) => e.re.test(t)).map((e) => e.key);
+    const clean = notTeeth(t);
+    const teeth = Array.from(new Set((clean.match(/\b([1-4][1-8]|[5-8][1-5])\b/g) || [])));
+    const qty = {};
+    for (const m of t.matchAll(/\b(\d{1,2})\s*([A-Z]+)/g)) { const q = QTY_NOUN.find(([re]) => re.test(m[2])); if (q && acts.includes(q[1]) && +m[1] > 0) qty[q[1]] = +m[1]; }
+    const toothActs = acts.filter((k) => ACT[k].tooth);
+    if (toothActs.length === 1 && !qty[toothActs[0]] && teeth.length > 1) qty[toothActs[0]] = teeth.length;
+    const money = /\d+([.,]\d+)?\s*€|\d+[.,]\d+\s*\*\s*\d|QUEDAN\s+\d+/.test(t);
+    let lines = Array.from(new Set(acts.map((k) => ACT[k].line).filter(Boolean)));
+    let status = lines.length ? 'rules' : acts.length ? 'step' : events.length ? 'event' : 'queue';
+    const d = dict && dict[dictKey(desc)];
+    if (d && d.line) { status = 'dict'; lines = d.line === 'NONE' ? [] : [d.line]; }
+    return { text: String(desc == null ? '' : desc), acts: acts.map((k) => ({ key: k, qty: qty[k] || 1 })), lines, line: mainLine(lines), events, teeth, money, status };
+  }
+  // Payment method as reception writes it (T, E, EF, E/T…) or as MN names it.
+  function payKind(v) {
+    const s = norm(v);
+    if (!s) return 'unknown';
+    if (/^(e t|t e|ef t|t ef)$/.test(s) || (s.includes('efect') && s.includes('tarj'))) return 'mixed';
+    if (s === 't' || s.includes('tarj') || s.includes('card') || s.includes('datafono')) return 'card';
+    if (s === 'e' || s === 'ef' || s.includes('efect') || s.includes('cash') || s.includes('contado')) return 'cash';
+    if (s.includes('transf') || s === 'tr' || s === 'trf') return 'transfer';
+    if (s.includes('financ') || s === 'fin') return 'financing';
+    return 'other';
+  }
+  const payCode = (concept) => { const m = String(concept || '').trim().match(/^(PF|PR|IM|I|G|O)\b/i); return m ? (m[1].toUpperCase() === 'I' ? 'IM' : m[1].toUpperCase()) : null; };
+
+  // Pairs each doctor-tab line with its copy in the PRODUCCION tab (same day, patient and text). The two can
+  // differ on purpose: the doctor's tab holds the base of the dentist's share, while PRODUCCION holds the clinic's
+  // production (implants and prosthesis at their full value). Lines only in PRODUCCION go to the doctor whose
+  // name starts the same way.
+  function matchPartes(P) {
+    const doc = P.lines.filter((l) => l.src !== 'produccion'), prod = P.lines.filter((l) => l.src === 'produccion');
+    const prodDays = new Set(prod.map((l) => l.day));
+    const key = (l) => l.day + '|' + l.pid + '|' + up(l.desc);
+    const pk = new Map(); prod.forEach((l) => { const k = key(l); if (!pk.has(k)) pk.set(k, []); pk.get(k).push(l); });
+    const pair = new Map(), used = new Set();
+    for (const r of doc) { const c = (pk.get(key(r)) || []).find((l) => !used.has(l)); if (c) { used.add(c); pair.set(r, c); } }
+    const tabs = Array.from(new Set(doc.map((l) => l.doctor)));
+    const first = (s) => norm(s).split(' ')[0];
+    const tabOf = (name) => tabs.find((t) => first(t) && first(t) === first(name)) || name;
+    const extra = prod.filter((l) => !used.has(l)).map((l) => Object.assign({}, l, { doctor: tabOf(l.doctor) }));
+    const clinicValue = (r) => (prodDays.has(r.day) && pair.has(r) ? pair.get(r).realizada || 0 : r.realizada || 0);
+    return { doc, prod, prodDays, pair, extra, clinicValue };
+  }
+
+  // Daily sheets report: production, collections and the dentist's share by doctor, the check against the
+  // PRODUCCION tab, the cleaning of the free text, production by treatment line and events written in the text.
+  // opts.rate: dentist's share of the base (the clinic's sheets use 40% of production plus insurance fees,
+  // plus the fixed amounts in the Especial column); opts.dict: texts a person has confirmed.
+  function partesReport(ds, opts) {
+    const P = ds.partes; if (!P || !P.lines || !P.lines.length) return null;
+    const rate = opts && opts.rate != null ? opts.rate : 0.4, dict = (opts && opts.dict) || {};
+    const M = matchPartes(P);
+    const days = Array.from(new Set(P.lines.map((l) => l.day).concat((P.pays || []).map((p) => p.day)))).sort((a, b) => a - b);
+    // Cleaning, then context: a try-in or delivery takes the line of the same patient's other work these days.
+    const formC = (l) => ({ text: l.desc, acts: (l.act ? [{ key: l.act, qty: 1 }] : []), lines: [l.line], line: l.line, events: [], teeth: [], money: false, status: 'form' });
+    const rows = M.doc.map((l) => Object.assign({}, l, { src0: l, clinic: M.clinicValue(l), c: l.line ? formC(l) : cleanText(l.desc, dict) }));
+    const extraRows = M.extra.filter((l) => l.realizada > 0 || l.cobrado > 0).map((l) => Object.assign({}, l, { clinic: l.realizada || 0, onlyProd: true, c: cleanText(l.desc, dict) }));
+    const all = rows.concat(extraRows);
+    const ctx = new Map();
+    const addCtx = (pid, line) => { if (pid == null || !line) return; let s = ctx.get(pid); if (!s) { s = new Set(); ctx.set(pid, s); } s.add(line); };
+    all.forEach((r) => r.c.lines.forEach((x) => addCtx(r.pid, x)));
+    (P.pays || []).forEach((p) => addCtx(p.pid, p.code || payCode(p.concept)));
+    (ds.pending || []).forEach((p) => { if (p.pid != null) addCtx(p.pid, cleanText(p.desc).line); });
+    all.forEach((r) => {
+      if (r.c.status !== 'step') return;
+      const s = ctx.get(r.pid);
+      if (s && s.size) { const line = mainLine(Array.from(s)); r.c = Object.assign({}, r.c, { lines: [line], line, status: 'context' }); } else r.c = Object.assign({}, r.c, { status: 'queue' });
+    });
+    // By doctor: clinic production, the base of the dentist's share (doctor's tab + insurance fees), share, collections
+    const byDoc = new Map();
+    const docOf = (name) => { let x = byDoc.get(name); if (!x) { x = { doctor: name, days: new Set(), lines: 0, production: 0, base: 0, insurance: 0, collected: 0, special: 0, card: 0, cash: 0, otherPay: 0 }; byDoc.set(name, x); } return x; };
+    for (const r of rows) {
+      const x = docOf(r.doctor);
+      x.days.add(r.day); x.lines++; x.production += r.clinic; x.base += (r.realizada || 0) + (r.seguro || 0); x.insurance += r.seguro || 0; x.collected += r.cobrado || 0; x.special += r.especial || 0;
+      const k = payKind(r.fp); if (r.cobrado) { if (k === 'card') x.card += r.cobrado; else if (k === 'cash') x.cash += r.cobrado; else x.otherPay += r.cobrado; }
+    }
+    for (const r of extraRows) { const x = docOf(r.doctor); x.days.add(r.day); x.production += r.clinic; }
+    const doctors = Array.from(byDoc.values()).map((x) => Object.assign(x, { days: x.days.size, share: rate * x.base + x.special })).sort((a, b) => b.production - a.production);
+    const clinicPays = (P.pays || []).reduce((a, p) => a + (p.total || 0), 0);
+    // Check against the PRODUCCION tab, on the days that have one.
+    const check = { days: Array.from(M.prodDays).sort((a, b) => a - b), missing: [], extra: [], different: [] };
+    for (const r of rows) {
+      if (!M.prodDays.has(r.day)) continue;
+      const p = M.pair.get(r.src0);
+      if (!p) { if (r.realizada > 0 || r.cobrado > 0) check.missing.push({ day: r.day, doctor: r.doctor, pid: r.pid, desc: r.desc, amount: r.realizada || r.cobrado }); continue; }
+      if (Math.abs((p.realizada || 0) - (r.realizada || 0)) > 0.5 || Math.abs((p.cobrado || 0) - (r.cobrado || 0)) > 0.5) check.different.push({ day: r.day, doctor: r.doctor, pid: r.pid, desc: r.desc, line: r.c.line, sheet: r.realizada || 0, prod: p.realizada || 0, sheetPaid: r.cobrado || 0, prodPaid: p.cobrado || 0 });
+    }
+    extraRows.forEach((l) => check.extra.push({ day: l.day, doctor: l.doctor, pid: l.pid, desc: l.desc, amount: l.realizada || l.cobrado }));
+    check.ok = !!M.prod.length && !check.missing.length && !check.extra.length && !check.different.length;
+    check.diffImplantProsthesis = check.different.filter((x) => ['IM', 'PF', 'PR'].includes(x.line) || /DEFINITIV|ENTREG|PRUEBA/.test(up(x.desc))).length;
+    // Cleaning coverage over the doctor tabs' lines
+    const cov = { total: rows.length, form: 0, dict: 0, rules: 0, context: 0, event: 0, queue: 0 };
+    rows.forEach((r) => { cov[r.c.status === 'step' ? 'queue' : r.c.status]++; });
+    const distinct = new Set(rows.map((r) => up(r.desc))).size;
+    const queueMap = new Map();
+    rows.filter((r) => r.c.status === 'queue').forEach((r) => { const k = dictKey(r.desc); const x = queueMap.get(k) || { key: k, text: r.desc, n: 0 }; x.n++; queueMap.set(k, x); });
+    // Clinic production by treatment line (each row counted once, in its main line)
+    const byLine = {}; LINE_CODES.concat(['?']).forEach((c) => { byLine[c] = { production: 0, rows: 0 }; });
+    all.forEach((r) => { if (!(r.clinic > 0)) return; const c = r.c.line || '?'; byLine[c].production += r.clinic; byLine[c].rows++; });
+    const paysByCode = {}; (P.pays || []).forEach((p) => { const c = p.code || payCode(p.concept) || '?'; paysByCode[c] = (paysByCode[c] || 0) + (p.total || 0); });
+    const events = {}; TEXT_EVENTS.forEach((e) => { events[e.key] = 0; });
+    rows.forEach((r) => r.c.events.forEach((e) => { events[e]++; }));
+    const fpWritten = Array.from(new Set(rows.map((r) => String(r.fp || '').trim()).filter(Boolean)));
+    const sum = (k) => doctors.reduce((a, x) => a + x[k], 0);
+    return {
+      days, rate, doctors, rows, extraRows, clinicPays, hasProd: M.prod.length > 0,
+      totals: { production: sum('production'), base: sum('base'), insurance: sum('insurance'), collected: sum('collected') + clinicPays, collectedInSheets: sum('collected'), special: sum('special'), share: sum('share'), lines: rows.length, withAmount: rows.filter((r) => r.realizada > 0 || r.cobrado > 0).length },
+      check, coverage: cov, distinct, queue: Array.from(queueMap.values()).sort((a, b) => b.n - a.n), byLine, paysByCode, events, fpWritten,
+      teethRows: rows.filter((r) => r.c.teeth.length).length, multiRows: rows.filter((r) => r.c.acts.length > 1).length, moneyRows: rows.filter((r) => r.c.money).length
+    };
+  }
+
+  // Pending treatment (MN "Presupuestos aceptados no realizados"): what is planned, accepted and paid (the
+  // accountant treats it all as accepted, because reception often forgets the tick) but not recorded as done.
+  const AGE_BUCKETS = [[0, 90], [91, 182], [183, 365], [366, 100000]];
+  function pendingReport(ds) {
+    const items = ds.pending; if (!items || !items.length) return null;
+    const asOf = ds.asOf, total = items.reduce((a, x) => a + x.amount, 0);
+    const age = (x) => asOf - x.day;
+    const buckets = AGE_BUCKETS.map(([a, b]) => { const xs = items.filter((x) => age(x) >= a && age(x) <= b); return { from: a, to: b, n: xs.length, amount: xs.reduce((s, x) => s + x.amount, 0) }; });
+    const byLine = {}; LINE_CODES.concat(['?']).forEach((c) => { byLine[c] = { amount: 0, n: 0 }; });
+    items.forEach((x) => { const c = cleanText(x.desc).line || '?'; byLine[c].amount += x.amount; byLine[c].n++; });
+    const old = items.filter((x) => age(x) > 182).sort((a, b) => b.amount - a.amount);
+    const budgets = new Map();
+    items.forEach((x) => { const k = x.budget || '—'; const b = budgets.get(k) || { budget: k, n: 0, amount: 0, first: x.day }; b.n++; b.amount += x.amount; b.first = Math.min(b.first, x.day); budgets.set(k, b); });
+    const top = Array.from(budgets.values()).filter((b) => b.budget !== '—').sort((a, b) => b.amount - a.amount);
+    const share = (f) => { const xs = items.filter(f); return total ? xs.reduce((s, x) => s + x.amount, 0) / total : 0; };
+    const knownFlag = items.filter((x) => x.accepted != null).length;
+    return {
+      asOf, total, n: items.length, budgets: top.length, buckets, byLine, old, oldAmount: old.reduce((a, x) => a + x.amount, 0),
+      topBudgets: top.slice(0, 10), top20Share: total ? top.slice(0, 20).reduce((a, b) => a + b.amount, 0) / total : 0,
+      flags: {
+        acceptedShare: knownFlag ? share((x) => x.accepted === true) : null, acceptedLines: items.filter((x) => x.accepted === true).length,
+        userShare: items.filter((x) => x.user).length / items.length, collectedShare: items.filter((x) => x.collected > 0).length / items.length,
+        sourceShare: items.some((x) => x.source !== undefined) ? items.filter((x) => x.source).length / items.length : null
+      },
+      oldest: Math.min.apply(null, items.map((x) => x.day)), newest: Math.max.apply(null, items.map((x) => x.day))
+    };
+  }
+  const pendingOld = (ds) => { const r = pendingReport(ds); return r ? r.oldAmount : 0; };
+
+  // Patient base: files opened, who has really been seen, who is due a recall.
+  function patientBase(ds) {
+    if (!ds.patients || !ds.patients.length) return null;
+    const asOf = ds.asOf;
+    const fromExport = ds.patients.some((p) => p.last !== undefined);
+    let active12 = 0, active24 = 0, noVisit = 0, withNext = 0, bajas = 0;
+    const recall = [];
+    for (const p of ds.patients) {
+      let last = null, next = null;
+      if (fromExport) { last = p.last != null && p.last <= asOf ? p.last : null; next = p.next != null && p.next > asOf ? p.next : null; }
+      else {
+        const x = ds.by.get(p.id);
+        if (x) for (const a of x.appts) { if (a.day <= asOf && a.status === ST.DONE) last = a.day; else if (a.day > asOf && next == null) next = a.day; }
+      }
+      if (p.baja != null) bajas++;
+      if (last == null) { noVisit++; continue; }
+      if (next != null) withNext++;
+      if (last >= asOf - 365) { active12++; if (next == null) recall.push({ patient: p.id, last }); }
+      if (last >= asOf - 730) active24++;
+    }
+    recall.sort((a, b) => a.last - b.last);
+    const k = ds.lastMonth, y = Math.floor(k / 12);
+    const count = (k1, k2) => ds.patients.filter((p) => p.first != null && p.first >= mkStart(k1) && p.first <= mkEnd(k2)).length;
+    const ytd = { from: y * 12, to: k, cur: count(y * 12, k), prev: count(y * 12 - 12, k - 12) };
+    ytd.change = ytd.prev ? ytd.cur / ytd.prev - 1 : null;
+    const months = []; for (let i = k - 23; i <= k; i++) months.push({ k: i, n: count(i, i) });
+    return { files: ds.patients.length, active12, active24, noVisit, withNext, bajas, recall, recallN: recall.length, ytd, months, fromExport };
+  }
+
+  // ---------- Reading the clinic's files: MN exports and reception's daily sheets ----------
+  // sheets: [{ name, aoa }] with each sheet as rows of cells (dates as Date, "YYYY-MM-DD" or Excel serials).
+  // Daily sheets carry patient names: they are taken out of the data and returned apart as a key (number ->
+  // name) that the page keeps only in memory or in the encrypted copy on this computer.
+  const KNOWN_HEADERS = new Set(['fecha', 'fecha alta', 'fecha actuacion', 'fecha tratamiento', 'fecha cobro', 'n paciente', 'numero cliente', 'clientes numero cliente', 'numero paciente', 'paciente', 'nombre', 'usuario', 'descripcion',
+    'cobrado', 'f p', 'realizada', 'pte cobr', 't costes', 'valoracion', 'especial', 'seguro', 'notas', 'nota', 'actuacion', 'concepto', 'forma cobro', 'forma de cobro', 'total', 'importe', 'estado', 'precio', 'descuento',
+    'presupuesto aceptado', 'n presupuesto', 'tipo tratamiento', 'origen', 'importe cobrado', 'fuente de contacto', 'realizado', 'fecha realizacion', 'fecha baja', 'fecha creacion', 'f proxima actuacion', 'edad', 'tipo paciente',
+    'total cobrado', 'total cobro', 'total facturado', 'expedientes', 'fecha ultima actuacion', 'profesional', 'gabinete', 'tratamiento', 'color', 'cobrado en el dia', 'a pagar', 'seguros', 'gastos', 'especiales']);
+  function tablesFromSheets(sheets, fileName) {
+    const tables = [], skipped = [], ignored = [], names = new Map();
+    const num = (v) => (v === '' || v == null ? 0 : parseNum(v));
+    const pidOf = (v) => { const n = parseInt(String(v == null ? '' : v).replace(/\.0+$/, '').replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    for (const sh of sheets) {
+      const aoa = (sh.aoa || []).map((r) => (Array.isArray(r) ? r : []));
+      const from = fileName + (sheets.length > 1 ? ' · ' + sh.name : '');
+      let hr = -1, best = 0;
+      for (let i = 0; i < Math.min(4, aoa.length); i++) {
+        const texts = aoa[i].filter((v) => typeof v === 'string' && /[a-zA-Z]/.test(v) && !/^\d{4}-\d\d-\d\d/.test(v));
+        const score = texts.filter((v) => KNOWN_HEADERS.has(norm(v))).length * 10 + texts.length;
+        if (texts.length >= 3 && score > best) { best = score; hr = i; }
+      }
+      if (hr < 0) { if (aoa.some((r) => r.some((v) => v !== '' && v != null))) skipped.push(from); continue; }
+      const hdr = aoa[hr].map((v) => String(v == null ? '' : v).trim()), H = hdr.map(norm);
+      const has = (k) => H.includes(k);
+      const col = (...ks) => { for (const k of ks) { const i = H.indexOf(k); if (i >= 0) return i; } return -1; };
+      const body = aoa.slice(hr + 1);
+      // Daily sheet: one tab per doctor, or the PRODUCCION tab that consolidates them
+      if (has('fecha actuacion') && col('clientes numero cliente', 'numero cliente', 'n paciente') >= 0 && (has('realizada') || has('valoracion'))) {
+        const iD = col('fecha actuacion'), iP = col('clientes numero cliente', 'numero cliente', 'n paciente'), iN = col('nombre', 'paciente'), iU = col('usuario'), iDe = col('descripcion'),
+          iC = col('cobrado'), iF = col('f p', 'fp', 'forma de pago', 'forma cobro'), iR = col('realizada'), iPt = col('pte cobr'), iV = col('valoracion'), iE = col('especial'), iS = col('seguro', 'sg');
+        const isProd = norm(sh.name) === 'produccion', rows = [];
+        for (const r of body) {
+          const day = parseDay(r[iD]), pid = pidOf(r[iP]);
+          if (day == null || pid == null) continue;
+          if (iN >= 0 && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim());
+          rows.push({ 'Fecha': iso(day), 'Doctor': isProd ? String(iU >= 0 ? r[iU] : '').trim() : sh.name, 'Nº Paciente': pid, 'Descripción': String(iDe >= 0 && r[iDe] != null ? r[iDe] : '').trim(),
+            'Cobrado': iC >= 0 ? num(r[iC]) : 0, 'F.P.': iF >= 0 ? String(r[iF] == null ? '' : r[iF]).trim() : '', 'Realizada': iR >= 0 ? num(r[iR]) : 0, 'Pte. Cobr': iPt >= 0 ? num(r[iPt]) : 0,
+            'Valoración': iV >= 0 ? num(r[iV]) : 0, 'Especial': iE >= 0 ? num(r[iE]) : 0, 'Seguro': iS >= 0 && typeof r[iS] === 'number' ? r[iS] : 0, 'Hoja': isProd ? 'PRODUCCION' : 'Doctor' });
+        }
+        tables.push({ kind: 'parte', rows, from }); continue;
+      }
+      // Daily sheet: payments not tied to a doctor (payments on account, with the line letter in front)
+      if ((has('actuacion') || has('concepto')) && has('fecha alta') && !has('fecha cobro')) {
+        const iD = col('fecha alta'), iP = col('n paciente', 'numero cliente', 'numero paciente'), iN = col('paciente', 'nombre'), iCo = col('actuacion', 'concepto'), iF = col('forma cobro', 'forma de cobro'), iT = col('total', 'importe');
+        const rows = [];
+        for (const r of body) {
+          const day = parseDay(r[iD]); if (day == null) continue;
+          const pid = iP >= 0 ? pidOf(r[iP]) : null;
+          if (pid != null && iN >= 0 && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim());
+          let amount = iT >= 0 ? num(r[iT]) : 0;
+          if (iT < 0) { for (let j = r.length - 1; j > iCo; j--) { if (j !== iF && r[j] !== '' && r[j] != null && !isNaN(parseNum(r[j])) && parseNum(r[j]) !== 0) { amount = parseNum(r[j]); break; } } }
+          const concept = String(r[iCo] == null ? '' : r[iCo]).trim();
+          rows.push({ 'Fecha': iso(day), 'Hoja': sh.name, 'Nº Paciente': pid == null ? '' : pid, 'Concepto': concept, 'Código': payCode(concept) || '', 'Forma de cobro': iF >= 0 ? String(r[iF] || '').trim() : '', 'Total': amount });
+        }
+        tables.push({ kind: 'parte_pay', rows, from }); continue;
+      }
+      // Daily sheet: reception's own summary tab (not needed: the app recomputes it)
+      if (has('cobrado en el dia') || (norm(sh.name) === 'resumen' && has('a pagar'))) { ignored.push(from); continue; }
+      const objs = body.filter((r) => r.some((v) => v !== '' && v != null)).map((r) => { const o = {}; hdr.forEach((h, i) => { if (h) o[h] = r[i] == null ? '' : r[i]; }); return o; });
+      // MN "Presupuestos aceptados no realizados": patient name and NIF columns are dropped
+      if (has('fecha tratamiento') && (has('presupuesto aceptado') || has('n presupuesto'))) {
+        objs.forEach((o) => { Object.keys(o).forEach((k) => { if (['paciente', 'nif', 'nombre', 'movil paciente', 'telefono paciente', 'domicilio', 'codigo postal'].includes(norm(k))) delete o[k]; }); });
+        tables.push({ kind: 'pending', rows: objs, from }); continue;
+      }
+      const kind = detect(hdr);
+      if (kind) tables.push({ kind, rows: objs, from }); else skipped.push(from);
+    }
+    return { tables, skipped, ignored, names };
+  }
+
   const DEFINITIONS = {
+    get partes() { return L('Daily sheets: the Excel reception fills in each day, one tab per dentist (what was done, what was paid, how), plus payments on account in the Clínica tab and the PRODUCCION tab that consolidates them. The dentist\'s share is the clinic\'s own rule written on the sheets: 40% of production plus the fixed amounts in the Especial column.', 'Partes diarios: el Excel que rellena recepción cada día, una pestaña por odontólogo (qué se hizo, qué se cobró y cómo), más los cobros a cuenta de la pestaña Clínica y la pestaña PRODUCCION que los consolida. Lo que corresponde al doctor es la regla escrita en los propios partes: el 40% de lo producido más los importes fijos de la columna Especial.'); },
+    get cleaning() { return L('Cleaning of free text: each description becomes treatment acts, a treatment line (G, O, PF, PR, IM: the letters reception already writes on payments), tooth numbers and events. First the clinic\'s dictionary of texts a person confirmed, then rules, then the same patient\'s other work those days; the rest waits in a review queue. An AI suggestion can help with the queue, but a person confirms.', 'Limpieza del texto libre: cada descripción se convierte en actos, una línea de tratamiento (G, O, PF, PR, IM: las letras que recepción ya pone en los cobros), números de diente y sucesos. Primero el diccionario de textos que una persona ha confirmado, después las reglas y después el resto del trabajo del mismo paciente esos días; lo demás espera en una cola de revisión. La IA puede proponer, pero confirma una persona.'); },
+    get pending() { return L('Pending production: treatment in MN\'s "Presupuestos aceptados no realizados" list, by the date of the treatment. The accountant treats it all as accepted and paid, because reception often forgets to tick "Presupuesto Aceptado". The figure falls as completed work is entered in MN; lines older than six months are the most likely to be work already done and not entered.', 'Producción pendiente: tratamiento de la lista "Presupuestos aceptados no realizados" de MN, por fecha del tratamiento. La contable lo considera todo aceptado y cobrado, porque recepción a menudo olvida marcar "Presupuesto Aceptado". La cifra baja a medida que el trabajo hecho se mete en MN; las líneas con más de seis meses son las más probables de ser trabajo ya hecho y no metido.'); },
     get production() { return L('Production: value (list price) of treatment marked as done in the month, by date done. This is revenue earned.', 'Producción: valor (precio de tarifa) del tratamiento marcado como realizado en el mes, por fecha de realización. Es el ingreso ganado.'); },
     get collections() { return L('Collections: money received in the month (card, cash, transfer, financing), by payment date.', 'Cobros: dinero recibido en el mes (tarjeta, efectivo, transferencia, financiación), por fecha de cobro.'); },
     get unearned() { return L('Unearned revenue (paid but not yet done): for each patient, payments received minus value of treatment done, counted when positive, at the end of the period. Calculated per patient because MN Program does not link payments to specific treatments.', 'Cobrado y no realizado: para cada paciente, lo cobrado menos el valor del tratamiento realizado, si es positivo, al cierre del periodo. Se calcula por paciente porque MN Program no enlaza cada cobro con un tratamiento concreto.'); },
@@ -974,7 +1328,8 @@
     simulate, snapshot, prepare, overview, series, production, collections, firstVisits, visitStats, lostByWeekday, lostByProfessional,
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
-    keyFromRows, sampleNames
+    keyFromRows, sampleNames,
+    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, tablesFromSheets, up
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);
