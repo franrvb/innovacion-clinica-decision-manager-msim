@@ -621,6 +621,7 @@
   // ---------- Recommendations (rules over KPIs and model output) ----------
   const eur = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Math.round(n));
   const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
+  const normLine = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
   function recommendations(ds, model, risk, learned) {
     const recs = [], k = ds.lastMonth, tag = iso(ds.asOf);
     const fu = learned && learned.followUp;
@@ -655,23 +656,25 @@
         metric
       });
     }
-    // 2. Marketing: new patients falling
-    const fvRecent = avg([firstVisits(ds, k), firstVisits(ds, k - 1)]);
+    // 2. Marketing: first visits falling, against the six months before or the same month last year
+    const fvNow = firstVisits(ds, k), fvPrev = firstVisits(ds, k - 1), fvLy = firstVisits(ds, k - 12);
+    const fvRecent = avg([fvNow, fvPrev]);
     const fvPrior = avg([2, 3, 4, 5, 6, 7].map((i) => firstVisits(ds, k - i)));
-    if (fvPrior > 0 && fvRecent <= fvPrior * 0.88) {
+    const fvDrop = fvPrior > 0 && (fvNow <= fvPrior * 0.9 || fvRecent <= fvPrior * 0.88 || (fvLy > 0 && fvNow <= fvLy * 0.85));
+    if (fvDrop) {
       const firstDay = new Map(ds.patients.filter((p) => p.first != null && p.first >= mkStart(k - 13) && p.first <= mkEnd(k - 6)).map((p) => [p.id, p.first]));
       let val = 0; for (const l of ds.lines) { const f = firstDay.get(l.pid); if (f != null && l.accept <= f + 183) val += l.price; }
-      const perPatient = firstDay.size ? val / firstDay.size : 0;
+      const perPatient = firstDay.size ? val / firstDay.size : 0, gap = Math.max(0, Math.round(fvPrior - fvNow));
       const metric = { type: 'new_patients', fmt: 'int', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
         id: 'acq:' + tag, kind: 'acq', priority: 2,
-        title: L('New patients are falling', 'Bajan los pacientes nuevos'),
-        evidence: L(firstVisits(ds, k) + ' new patients in ' + mkLabel(k, true) + ' and ' + firstVisits(ds, k - 1) + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before (' + pct(fvRecent / fvPrior - 1) + ').',
-          firstVisits(ds, k) + ' pacientes nuevos en ' + mkLabel(k, true) + ' y ' + firstVisits(ds, k - 1) + ' en ' + mkLabel(k - 1, true) + ', frente a una media de ' + Math.round(fvPrior) + ' al mes en los seis meses anteriores (' + pct(fvRecent / fvPrior - 1) + ').'),
-        action: L('Ask every new patient how they found the clinic and record it, then reinforce the channel that brings most (Instagram giveaways have worked better than flyers). Log the marketing action here with the number of new patients you expect.',
-          'Preguntar a cada paciente nuevo cómo conoció la clínica y anotarlo, y reforzar el canal que más trae (los sorteos de Instagram han funcionado mejor que los folletos). Registrar aquí la acción de marketing con el número de pacientes nuevos que se espera.'),
-        impact: L('Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months, so ' + Math.round(fvPrior - fvRecent) + ' fewer new patients a month is about ' + eur((fvPrior - fvRecent) * perPatient) + ' of future treatment a month.',
-          'Cada paciente nuevo aceptó unos ' + eur(perPatient) + ' de tratamiento en sus seis primeros meses, así que ' + Math.round(fvPrior - fvRecent) + ' pacientes nuevos menos al mes son unos ' + eur((fvPrior - fvRecent) * perPatient) + ' de tratamiento futuro al mes.'),
+        title: L('Bring in first visits: a whitening giveaway on Instagram Reels', 'Atraer primeras visitas: sorteo de un blanqueamiento en Instagram Reels'),
+        evidence: L(fvNow + ' first visits in ' + mkLabel(k, true) + ' and ' + fvPrev + ' in ' + mkLabel(k - 1, true) + ', against an average of ' + Math.round(fvPrior) + ' a month in the six months before' + (fvLy ? ' and ' + fvLy + ' in ' + mkLabel(k - 12, true) + ' ' + Math.floor((k - 12) / 12) : '') + '.',
+          fvNow + ' primeras visitas en ' + mkLabel(k, true) + ' y ' + fvPrev + ' en ' + mkLabel(k - 1, true) + ', frente a una media de ' + Math.round(fvPrior) + ' al mes en los seis meses anteriores' + (fvLy ? ' y ' + fvLy + ' en ' + mkLabel(k - 12, true) + ' de ' + Math.floor((k - 12) / 12) : '') + '.'),
+        action: L('Launch a giveaway of one whitening on Instagram Reels (to enter: follow the clinic and tag two friends), with a free assessment visit for everyone who enters. Instagram giveaways have worked better than flyers here. Ask every first visit how they found the clinic and note it, so the next review shows which channel worked.',
+          'Lanzar en Instagram Reels el sorteo de un blanqueamiento (para participar: seguir a la clínica y etiquetar a dos amigos), con una primera visita gratuita de valoración para todos los participantes. En esta clínica los sorteos de Instagram han funcionado mejor que los folletos. Preguntar a cada primera visita cómo conoció la clínica y anotarlo, para saber en la revisión qué canal funcionó.'),
+        impact: L((gap ? 'Getting back to the usual ' + Math.round(fvPrior) + ' first visits a month means about ' + gap + ' more a month. ' : '') + 'Each new patient accepted about ' + eur(perPatient) + ' of treatment in their first six months.',
+          (gap ? 'Volver a las ' + Math.round(fvPrior) + ' primeras visitas habituales son unas ' + gap + ' más al mes. ' : '') + 'Cada paciente nuevo aceptó unos ' + eur(perPatient) + ' de tratamiento en sus seis primeros meses.'),
         metric
       });
     }
@@ -721,44 +724,39 @@
         metric
       });
     }
-    // 4. Treatment lines to promote: high margin but falling volume
-    const tl = treatmentLines(ds, k - 2, k).filter((x) => x.production >= 3000 && x.marginPct != null && x.change != null);
-    // The line where the most margin (in euros) was lost against last year.
-    const lostMargin = (x) => (x.productionLastYear - x.production) * x.marginPct;
-    const cand = tl.filter((x) => x.change <= -0.1).sort((a, b) => lostMargin(b) - lostMargin(a))[0];
-    if (cand) {
-      const metric = { type: 'line_production', line: cand.line, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
+    // 4. Treatment lines doing less than usual: a concrete commercial idea for each (up to two lines)
+    const LINE_IDEAS = [
+      [/orto/, L('Consider an orthodontics offer', 'Valorar una oferta de ortodoncia'),
+        L('Offer a free orthodontic study and interest-free financing for a few months; the treatment coordinator calls the open orthodontics quotes; share before/after Reels (with consent).', 'Ofrecer el estudio de ortodoncia gratuito y financiación sin intereses durante unos meses; la coordinadora llama a los presupuestos de ortodoncia abiertos; publicar Reels de antes y después (con consentimiento).')],
+      [/impl|cirug/, L('Consider an implant assessment day', 'Valorar una jornada de valoración de implantes'),
+        L('Hold a free implant assessment day with financing explained on the spot, and call the patients with implant quotes not yet accepted.', 'Organizar una jornada de valoración de implantes gratuita, con la financiación explicada en el momento, y llamar a los pacientes con presupuestos de implantes sin aceptar.')],
+      [/estet|blanq|carill/, L('Consider a whitening promotion', 'Valorar una promoción de blanqueamiento'),
+        L('Offer a whitening + cleaning pack for a limited time and promote it on Instagram Reels with real results (with consent).', 'Ofrecer un pack de blanqueamiento + limpieza por tiempo limitado y promocionarlo en Instagram Reels con resultados reales (con consentimiento).')],
+      [/protes/, L('Consider following up prosthesis quotes', 'Valorar el seguimiento de presupuestos de prótesis'),
+        L('The coordinator calls the open prosthesis quotes and offers financing; a short session explaining options to patients aged over 60.', 'La coordinadora llama a los presupuestos de prótesis abiertos y ofrece financiación; una charla breve sobre opciones para pacientes de más de 60 años.')],
+      [/higien|general|conserv|period|endod/, L('Consider a check-up and cleaning campaign', 'Valorar una campaña de revisión y limpieza'),
+        L('Send a WhatsApp or SMS reminder to the patients seen in the last 12 months with no appointment booked (the recall list) and offer a check-up and cleaning.', 'Enviar un recordatorio por WhatsApp o SMS a los pacientes vistos en los últimos 12 meses sin cita (la lista de rellamada) y ofrecer revisión y limpieza.')]
+    ];
+    const lineBase = (line) => avg([2, 3, 4, 5, 6, 7].map((i) => { const x = treatmentLines(ds, k - i, k - i).find((y) => y.line === line); return x ? x.production : 0; }));
+    const weak = treatmentLines(ds, k - 1, k).map((x) => {
+      const base = lineBase(x.line), recent = x.production / 2, ly = x.productionLastYear / 2;
+      const chBase = base ? recent / base - 1 : null, chLy = ly ? recent / ly - 1 : null;
+      const ch = [chBase, chLy].filter((v) => v != null).reduce((m, v) => Math.min(m, v), 0);
+      return { line: x.line, recent, base, ly, ch, lost: Math.max(base - recent, ly - recent, 0) };
+    }).filter((x) => (x.base >= 1500 || x.ly >= 1500) && x.ch <= -0.2 && LINE_IDEAS.some(([re]) => re.test(normLine(x.line)))).sort((a, b) => b.lost - a.lost);
+    const usedIdea = new Set();
+    for (const w of weak) {
+      const idea = LINE_IDEAS.find(([re]) => re.test(normLine(w.line)));
+      if (usedIdea.has(idea) || usedIdea.size >= 2) continue;
+      usedIdea.add(idea);
+      const metric = { type: 'line_production', line: w.line, fmt: 'eur', better: 'up' }; metric.label = metricLabel(metric);
       recs.push({
-        id: 'line:' + cand.line + ':' + tag, kind: 'line', priority: 4,
-        title: L('Consider promoting ' + cand.line, 'Valorar impulsar ' + cand.line),
-        evidence: L(cand.line + ' keeps ' + pct(cand.marginPct) + ' of its price after materials and lab, but its production in ' + span + ' was ' + eur(cand.production) + ', ' + pct(-cand.change) + ' less than in the same months last year.',
-          cand.line + ' conserva el ' + pct(cand.marginPct) + ' de su precio tras materiales y laboratorio, pero su producción en ' + span + ' fue de ' + eur(cand.production) + ', un ' + pct(-cand.change) + ' menos que en los mismos meses del año pasado.'),
-        action: L('Decide how to promote ' + cand.line + ' to patients already in the clinic (financing, coordinator follow-up of open quotes). Flyer discounts have not brought new patients; offers work once the patient is inside. Log it here with the production you expect.',
-          'Decidir cómo impulsar ' + cand.line + ' entre los pacientes que ya vienen a la clínica (financiación, seguimiento de presupuestos abiertos). Los descuentos en folletos no han traído pacientes nuevos; las ofertas funcionan cuando el paciente ya está dentro. Registrarlo aquí con la producción que se espera.'),
-        impact: L('Recovering last year\'s level would add about ' + eur((cand.productionLastYear - cand.production) / 3) + ' of production a month at a ' + pct(cand.marginPct) + ' margin.',
-          'Recuperar el nivel del año pasado sumaría unos ' + eur((cand.productionLastYear - cand.production) / 3) + ' de producción al mes con un margen del ' + pct(cand.marginPct) + '.'),
-        metric
-      });
-    }
-    // 5. Cost and margin: margin after materials and lab falling
-    const m3 = avg([0, 1, 2].map((i) => marginPct(ds, k - i)).filter((x) => x != null));
-    const m3ly = avg([12, 13, 14].map((i) => marginPct(ds, k - i)).filter((x) => x != null));
-    if (m3 && m3ly && m3ly - m3 >= 0.015) {
-      const costShare = (i, cat) => { let p = 0, c = 0; for (const l of ds.lines) if (l.done != null && inMonth(l.done, i) && l.cat === cat && l.cost != null) { p += l.price; c += l.cost; } return p ? c / p : null; };
-      let worstCat = null;
-      for (const cat of ds.lineCats) {
-        const now = avg([0, 1, 2].map((i) => costShare(k - i, cat)).filter((x) => x != null)), then = avg([12, 13, 14].map((i) => costShare(k - i, cat)).filter((x) => x != null));
-        if (now && then && (!worstCat || now - then > worstCat.d)) worstCat = { cat, d: now - then, now, then };
-      }
-      const metric = { type: 'margin_pct', fmt: 'pct', better: 'up' }; metric.label = metricLabel(metric);
-      recs.push({
-        id: 'margin:' + tag, kind: 'margin', priority: 5,
-        title: L('Margin after materials and lab is falling', 'Baja el margen tras materiales y laboratorio'),
-        evidence: L('Over ' + span + ' the clinic kept ' + pct(m3) + ' of production after materials and lab, against ' + pct(m3ly) + ' in the same months last year.' + (worstCat ? ' The biggest rise in cost share is in ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' of price).' : ''),
-          'En ' + span + ' la clínica conservó el ' + pct(m3) + ' de la producción tras materiales y laboratorio, frente al ' + pct(m3ly) + ' en los mismos meses del año pasado.' + (worstCat ? ' La mayor subida del peso del coste está en ' + worstCat.cat + ' (' + pct(worstCat.then) + ' → ' + pct(worstCat.now) + ' del precio).' : '')),
-        action: L('The accountant reviews material and laboratory prices' + (worstCat ? ' for ' + worstCat.cat : '') + ', and the CEO decides whether to renegotiate suppliers or adjust prices.',
-          'Contabilidad revisa los precios de materiales y laboratorio' + (worstCat ? ' de ' + worstCat.cat : '') + ' y la gerencia decide si renegociar con proveedores o ajustar precios.'),
-        impact: L('Each percentage point of margin is worth about ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' a month.', 'Cada punto de margen vale unos ' + eur(avg([0, 1, 2].map((i) => production(ds, k - i))) * 0.01) + ' al mes.'),
+        id: 'line:' + w.line + ':' + tag, kind: 'line', priority: 4,
+        title: idea[1],
+        evidence: L(w.line + ' produced ' + eur(w.recent) + ' a month in ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', against ' + eur(w.base) + ' a month in the six months before' + (w.ly ? ' and ' + eur(w.ly) + ' in the same months last year' : '') + ' (' + pct(w.ch) + ').',
+          w.line + ' produjo ' + eur(w.recent) + ' al mes en ' + mkLabel(k - 1, true) + '–' + mkLabel(k, true) + ', frente a ' + eur(w.base) + ' al mes en los seis meses anteriores' + (w.ly ? ' y ' + eur(w.ly) + ' en los mismos meses del año pasado' : '') + ' (' + pct(w.ch) + ').'),
+        action: idea[2] + L(' Log it here with the production you expect.', ' Registrarlo aquí con la producción que se espera.'),
+        impact: L('Recovering the usual level would add about ' + eur(w.lost) + ' of production a month.', 'Recuperar el nivel habitual sumaría unos ' + eur(w.lost) + ' de producción al mes.'),
         metric
       });
     }

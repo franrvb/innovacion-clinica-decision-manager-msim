@@ -204,6 +204,16 @@ main#view { padding-bottom: 88px; }
 .attn-item.accent { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .attn-item .attn-go { font-size: 20px; color: var(--ink-2); }
 .attn-item:hover { border-color: var(--accent); }
+/* Overview: first visits per month */
+.fv-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; height: 170px; align-items: end; }
+.fvb { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; align-items: end; height: 100%; gap: 4px; padding: 0; border: 0; background: none; cursor: pointer; min-width: 0; }
+.fvb .fvbar { width: 100%; max-width: 34px; border-radius: 6px 6px 2px 2px; background: var(--bar); align-self: end; }
+.fvb .fvn { font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.fvb .fvm { font-size: 11.5px; color: var(--ink-2); }
+.fvb.cur .fvbar { background: var(--accent); }
+.fvb.cur .fvn, .fvb.cur .fvm { color: var(--ink); }
+.fvb:hover .fvbar { filter: brightness(1.15); }
+.fvb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 /* Pending: probably already done */
 .card.likely { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 /* Import: drop a folder, progress */
@@ -802,7 +812,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
 
     '<section class="tiles">' +
       '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + (partesDaysIn && partesDaysIn < 15 ? esc(L('Only the ' + partesDaysIn + ' days with a daily sheet this month', 'Solo los ' + partesDaysIn + ' días con parte de este mes')) : delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl)) + '</span></div>' +
-      '<div class="tile"><span class="lbl">' + L('Margin after materials and lab', 'Margen tras materiales y laboratorio') + '</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? L('No cost data in this import', 'Esta importación no trae costes') : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Collections', 'Cobros') + '</span><span class="val">' + eur(o.collections) + '</span><span class="cmp">' + delta(o.collections, o.collectionsPrevMonth, true, 'vs ' + prevLbl) + '</span></div>' +
       (ds.fromPartes && !ds.paysWithPatient ? '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">—</span><span class="cmp">' + L('Needs the full MN payments export; see Pending production', 'Necesita la exportación completa de cobros de MN; ver Producción pendiente') + '</span></div>'
         : '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + L(' patients · ', ' pacientes · ') + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, L('vs end of ', 'vs fin de ') + prevLbl) + '</span></div>') +
       '<div class="tile"><span class="lbl">' + L('New patients', 'Pacientes nuevos') + '</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, L('vs 6-month average (', 'vs media de 6 meses (') + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
@@ -811,6 +821,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     '<section class="card"><h2>' + L('Production and collections, last 12 months', 'Producción y cobros, últimos 12 meses') + '</h2><p class="def">' + L('Production is treatment done (earned). Collections is money received. Select a bar to change month.', 'Producción es el tratamiento realizado (ganado). Cobros es el dinero recibido. Pulsa una barra para cambiar de mes.') + '</p>' +
       '<div class="chart" id="barChart">' + barChart(rows, k) + '</div>' +
       '<div class="legend"><span><i style="background:var(--accent)"></i>' + L('Selected month', 'Mes seleccionado') + '</span><span><i style="background:var(--bar)"></i>' + L('Production', 'Producción') + '</span><span><i style="background:var(--ink);border-radius:50%"></i>' + L('Collections', 'Cobros') + '</span></div></section>' +
+    firstVisitsCard(ds, k) +
 
     '<section class="card"><h2>' + L('Patients likely to abandon their treatment', 'Pacientes con riesgo de abandonar su tratamiento') + '</h2><p class="def">' + L('Patients with accepted treatment not finished, ranked by expected loss (risk × amount pending). Risk is the probability of no progress in the next 90 days.', 'Pacientes con tratamiento aceptado sin terminar, ordenados por pérdida esperada (riesgo × importe pendiente). El riesgo es la probabilidad de no avanzar en los próximos 90 días.') + '</p>' +
       (risk.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Risk', 'Riesgo') + '</th><th class="r">' + L('Pending', 'Pendiente') + '</th><th class="r">' + L('Already paid', 'Ya pagado') + '</th><th>' + L('Why', 'Por qué') + '</th></tr></thead><tbody>' +
@@ -832,8 +843,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       '<section class="card"><h2>' + L('Production by dentist', 'Producción por odontólogo') + '</h2><p class="def">' + esc(IC.mkLabel(k)) + L('. Grey figure: average of the six months before. Red: more than 25% below it.', '. Cifra gris: media de los seis meses anteriores. Rojo: más de un 25% por debajo.') + '</p>' +
         (profRows.length ? hbars(profRows.map((x) => ({ label: x.label, v: x.v, hot: x.hot, sub: eur(x.a) })), profMax, eur) : '<p class="sub">' + L('The data has no professional recorded on treatments.', 'Los datos no traen el profesional en los tratamientos.') + '</p>') +
       '</section>' +
-      '<section class="card"><h2>' + L('Treatment lines', 'Líneas de tratamiento') + '</h2><p class="def">' + esc(IC.mkLabel(k)) + L('. Margin is what remains after materials and lab. Change is against ', '. El margen es lo que queda tras materiales y laboratorio. El cambio es frente a ') + esc(lyLbl) + '.</p>' +
-        (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Hechos') + '</th><th class="r">' + L('Production', 'Producción') + '</th><th class="r">' + L('Margin', 'Margen') + '</th><th class="r">' + L('vs last year', 'vs año pasado') + '</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r">' + pc(x.marginPct) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No treatment done this month.', 'No hay tratamientos realizados este mes.') + '</p>') +
+      '<section class="card"><h2>' + L('Treatment lines', 'Líneas de tratamiento') + '</h2><p class="def">' + esc(IC.mkLabel(k)) + L('. Change is against ', '. El cambio es frente a ') + esc(lyLbl) + '.</p>' +
+        (lines.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Hechos') + '</th><th class="r">' + L('Production', 'Producción') + '</th><th class="r">' + L('vs last year', 'vs año pasado') + '</th></tr></thead><tbody>' + lines.map((x) => '<tr><td>' + esc(x.line) + '</td><td class="r">' + x.count + '</td><td class="r">' + eur(x.production) + '</td><td class="r ' + (x.change == null ? 'flat' : x.change >= 0 ? 'good' : 'bad') + '">' + (x.change == null ? '—' : (x.change >= 0 ? '+' : '') + Math.round(x.change * 100) + '%') + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No treatment done this month.', 'No hay tratamientos realizados este mes.') + '</p>') +
       '</section>' +
       '<section class="card"><h2>' + L('Patients who brought most revenue', 'Pacientes que más ingresos aportaron') + '</h2><p class="def">' + L('Production in the 12 months to ', 'Producción en los 12 meses hasta ') + esc(IC.mkLabel(k)) + '.</p>' +
         (top.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th class="r">' + L('Treatment done', 'Tratamiento realizado') + '</th></tr></thead><tbody>' + top.map((x) => '<tr><td>' + pat(x.patient) + '</td><td class="r">' + eur(x.value) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="sub">' + L('No data.', 'Sin datos.') + '</p>') +
@@ -989,6 +1000,19 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       '</tbody></table></div><p class="note">' + L('Payments are not linked to treatments in MN, so the paid share of each line cannot be read from MN; the accountant reconciles it by hand.', 'En MN los cobros no se ligan a los tratamientos, así que lo cobrado de cada línea no se puede leer de MN; contabilidad lo cuadra a mano.') + '</p></section>';
     return head + tiles + likelyDoneCard() + grid + old + '<div class="grid2">' + budgets + mn + '</div>';
   }
+  // First visits month by month (MN's patient files opened, or first-visit appointments), last 12 months.
+  function firstVisitsCard(ds, k) {
+    const months = []; for (let i = ds.lastMonth - 11; i <= ds.lastMonth; i++) months.push({ k: i, n: IC.firstVisits(ds, i) });
+    if (!months.some((m) => m.n)) return '';
+    const max = Math.max(1, ...months.map((m) => m.n)), cur = IC.firstVisits(ds, k), ly = IC.firstVisits(ds, k - 12);
+    const avg6 = [1, 2, 3, 4, 5, 6].reduce((a, i) => a + IC.firstVisits(ds, k - i), 0) / 6;
+    const ch = (a, b) => b ? '<span class="' + (a >= b ? 'good' : 'bad') + '">' + (a >= b ? '▲ ' : '▼ ') + Math.abs(Math.round((a / b - 1) * 100)) + '%</span>' : '';
+    return '<section class="card"><h2>' + L('First visits per month', 'Primeras visitas por mes') + '</h2><p class="def">' +
+      esc(IC.mkLabel(k)) + ': <b>' + cur + '</b> ' + ch(cur, avg6) + L(' vs the 6-month average (', ' frente a la media de 6 meses (') + Math.round(avg6) + ')' + (ly ? ' · ' + ch(cur, ly) + ' vs ' + esc(IC.mkLabel(k - 12, true)) + ' ' + Math.floor((k - 12) / 12) + ' (' + ly + ')' : '') +
+      '. ' + L('Most first visits are free; some include a cleaning or a filling paid that day. Select a bar to change month.', 'La mayoría de primeras visitas son gratuitas; algunas incluyen una limpieza o un empaste que se cobra ese día. Pulsa una barra para cambiar de mes.') + '</p>' +
+      '<div class="fv-bars" role="img" aria-label="' + esc(L('First visits per month, last 12 months', 'Primeras visitas por mes, últimos 12 meses')) + '">' +
+      months.map((m) => '<button type="button" class="fvb' + (m.k === k ? ' cur' : '') + '" data-fvk="' + m.k + '" title="' + esc(IC.mkLabel(m.k) + ': ' + m.n) + '"><span class="fvn num">' + m.n + '</span><span class="fvbar" style="height:' + Math.max(3, 100 * m.n / max).toFixed(0) + '%"></span><span class="fvm">' + esc(IC.mkLabel(m.k, true)) + '</span></button>').join('') + '</div></section>';
+  }
   // What needs a manager today, at the top of the overview: each item says what and opens the screen that handles it.
   function attentionStrip() {
     const ds = S.ds, items = [];
@@ -1098,7 +1122,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   // Metric options for a manager's own decision: clinic-wide metrics, then per treatment line and per dentist.
   function metricOptions(selected) {
     const ds = S.ds, o = (v, l) => '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(l) + '</option>';
-    const clinic = ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
+    const clinic = ['new_patients', 'production', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
     let h = '<optgroup label="' + L('Clinic', 'Clínica') + '">' + clinic.map((t) => o(t, IC.METRICS[t].label)).join('') + '</optgroup>';
     if (ds.lineCats.length) h += '<optgroup label="' + L('Treatment line', 'Línea de tratamiento') + '">' + ds.lineCats.map((c) => o('line_production|' + c, IC.metricLabel({ type: 'line_production', line: c }))).join('') + '</optgroup>';
     const dents = ds.profs.filter((p) => !IC.isHygienist(p));
@@ -1129,7 +1153,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (kind === 'line') return line ? 'line_production|' + line : 'production';
     if (kind === 'dentist') { const p = ds.profs.find((x) => (nrm(x).match(/[a-z]+/g) || []).some((w) => w.length > 3 && t.includes(w))); return p ? 'dentist_production|' + p : 'production'; }
     if (kind === 'risk') return IC.pendingReport(ds) ? 'pending_old' : 'unearned';
-    if (kind === 'margin') return 'margin_pct';
+    if (kind === 'margin') return 'production'; // no cost data: margin is not followed for now
     return 'production';
   }
   function buildMetric(v) {
@@ -1139,7 +1163,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   }
   // Every figure a decision can be followed with, for the AI to choose from.
   function metricChoices() {
-    const ds = S.ds, out = ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
+    const ds = S.ds, out = ['new_patients', 'production', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
     ds.lineCats.forEach((c) => out.push('line_production|' + c));
     ds.profs.filter((p) => !IC.isHygienist(p)).forEach((p) => out.push('dentist_production|' + p));
     return out.map((v) => ({ value: v, label: buildMetric(v).label }));
@@ -1292,6 +1316,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (t.dataset.logdone) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Enter in MN the ' + t.dataset.logdone + ' pending lines the daily sheets show as done', 'Introducir en MN las ' + t.dataset.logdone + ' líneas pendientes que los partes dan por hechas') } }; render(); window.scrollTo(0, 0); lfReviewNote(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
+    if (t.dataset.fvk) { S.k = Number(t.dataset.fvk); render(); return; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
     if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); reviewNote('f'); return; }
     if (t.dataset.review) { S.open = { decId: t.dataset.review }; render(); return; }
@@ -1643,7 +1668,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
       '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number; write them as "Nº 1234". Never ask for or guess personal data. The manager\'s screen shows each patient\'s name next to the number, so refer to patients only by "Nº".\n' +
       '- Names typed by the manager reach you already turned into numbers. "[3 pacientes: Nº 12, Nº 40, Nº 77]" means the name typed matches several patients: call get_patient for each (at most 8), say in one line per patient what sets them apart (last visit, what they have pending) and ask which one the manager means, unless the question clearly covers all of them. "[N pacientes con ese nombre]" means too many matches: ask for the surname.\n' +
-      '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not.\n' +
+      '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not. The first visit is free; some first visits include a cleaning or filling paid that day.\n' +
+      '- When first visits or a treatment line fall, propose concrete, low-cost marketing actions suited to a clinic in a town of about 30,000 people (an Instagram Reels giveaway, Google reviews, a referral reward, calling open quotes, a financing offer for orthodontics or implants), and say how each would be measured.\n' +
       '- Daily sheets: each doctor\'s tab holds the base of the dentist\'s share (40% of it plus fixed specials such as implants); the PRODUCCION tab holds the clinic\'s production, with implants and prosthesis at full value, so the two differ on purpose. Pending production: payments are recorded in MN but the work done is not (reception writes it in the daily sheets), so the accountant treats the whole MN list as accepted and partly performed (reception often forgets the acceptance tick); lines older than six months are the most likely to be work done but not yet entered in MN.\n' +
       '- Answer in ' + (IC.getLang() === 'es' ? 'Spanish (Spain)' : 'English') + ' unless the question is in another language. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
       'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
