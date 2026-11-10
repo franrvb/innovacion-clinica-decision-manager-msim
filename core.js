@@ -903,7 +903,9 @@
         const lastCol = pick(r, ['fecha ultima actuacion']), nextCol = pick(r, ['f proxima actuacion', 'fecha proxima actuacion']);
         ds.patients.push({ id, first: parseDay(pick(r, ['fecha alta', 'alta'])), age: parseNum(pick(r, ['edad', 'age'])) || null,
           last: lastCol === undefined ? undefined : parseDay(lastCol), next: nextCol === undefined ? undefined : parseDay(nextCol),
-          state: txt(pick(r, ['estado'])), baja: parseDay(pick(r, ['fecha baja'])) });
+          state: txt(pick(r, ['estado'])), baja: parseDay(pick(r, ['fecha baja'])),
+          paid: ((v) => (v === undefined || v === '' ? undefined : parseNum(v)))(pick(r, ['total cobrado', 'total cobro'])),
+          billed: ((v) => (v === undefined || v === '' ? undefined : parseNum(v)))(pick(r, ['total facturado'])) });
       });
       if (t.kind === 'parte') t.rows.forEach((r) => {
         const day = parseDay(pick(r, ['fecha'])), id = pid(r); if (day == null || id == null) return;
@@ -1235,6 +1237,44 @@
     return { files: ds.patients.length, active12, active24, noVisit, withNext, bajas, recall, recallN: recall.length, ytd, months, fromExport };
   }
 
+  // One patient's file, by number: everything the loaded data holds about that patient, for the assistant.
+  // Numbers and figures only; the name is never part of it (the screen adds it from the key).
+  function patientDetail(ds, id, risk) {
+    const pid = Number(id), asOf = ds.asOf;
+    if (!pid) return { found: false, note: 'Give a patient number.' };
+    const p = ds.patients.find((x) => x.id === pid) || null;
+    const x = ds.by.get(pid) || { appts: [], lines: [], pays: [] };
+    const P = ds.partes || { lines: [], pays: [] };
+    const sheet = P.lines.filter((l) => l.pid === pid && l.src !== 'produccion').sort((a, b) => a.day - b.day);
+    const onAccount = P.pays.filter((q) => q.pid === pid).sort((a, b) => a.day - b.day);
+    const pend = (ds.pending || []).filter((q) => q.pid === pid).sort((a, b) => a.day - b.day);
+    if (!p && !x.appts.length && !x.lines.length && !x.pays.length && !sheet.length && !pend.length) return { patient: pid, found: false, note: 'No data for this patient number in the files loaded.' };
+    const sum = (a, f) => a.reduce((s, v) => s + (f(v) || 0), 0);
+    const d = (n) => (n == null ? null : iso(n));
+    const done = x.lines.filter((l) => l.status === 'Realizado').sort((a, b) => (a.done || 0) - (b.done || 0));
+    const open = x.lines.filter((l) => l.status === 'Pendiente');
+    const past = x.appts.filter((a) => a.day <= asOf), future = x.appts.filter((a) => a.day > asOf);
+    const seen = past.filter((a) => a.status === ST.DONE);
+    const byLine = {}; done.forEach((l) => { const c = l.cat || 'Sin clasificar'; byLine[c] = (byLine[c] || 0) + l.price; });
+    const r = (risk || []).find((q) => q.patient === pid);
+    const pendingIn = (ds.pending || []).length ? (ds.pending.some((q) => q.pid != null) ? 'by patient' : 'no patient column') : 'not loaded';
+    return {
+      patient: pid, found: true, dataUpTo: d(asOf),
+      file: p ? { registered: d(p.first), age: p.age, state: p.state || null, discharged: d(p.baja), lastVisitInMN: p.last === undefined ? undefined : d(p.last), nextVisitInMN: p.next === undefined ? undefined : d(p.next), totalCollectedInMN: p.paid, totalBilledInMN: p.billed } : null,
+      visits: { past: past.length, lost: past.filter((a) => isLost(a.status)).length, lastSeen: seen.length ? d(seen[seen.length - 1].day) : null,
+        upcoming: future.slice(0, 5).map((a) => ({ date: d(a.day), doctor: a.prof, reason: a.desc })),
+        recent: past.slice(-8).map((a) => ({ date: d(a.day), doctor: a.prof, reason: a.desc, outcome: a.status })) },
+      treatmentsDone: { count: done.length, value: sum(done, (l) => l.price), byLine, recent: done.slice(-10).map((l) => ({ date: d(l.done), treatment: l.name, line: l.cat, value: l.price, doctor: l.prof })) },
+      treatmentsAcceptedNotDone: { count: open.length, value: sum(open, (l) => l.price), items: open.slice(0, 10).map((l) => ({ accepted: d(l.accept), treatment: l.name, value: l.price })) },
+      payments: { count: x.pays.length, total: sum(x.pays, (q) => q.amount), recent: x.pays.slice(-10).map((q) => ({ date: d(q.day), amount: q.amount, method: q.method, concept: q.concept })) },
+      dailySheets: { lines: sheet.length, done: sum(sheet, (l) => l.realizada), collected: sum(sheet, (l) => l.cobrado), recent: sheet.slice(-12).map((l) => ({ date: d(l.day), doctor: l.doctor, text: l.desc, done: l.realizada, collected: l.cobrado, method: l.fp, line: l.line || cleanText(l.desc).line || null })),
+        paymentsOnAccount: onAccount.map((q) => ({ date: d(q.day), concept: q.concept, line: q.code || null, method: q.method, amount: q.total })) },
+      pendingProduction: pendingIn === 'by patient' ? { lines: pend.length, amount: sum(pend, (q) => q.amount), items: pend.slice(0, 10).map((q) => ({ date: d(q.day), treatment: q.desc, amount: q.amount, quote: q.budget || null })) }
+        : { available: false, note: pendingIn === 'not loaded' ? 'No pending list loaded.' : 'The pending list loaded has no patient number column, so it cannot be split by patient.' },
+      followUpRisk: r ? { probability: r.probability, tier: r.tier, acceptedNotDone: r.pending, paidNotDone: r.prepaid, daysSinceVisit: r.daysSinceVisit, booked: r.booked, reasons: r.reasons } : null
+    };
+  }
+
   // ---------- Reading the clinic's files: MN exports and reception's daily sheets ----------
   // sheets: [{ name, aoa }] with each sheet as rows of cells (dates as Date, "YYYY-MM-DD" or Excel serials).
   // Daily sheets carry patient names: they are taken out of the data and returned apart as a key (number ->
@@ -1329,7 +1369,7 @@
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
     keyFromRows, sampleNames,
-    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, tablesFromSheets, up
+    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, patientDetail, tablesFromSheets, up
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);

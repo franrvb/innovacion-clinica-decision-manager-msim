@@ -99,6 +99,7 @@ td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space:
 .pass-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .pass-row input { flex: 1 1 160px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
 .sent-as { font-size: 12px; color: var(--ink-2); margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
+.sent-as.pick .chip { margin: 4px 4px 0 0; color: var(--ink); cursor: pointer; font-size: 12px; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.high { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 .pill.medium { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
@@ -383,44 +384,92 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   const pat = (id) => { const n = nameOf(id); return (n ? '<span class="pname">' + esc(n) + '</span>' : '') + '<span class="pid">Nº ' + esc(id) + '</span>'; };
   // Adds names to the assistant's answer on screen (the stored conversation keeps numbers only).
   const withNames = (html) => keyActive() ? html.replace(/Nº\s?(\d+)/g, (m, id) => { const n = KEY.map.get(Number(id)); return n ? '<span class="pname">' + esc(n) + '</span>' + m : m; }) : html;
-  // The reverse direction: a name typed in a question is replaced by the patient's number before the
-  // question leaves the browser. A match needs at least two consecutive words of one patient's name
-  // (e.g. "Ana Ruiz"); joining words such as "de la" never count on their own. If several patients
-  // share those words, the name is replaced by a neutral placeholder instead, so it is never sent.
-  const STOPW = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'i', 'da', 'do', 'dos', 'van', 'von', 'san', 'santa']);
+  // The reverse direction: a name typed in a question is replaced by patient numbers before the question
+  // leaves the browser, so the assistant never receives a name.
+  // - Full or partial names ("Ana Ruiz", "ana ruiz garcia") match every patient whose name holds those words.
+  // - A single word ("María", "maría", "García") matches every patient with that first name or surname.
+  // - Typing slips are tolerated: one letter wrong, missing, extra or swapped in words of 5+ letters (two
+  //   in words of 9+), as long as a run of two or more words has at least one exact word, or the single
+  //   word is typed with a capital ("Mraía" still finds the Marías; "cobro" never finds "Cobo").
+  // - Joining words ("de la") never count on their own; the dentists' names, the app's own vocabulary and
+  //   everyday words that are also names ("rosa", "mayo") need a capital to count as a name on their own.
+  // One patient -> "Nº 1234"; several -> "[3 pacientes: Nº 12, Nº 40, Nº 77]"; more than 25 -> a count only.
+  const STOPW = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'i', 'e', 'da', 'do', 'dos', 'van', 'von', 'san', 'santa']);
   const nrm = (s) => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
-  function keyPairs() {
-    if (KEY.idx && KEY.idx.map === KEY.map) return KEY.idx.pairs;
-    const pairs = new Map();
-    KEY.map.forEach((name, id) => {
-      const t = nrm(name).match(/[a-z]+/g) || [];
-      for (let i = 1; i < t.length; i++) { const k = t[i - 1] + ' ' + t[i]; let s = pairs.get(k); if (!s) { s = new Set(); pairs.set(k, s); } s.add(id); }
-    });
-    KEY.idx = { map: KEY.map, pairs };
-    return pairs;
+  const APP_WORDS = new Set(('paciente pacientes doctor doctora doctores dentista dentistas clinica recepcion produccion producido producida cobro cobros cobrado cobrada pago pagos pagado pagada pendiente pendientes ' +
+    'tratamiento tratamientos linea lineas limpieza limpiezas implante implantes corona coronas ortodoncia protesis puente puentes empaste empastes endodoncia extraccion revision revisiones consulta consultas urgencia urgencias ' +
+    'cita citas agenda presupuesto presupuestos riesgo llamada llamadas margen coste costes total media mes meses semana semanas dia dias ano anos hoy ayer manana resumen decision decisiones recomendacion recomendaciones ' +
+    'enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre lunes martes miercoles jueves viernes sabado domingo cuanto cuanta cuantos cuantas quien quienes como cual cuales que donde cuando ' +
+    'prueba entrega ferula ferulas brackets aligner invisalign medidas provisional definitivo seguro seguros adeslas financiado financiacion tarjeta efectivo transferencia').split(' '));
+  const COMMON_WORDS = new Set(('rosa rosario luz paz sol cruz mar nieves gloria victoria esperanza consuelo amparo fe angeles dolores mercedes pilar rocio socorro remedios milagros blanco blanca moreno rubio calvo bravo delgado ' +
+    'leal prado campo campos rey reyes toro leon pastor santos salud gracia castillo iglesias molina vega rios fuentes torres flores sierra montes marin nieto pino robles cano soto lobo crespo gallego serrano franco alegre ' +
+    'bueno sola solo alto baja bajo medina villa casas mayor menor nuevo nueva lozano parra navarro herrero carretero pena gil').split(' '));
+  function editDist(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev2 = null, prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let low = i;
+      for (let j = 1; j <= b.length; j++) {
+        let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+        cur.push(v); if (v < low) low = v;
+      }
+      if (low > max) return max + 1;
+      prev2 = prev; prev = cur;
+    }
+    return prev[b.length];
   }
-  function namesToNumbers(q) {
-    if (!KEY.map) return { text: q, swapped: 0, unclear: 0 };
-    const pairs = keyPairs();
+  function keyIndex() {
+    if (!(KEY.idx && KEY.idx.map === KEY.map)) {
+      const tok = new Map();
+      KEY.map.forEach((name, id) => { (nrm(name).match(/[a-z]+/g) || []).forEach((t) => { if (STOPW.has(t)) return; let s = tok.get(t); if (!s) { s = new Set(); tok.set(t, s); } s.add(id); }); });
+      KEY.idx = { map: KEY.map, tok, words: Array.from(tok.keys()), ds: null, staff: new Set() };
+    }
+    const X = KEY.idx;
+    if (X.ds !== S.ds) { // the dentists' names in the data loaded: never a patient on their own
+      const staff = new Set(), add = (n) => (nrm(n || '').match(/[a-z]+/g) || []).forEach((t) => staff.add(t));
+      if (S.ds) { (S.ds.profs || []).forEach(add); new Set((S.ds.appts || []).map((a) => a.prof)).forEach(add); new Set(((S.ds.partes && S.ds.partes.lines) || []).map((l) => l.doctor)).forEach(add); }
+      X.staff = staff; X.ds = S.ds;
+    }
+    return X;
+  }
+  function nameWord(X, w, fuzzy) {
+    const exact = X.tok.get(w); if (exact) return { ids: exact, exact: true };
+    if (!fuzzy || w.length < 5) return null;
+    const max = w.length >= 9 ? 2 : 1, ids = new Set();
+    for (const t of X.words) if (Math.abs(t.length - w.length) <= max && t[0] === w[0] && editDist(w, t, max) <= max) X.tok.get(t).forEach((id) => ids.add(id));
+    return ids.size ? { ids, exact: false } : null;
+  }
+  function namesToNumbers(q, opts) {
+    if (!KEY.map) return { text: q, swapped: 0, unclear: 0, matches: [] };
+    const strict = !!(opts && opts.strict), X = keyIndex();
     const toks = []; const re = /\p{L}+/gu; let m;
-    while ((m = re.exec(q))) toks.push({ w: nrm(m[0]), a: m.index, b: m.index + m[0].length });
-    let out = '', last = 0, swapped = 0, unclear = 0;
+    while ((m = re.exec(q))) toks.push({ w: nrm(m[0]), a: m.index, b: m.index + m[0].length, cap: /^\p{Lu}\p{Ll}/u.test(m[0]) });
+    const alone = (t) => t.w.length >= 3 && (t.cap || (!APP_WORDS.has(t.w) && !X.staff.has(t.w) && !COMMON_WORDS.has(t.w)));
+    let out = '', last = 0, swapped = 0, unclear = 0; const matches = [];
     for (let i = 0; i < toks.length; i++) {
       if (STOPW.has(toks[i].w)) continue;
-      let cand = null, j = i;
-      while (j + 1 < toks.length) {
-        const s = pairs.get(toks[j].w + ' ' + toks[j + 1].w); if (!s) break;
-        const next = cand ? new Set([...cand].filter((x) => s.has(x))) : new Set(s);
+      let cand = null, words = 0, exact = 0, end = i;
+      for (let k = i; k < toks.length; k++) {
+        const t = toks[k];
+        if (k > i && /[^\s\-'’]/.test(q.slice(toks[k - 1].b, t.a))) break; // punctuation ends a name
+        if (STOPW.has(t.w)) continue;
+        const hit = nameWord(X, t.w, true); if (!hit) break;
+        const next = cand ? new Set([...cand].filter((x) => hit.ids.has(x))) : new Set(hit.ids);
         if (!next.size) break;
-        cand = next; j++;
+        cand = next; words++; if (hit.exact) exact++; end = k;
       }
-      while (j > i && STOPW.has(toks[j].w)) j--;
-      if (!cand || toks.slice(i, j + 1).filter((t) => !STOPW.has(t.w)).length < 2) continue;
-      out += q.slice(last, toks[i].a) + (cand.size === 1 ? 'Nº ' + [...cand][0] : L('[several patients]', '[varios pacientes]'));
-      if (cand.size === 1) swapped++; else unclear++;
-      last = toks[j].b; i = j;
+      if (!cand) continue;
+      const t0 = toks[i];
+      const ok = words >= 2 ? exact >= 1 : !strict && alone(t0) && (exact === 1 || (t0.cap && t0.w.length >= 5));
+      if (!ok) continue;
+      const ids = [...cand].sort((a, b) => a - b), n = ids.length;
+      const rep = n === 1 ? 'Nº ' + ids[0] : n <= 25 ? '[' + n + L(' patients: ', ' pacientes: ') + ids.map((x) => 'Nº ' + x).join(', ') + ']' : '[' + n + L(' patients with that name]', ' pacientes con ese nombre]');
+      if (n === 1) swapped++; else unclear++;
+      matches.push({ text: q.slice(t0.a, toks[end].b), ids });
+      out += q.slice(last, t0.a) + rep; last = toks[end].b; i = end;
     }
-    return { text: out + q.slice(last), swapped, unclear };
+    return { text: out + q.slice(last), swapped, unclear, matches };
   }
   function namesBtn() {
     const b = $('#namesBtn'); const on = !!KEY.map;
@@ -803,7 +852,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const sample = await getSample();
     if (!sample) { S.aiMsg = L('The AI suggestion works when the app is opened on claude.ai.', 'La propuesta con IA funciona cuando la app se abre en claude.ai.'); render(); return; }
     S.aiBusy = true; S.aiMsg = ''; render();
-    const items = R.queue.map((q) => ({ key: q.key, text: namesToNumbers(q.text).text.replace(/Nº\s?\d+/g, '[paciente]') }));
+    const items = R.queue.map((q) => ({ key: q.key, text: namesToNumbers(q.text, { strict: true }).text.replace(/\[\d+ pa(?:tients|cientes)[^\]]*\]|Nº\s?\d+/g, '[paciente]') }));
     const prompt = 'You classify short free-text notes written by the reception of a Spanish dental clinic in its daily sheets. Lines: G (general dentistry: check-ups, cleanings, fillings, root canals, extractions, x-rays, whitening), O (orthodontics: brackets, aligners, retainers), PF (fixed prosthesis: crowns, bridges, fixed prostheses on implants, night guards), PR (removable prosthesis: dentures and their repairs), IM (implants, implant surgery, bone grafts), NONE (not a treatment: notes, complaints, no-shows, payments). If the note is only a step of some treatment (a try-in "prueba", a delivery "entregar", "definitivo", taking impressions "medidas") and the line cannot be known without more context, answer "?". Answer only with JSON, an array like [{"i":0,"line":"PF","why":"motivo breve en español"}].\nNotes:\n' + items.map((x, i) => i + ': ' + x.text).join('\n');
     try {
       const res = await sample(prompt, { modelTier: 'quick', cache: false });
@@ -1339,15 +1388,18 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       execute: () => { const Q = IC.pendingReport(S.ds); if (!Q) return { available: false, note: 'No pending list loaded.' }; return round({ asOf: IC.iso(Q.asOf), total: Q.total, lines: Q.n, quotes: Q.budgets, olderThan6Months: Q.oldAmount, linesOlderThan6Months: Q.old.length, byAgeMonths: Q.buckets.map((b, i) => ({ band: ['0-3', '3-6', '6-12', '12+'][i], lines: b.n, amount: b.amount })), byLine: Q.byLine, top20QuotesShare: Q.top20Share, topQuotes: Q.topBudgets.map((b) => ({ quote: b.budget, lines: b.n, amount: b.amount, since: IC.iso(b.first) })), oldestLargest: Q.old.slice(0, 10).map((x) => ({ date: IC.iso(x.day), treatment: x.desc, quote: x.budget, amount: x.amount })), recordedInMN: { acceptedTickShareOfAmount: Q.flags.acceptedShare, doctorShareOfLines: Q.flags.userShare, linkedPaymentShareOfLines: Q.flags.collectedShare, contactSourceShareOfLines: Q.flags.sourceShare } }); } },
     { name: 'get_patient_base', description: 'Patient files: how many, seen in the last 12 and 24 months, with no visit recorded, with a next appointment, due a recall (seen in 12 months without an appointment), discharged, and new files per month with this year to date against the same months a year earlier.', inputSchema: { type: 'object', properties: {} },
       execute: () => { const B = IC.patientBase(S.ds); if (!B) return { available: false }; return round({ files: B.files, seenLast12Months: B.active12, seenLast24Months: B.active24, noVisitRecorded: B.noVisit, withNextAppointment: B.withNext, dueRecall: B.recallN, discharged: B.bajas, newFilesYearToDate: B.ytd.cur, newFilesSameMonthsLastYear: B.ytd.prev, change: B.ytd.change, newFilesByMonth: B.months.map((m) => ({ month: IC.mkShortYear(m.k), n: m.n })) }); } },
+    { name: 'get_patient', description: 'Everything the loaded data holds about ONE patient, by patient number: file (registration, last and next visit, totals collected and billed recorded in MN), visits and lost visits, treatments done (by line) and accepted but not done, payments, daily-sheet lines and payments on account, pending production lines, and follow-up risk. Use it whenever the question is about a specific patient ("Nº 1234"); call it once per patient.', inputSchema: { type: 'object', properties: { patient: { type: 'integer', description: 'Patient number, without "Nº"' } }, required: ['patient'] },
+      execute: (i) => round(IC.patientDetail(S.ds, i && i.patient, S.risk)) },
     { name: 'get_definitions', description: 'Exact definitions of every metric used in the app.', inputSchema: { type: 'object', properties: {} }, execute: () => IC.DEFINITIONS }
   ];
   function instructions() {
     return 'You are the analysis assistant inside the management app of Innovación Clínica, a dental clinic in Valdepeñas (Spain). You talk to the clinic\'s managers.\n' +
       'Rules:\n- Get every figure from the tools. Never estimate, compute new totals from memory, or invent numbers. If the tools cannot answer, say so.\n' +
       '- Say which period and definition each number uses. Amounts are in euros.\n- Present causes as hypotheses supported by the data you retrieved, and say what would confirm them.\n' +
-      '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number; write them as "Nº 1234". Never ask for or guess personal data.\n' +
+      '- When useful, end with one concrete decision the manager could take. The manager decides.\n- Patients are identified only by number; write them as "Nº 1234". Never ask for or guess personal data. The manager\'s screen shows each patient\'s name next to the number, so refer to patients only by "Nº".\n' +
+      '- Names typed by the manager reach you already turned into numbers. "[3 pacientes: Nº 12, Nº 40, Nº 77]" means the name typed matches several patients: call get_patient for each (at most 8), say in one line per patient what sets them apart (last visit, what they have pending) and ask which one the manager means, unless the question clearly covers all of them. "[N pacientes con ese nombre]" means too many matches: ask for the surname.\n' +
       '- Context from the managers: reception marks lost appointments in red without telling cancellations from no-shows; first visits are not asked how they found the clinic; Instagram giveaways brought patients, flyer discounts did not.\n' +
-      '- Daily sheets: each doctor\'s tab holds the base of the dentist\'s share (40% of it plus fixed specials such as implants); the PRODUCCION tab holds the clinic\'s production, with implants and prosthesis at full value, so the two differ on purpose. Pending production: the accountant treats the whole MN list as accepted and paid because reception often forgets the acceptance tick; lines older than six months are the most likely to be work done but not entered in MN.\n' +
+      '- Daily sheets: each doctor\'s tab holds the base of the dentist\'s share (40% of it plus fixed specials such as implants); the PRODUCCION tab holds the clinic\'s production, with implants and prosthesis at full value, so the two differ on purpose. Pending production: payments are recorded in MN but the work done is not (reception writes it in the daily sheets), so the accountant treats the whole MN list as accepted and partly performed (reception often forgets the acceptance tick); lines older than six months are the most likely to be work done but not yet entered in MN.\n' +
       '- Answer in ' + (IC.getLang() === 'es' ? 'Spanish (Spain)' : 'English') + ' unless the question is in another language. Be brief: a few short paragraphs or bullets. Use **bold** sparingly. No tables.\n' +
       'Data loaded: ' + S.ds.label + ', up to ' + IC.iso(S.ds.asOf) + '. Month on screen: ' + IC.mkLabel(S.k) + ' (' + Math.floor(S.k / 12) + '-' + String(S.k % 12 + 1).padStart(2, '0') + '). Latest complete month: ' + IC.mkLabel(S.ds.lastMonth) + '.';
   }
@@ -1375,6 +1427,14 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const typed = q, sent = namesToNumbers(q); q = sent.text;
     const userEl = addMsg('user', typed);
     if (sent.swapped || sent.unclear) { const n = document.createElement('div'); n.className = 'sent-as'; n.textContent = L('Sent to the assistant as: ', 'Enviado al asistente como: ') + q; userEl.appendChild(n); }
+    // Several patients for one name: list them here (names stay on this screen) so the manager can pick one.
+    sent.matches.filter((m) => m.ids.length > 1).forEach((m) => {
+      const box = document.createElement('div'); box.className = 'sent-as pick';
+      const shown = m.ids.map((id) => ({ id, name: KEY.map.get(id) || '' })).sort((a, b) => a.name.localeCompare(b.name, 'es')).slice(0, 12);
+      box.innerHTML = esc('«' + m.text + '» ' + L('matches ' + m.ids.length + ' patients', 'coincide con ' + m.ids.length + ' pacientes') + (m.ids.length > 12 ? L(' (first 12):', ' (primeros 12):') : ':')) + ' ' +
+        shown.map((x) => '<button type="button" class="chip pick-pt" data-q="' + esc(typed.replace(m.text, x.name)) + '">' + esc(x.name) + ' · Nº ' + x.id + '</button>').join(' ');
+      userEl.appendChild(box);
+    });
     const bubble = addMsg('bot', L('Looking at the data…', 'Mirando los datos…'));
     const sample = await getSample();
     if (!sample) { bubble.innerHTML = md(L('The assistant works when this app is opened on claude.ai.', 'El asistente funciona cuando la app se abre en claude.ai.')); S.busy = false; return; }
@@ -1402,6 +1462,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   });
   $('#chatClose').addEventListener('click', () => { $('#chat').hidden = true; });
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) ask(b.textContent); });
+  $('#chatLog').addEventListener('click', (e) => { const b = e.target.closest('.pick-pt'); if (b && !S.busy) ask(b.dataset.q); });
   $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const q = $('#chatIn').value; $('#chatIn').value = ''; ask(q); });
   $('#chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#chat').hidden = true; $('#imp').hidden = true; $('#unlock').hidden = true; $('#fb').hidden = true; } });
