@@ -176,6 +176,33 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .seg button { border: 0; background: none; padding: 7px 12px; font-weight: 600; color: var(--ink-2); }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+/* Decision log: quick form, states, one-tap result */
+.seg.chips { flex-wrap: wrap; }
+.seg.chips button + button, .dec-filter button + button { border-left: 1px solid var(--line); }
+.quicklog { gap: 14px; }
+.quicklog .big { display: grid; gap: 6px; font-weight: 700; font-size: 14px; }
+.quicklog .big input { font-size: 17px; padding: 12px 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--bg); }
+.ql-step { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 10px; }
+.ql-lbl { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.ql-step select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); max-width: 420px; }
+.kind-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kind-grid button { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; cursor: pointer; }
+.kind-grid button b { font-size: 13px; }
+.kind-grid button small { font-size: 11.5px; color: var(--ink-2); }
+.kind-grid button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.ql-preview { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 14px; }
+.dec-filter .n { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 5px; border-radius: 9px; background: var(--line); font-size: 11px; text-align: center; }
+.due-banner { margin: 0; padding: 10px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--warn) 16%, transparent); font-weight: 600; }
+.dec-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rec.dec-due { border-color: var(--warn); }
+.rec.dec-rejected { opacity: .75; }
+.verdict { display: grid; grid-template-columns: auto auto minmax(160px, 1fr); align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.verdict-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.verdict .v-ok:hover, .verdict.due .v-ok { border-color: var(--good); color: var(--good); }
+.verdict .v-medium:hover, .verdict.due .v-medium { border-color: var(--warn); color: var(--warn); }
+.verdict .v-high:hover, .verdict.due .v-high { border-color: var(--bad); color: var(--bad); }
+.v-note { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); min-width: 0; }
+@media (max-width: 700px) { .kind-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ql-step { grid-template-columns: minmax(0, 1fr); } .verdict { grid-template-columns: minmax(0, 1fr); } }
 .stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--accent-soft); }
 .stack span { display: block; height: 100%; }
 .st-rules { background: var(--accent); } .st-dict { background: var(--accent-ink); } .st-context { background: #6aa9c9; } .st-form { background: var(--good); }
@@ -2399,18 +2426,68 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (dents.length) h += '<optgroup label="' + L('Dentist', 'Odontólogo') + '">' + dents.map((p) => o('dentist_production|' + p, IC.metricLabel({ type: 'dentist_production', prof: p }))).join('') + '</optgroup>';
     return h;
   }
+  // ---------- Quick decision log: one sentence, everything else pre-filled and changed with one tap ----------
+  const OWNERS = () => [[L('CEO', 'CEO'), L('CEO', 'CEO')], [L('Owner-dentist', 'Dentista propietario'), L('Owner-dentist', 'Dentista propietario')], [L('Accountant', 'Contable'), L('Accountant', 'Contable')]];
+  const REVIEWS = () => [['30', L('1 month', '1 mes')], ['61', L('2 months', '2 meses')], ['91', L('3 months', '3 meses')]];
+  const KIND_HINT = () => ({ acq: L('e.g. Instagram giveaway, Google ads', 'p. ej. sorteo en Instagram, anuncios'), pricing: L('e.g. 10% off implants', 'p. ej. 10 % en implantes'), dentist: L('e.g. hire, change hours', 'p. ej. contratar, cambiar horario'),
+    line: L('e.g. push orthodontics', 'p. ej. impulsar ortodoncia'), risk: L('e.g. call patients, reconcile pending', 'p. ej. llamar pacientes, cuadrar pendiente'), margin: L('e.g. change lab, supplier', 'p. ej. cambiar de laboratorio') });
+  const chipGroup = (name, opts, cur) => '<div class="seg chips" role="group" data-group="' + name + '">' + opts.map(([v, l]) => '<button type="button" data-chip="' + esc(v) + '" aria-pressed="' + (String(v) === String(cur)) + '">' + esc(l) + '</button>').join('') + '</div>';
+  const chipVal = (name) => { const b = document.querySelector('[data-group="' + name + '"] [aria-pressed="true"]'); return b ? b.dataset.chip : ''; };
+  const KIND_WORDS = [['risk', /llamar|llamada|seguimiento|pendiente|cuadrar|recordatorio|whatsapp|\bsms\b|recuperar|abandon|call|follow|reconcil/],
+    ['acq', /instagram|facebook|google|anuncio|publicidad|marketing|flyer|folleto|sorteo|campan|redes|resena|\bweb\b|radio|captar|tiktok|ads?\b/],
+    ['pricing', /precio|descuento|promo|oferta|tarifa|financia|gratis|price|discount/],
+    ['dentist', /contrat|doctor|doctora|dentista|odontolog|horario|jornada|turno|higienista|personal|hire|staff/],
+    ['margin', /coste|costo|proveedor|laboratorio|material|gasto|ahorr|compra|cost|supplier|lab\b/],
+    ['line', /implant|ortodon|aligner|invisalign|bracket|protesis|blanque|limpieza|endodon|estetic|carilla|corona/]];
+  const LINE_WORDS = [[/implant/, 'impl'], [/ortodon|aligner|invisalign|bracket|orto\b/, 'orto'], [/protesis fija|corona|puente|fija/, 'fija'], [/protesis|dentadura|removible|esquelet/, 'remov'], [/limpieza|higiene|periodon/, 'higi'], [/endodon|empaste|general|conservadora/, 'gener']];
+  function guessKind(text) { const t = nrm(text); const hit = KIND_WORDS.find(([, re]) => re.test(t)); return hit ? hit[0] : null; }
+  function guessMetric(kind, text) {
+    const ds = S.ds, t = nrm(text || '');
+    const line = (() => { const w = LINE_WORDS.find(([re]) => re.test(t)); return w ? ds.lineCats.find((c) => nrm(c).includes(w[1])) : null; })();
+    if (kind === 'acq') return 'new_patients';
+    if (kind === 'pricing') return line ? 'line_production|' + line : 'production';
+    if (kind === 'line') return 'line_production|' + (line || ds.lineCats[0] || '');
+    if (kind === 'dentist') { const p = ds.profs.find((x) => (nrm(x).match(/[a-z]+/g) || []).some((w) => w.length > 3 && t.includes(w))); return p ? 'dentist_production|' + p : 'production'; }
+    if (kind === 'risk') return IC.pendingReport(ds) ? 'pending_old' : 'unearned';
+    if (kind === 'margin') return 'margin_pct';
+    return 'production';
+  }
+  function buildMetric(v) {
+    const [type, param] = String(v).split('|'), base = IC.METRICS[type];
+    const metric = { type, fmt: base.fmt, better: base.better }; if (base.param) metric[base.param] = param;
+    metric.label = IC.metricLabel(metric); return metric;
+  }
+  const expOpts = (metric) => metric.better === 'down' ? [['', L('No target', 'Sin objetivo')], ['-0.1', '−10 %'], ['-0.2', '−20 %'], ['-0.3', '−30 %']] : [['', L('No target', 'Sin objetivo')], ['0.05', '+5 %'], ['0.1', '+10 %'], ['0.2', '+20 %']];
   function logForm() {
     const p = (S.open && S.open.preset) || {};
-    const kinds = KIND_KEYS.filter((k) => k !== 'risk' || p.kind === 'risk');
-    return '<section class="card form-card"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2><p class="def">' + L('Record a decision you have taken, what you expect, and how to measure it. The app compares the three months before with the months after.', 'Anota una decisión que hayáis tomado, qué esperáis y cómo medirla. La app compara los tres meses anteriores con los posteriores.') + '</p><div class="form">' +
-      '<label>' + L('What did you decide?', '¿Qué habéis decidido?') + '<input id="lTitle" value="' + esc(p.title || '') + '" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
-      '<div class="row"><label>' + L('Type of decision', 'Tipo de decisión') + '<select id="lKind">' + kinds.map((k) => '<option value="' + k + '"' + (k === p.kind ? ' selected' : '') + '>' + esc(kindLabel(k)) + '</option>').join('') + '</select></label>' +
-      '<label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label></div>' +
-      '<div class="row"><label>' + L('Measure it by', 'Medir con') + '<select id="lMetric">' + metricOptions(p.metric) + '</select></label>' +
-      '<label>' + L('Expected change (%)', 'Cambio esperado (%)') + '<input id="lExpected" type="number" step="1" placeholder="' + L('e.g. 10 for +10%', 'p. ej. 10 para +10%') + '"></label></div>' +
-      '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="lOwner" placeholder="' + L('e.g. CEO', 'p. ej. Gerencia') + '"></label><label>' + L('Check the result in', 'Revisar el resultado en') + '<select id="lReview"><option value="30">' + L('1 month', '1 mes') + '</option><option value="61" selected>' + L('2 months', '2 meses') + '</option><option value="91">' + L('3 months', '3 meses') + '</option></select></label></div>' +
-      '<label>' + L('Why (optional)', 'Por qué (opcional)') + '<textarea id="lWhy" rows="2"></textarea></label>' +
-      '<div class="actions"><button class="btn primary" data-logsave="1">' + L('Save decision', 'Guardar decisión') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div></section>';
+    const kind = p.kind || '', mv = p.metric || guessMetric(kind, p.title || '');
+    const kinds = KIND_KEYS;
+    return '<section class="card form-card quicklog"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2><p class="def">' + L('Write it in one sentence; the app fills in the rest and you change anything with one tap.', 'Escríbela en una frase; la app rellena el resto y cambias lo que quieras con un toque.') + '</p>' +
+      '<label class="big"><span>' + L('What did you decide?', '¿Qué habéis decidido?') + '</span><input id="lTitle" autocomplete="off" value="' + esc(p.title || '') + '" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
+      '<div class="ql-step"><span class="ql-lbl">' + L('Type', 'Tipo') + '</span><div class="kind-grid" role="group" data-group="lkind">' + kinds.map((k) => '<button type="button" data-chip="' + k + '" aria-pressed="' + (k === kind) + '"><b>' + esc(kindLabel(k)) + '</b><small>' + esc(KIND_HINT()[k]) + '</small></button>').join('') + '</div></div>' +
+      '<div class="ql-step"><span class="ql-lbl">' + L('Measured by', 'Se mide con') + '</span><select id="lMetric">' + metricOptions(mv) + '</select></div>' +
+      '<div class="ql-step"><span class="ql-lbl">' + L('Target', 'Objetivo') + '</span><div id="lExpWrap">' + chipGroup('lexp', expOpts(buildMetric(mv)), '') + '</div></div>' +
+      '<div class="ql-step"><span class="ql-lbl">' + L('Review in', 'Revisar en') + '</span>' + chipGroup('lreview', REVIEWS(), '61') + '</div>' +
+      '<div class="ql-step"><span class="ql-lbl">' + L('Owner', 'Responsable') + '</span>' + chipGroup('lowner', OWNERS(), OWNERS()[0][0]) + '</div>' +
+      '<details class="more"><summary>' + L('More details (optional)', 'Más detalles (opcional)') + '</summary><div class="form"><label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label><label>' + L('Why', 'Por qué') + '<textarea id="lWhy" rows="2"></textarea></label></div></details>' +
+      '<p class="ql-preview" id="lPreview"></p>' +
+      '<div class="actions"><button class="btn primary" data-logsave="1">' + L('Save decision', 'Guardar decisión') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></section>';
+  }
+  // The sentence under the form says exactly what will be saved and from which value it will be measured.
+  function lfPreview() {
+    const el = $('#lPreview'); if (!el) return;
+    const title = $('#lTitle').value.trim(), metric = buildMetric($('#lMetric').value);
+    const day = $('#lDate') && $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
+    const base = baselineFor(metric, IC.iso(day)), exp = chipVal('lexp'), rev = Number(chipVal('lreview') || 61), owner = chipVal('lowner');
+    const target = exp !== '' && base != null ? base * (1 + Number(exp)) : null;
+    el.innerHTML = (title ? '<b>«' + esc(title) + '»</b> · ' : '') + esc(metric.label) + ': ' + L('now ', 'ahora ') + '<b class="num">' + fmt(base, metric.fmt) + '</b>' +
+      (target != null ? ' → ' + L('target ', 'objetivo ') + '<b class="num">' + fmt(target, metric.fmt) + '</b> (' + fmtChange(Number(exp), metric.fmt === 'pct' ? 'eur' : metric.fmt) + ')' : '') +
+      ' · ' + L('review on ', 'revisar el ') + esc(IC.dayLabel(day + rev)) + (owner ? ' · ' + esc(owner) : '');
+  }
+  function lfSetMetric(v) {
+    const sel = $('#lMetric'); if (!sel) return;
+    if (![...sel.options].some((o) => o.value === v)) return;
+    sel.value = v; $('#lExpWrap').innerHTML = chipGroup('lexp', expOpts(buildMetric(v)), '');
   }
   const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
   function evaluationHtml(d) {
@@ -2439,15 +2516,30 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const where = '<p class="note">' + (S.store === 'shared' ? L('The log is shared with everyone who opens this app.', 'El registro se comparte con todos los que abren esta app.') : L('The log is saved in this browser only.', 'El registro se guarda solo en este navegador.')) + (hidden ? L(' ' + hidden + ' decisions taken on other data are not shown.', ' No se muestran ' + hidden + ' decisiones tomadas con otros datos.') : '') + (ds.source === 'sample' ? L(' With sample data, patients marked "Booked" are simulated to come back; real results come from the next MN export.', ' Con datos de ejemplo, los pacientes con "Cita reservada" vuelven en la simulación; los resultados reales llegan con la siguiente exportación de MN.') : '') + ' ' + esc(IC.DEFINITIONS.decisionEvaluation) + '</p>';
     const form = logging ? logForm() : '';
     if (!list.length) return head + form + score + '<div class="empty">' + L('No decisions yet. Log a decision you have taken, or decide on a recommendation.', 'Aún no hay decisiones. Registra una decisión que hayáis tomado o decide sobre una recomendación.') + '</div>' + where;
-    return head + form + score + viewLearned() + list.map((d) => {
-      const due = d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay);
-      const open = S.open && S.open.decId === d.id;
+    // Each decision has one state: due for review, running, closed (result recorded) or rejected.
+    const state = (d) => d.decision === 'Rejected' ? 'rejected' : d.outcome ? 'closed' : ds.asOf >= IC.fromIso(d.reviewDay) ? 'due' : 'running';
+    const counts = { due: 0, running: 0, closed: 0, rejected: 0 }; list.forEach((d) => { counts[state(d)]++; });
+    const f = S.decFilter && (S.decFilter === 'all' || counts[S.decFilter] !== undefined) ? S.decFilter : (counts.due ? 'due' : 'all');
+    const filt = '<div class="seg dec-filter" role="group">' + [['all', L('All', 'Todas'), list.length], ['due', L('Review due', 'Toca revisar'), counts.due], ['running', L('Running', 'En curso'), counts.running], ['closed', L('Closed', 'Cerradas'), counts.closed + counts.rejected]]
+      .map(([k, l, n]) => '<button data-decfilter="' + k + '" aria-pressed="' + (f === k) + '">' + esc(l) + ' <span class="n">' + n + '</span></button>').join('') + '</div>';
+    const shown = list.filter((d) => f === 'all' || (f === 'closed' ? ['closed', 'rejected'].includes(state(d)) : state(d) === f));
+    const pillFor = (d) => {
+      const s = state(d);
+      if (s === 'rejected') return '<span class="pill neutral">' + L('Rejected', 'Rechazada') + '</span>';
+      if (s === 'closed') return '<span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(verdictLabel(d.outcome.verdict)) + '</span>';
+      if (s === 'due') return '<span class="pill medium">' + L('Review due', 'Toca revisar') + '</span>';
+      const left = IC.fromIso(d.reviewDay) - ds.asOf;
+      return '<span class="pill low">' + L('Running · review in ' + left + ' days', 'En curso · revisar en ' + left + ' días') + '</span>';
+    };
+    return head + form + score + (counts.due ? '<p class="due-banner">' + L(counts.due + ' decision' + (counts.due > 1 ? 's are' : ' is') + ' due for review: look at the result and say whether it worked.', counts.due + (counts.due > 1 ? ' decisiones toca revisar' : ' decisión toca revisar') + ': mira el resultado y di si funcionó.') + '</p>' : '') + filt + viewLearned() + (shown.length ? '' : '<div class="empty">' + L('Nothing here.', 'Nada aquí.') + '</div>') + shown.map((d) => {
+      const due = state(d) === 'due';
       let foot = '';
-      if (d.outcome) foot = '<p class="decided-line"><span class="pill ' + (d.outcome.verdict === 'Worked' ? 'ok' : d.outcome.verdict === 'Partly' ? 'medium' : 'high') + '">' + esc(verdictLabel(d.outcome.verdict)) + '</span> ' + L('recorded with data up to ', 'anotado con datos hasta el ') + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
-      else if (d.decision !== 'Rejected' && open) foot = '<div class="form"><label>' + L('Did it work?', '¿Funcionó?') + '<select id="fVerdict">' + ['Worked', 'Partly', 'Did not work'].map((v) => '<option value="' + v + '">' + esc(verdictLabel(v)) + '</option>').join('') + '</select></label><label>' + L('What happened (optional)', 'Qué pasó (opcional)') + '<textarea id="fOutNote" rows="2"></textarea></label><div class="actions"><button class="btn primary" data-outcome="' + esc(d.id) + '">' + L('Save result', 'Guardar resultado') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div>';
-      else if (d.decision !== 'Rejected') foot = '<div class="actions"><button class="btn' + (due ? ' primary' : '') + '" data-review="' + esc(d.id) + '">' + L('Record result', 'Anotar resultado') + '</button>' + (due ? '<span class="pill medium">' + L('Review due', 'Toca revisar') + '</span>' : '') + '</div>';
+      if (d.outcome) foot = '<p class="decided-line">' + L('Recorded with data up to ', 'Anotado con datos hasta el ') + esc(IC.dayLabel(IC.fromIso(d.outcome.asOf))) + ': ' + fmt(d.outcome.value, d.metric.fmt) + (d.outcome.note ? ' · ' + esc(d.outcome.note) : '') + '</p>';
+      else if (d.decision !== 'Rejected') foot = '<div class="verdict' + (due ? ' due' : '') + '"><span class="ql-lbl">' + L('Did it work?', '¿Funcionó?') + '</span><div class="verdict-btns">' +
+        [['Worked', 'ok'], ['Partly', 'medium'], ['Did not work', 'high']].map(([v, c]) => '<button class="btn v-' + c + '" data-outcome="' + esc(d.id) + '" data-verdict="' + v + '">' + esc(verdictLabel(v)) + '</button>').join('') +
+        '</div><input class="v-note" id="vNote-' + esc(d.id) + '" placeholder="' + L('What happened (optional)', 'Qué pasó (opcional)') + '"></div>';
       const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
-      return '<article class="rec"><span class="kind">' + esc(kindLabel(d.kind)) + (d.manual ? L(' · logged by a manager', ' · registrada por la dirección') : L(' · from a recommendation', ' · de una recomendación')) + '</span><h2>' + esc(d.title) + '</h2>' +
+      return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + esc(kindLabel(d.kind)) + (d.manual ? L(' · logged by a manager', ' · registrada por la dirección') : L(' · from a recommendation', ' · de una recomendación')) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
         '<p class="decided-line">' + decisionLine(d) + '</p>' +
         '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? L('Reason', 'Motivo') : L('Why', 'Por qué')) + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
         (d.decision !== 'Rejected' ? '<dt>' + esc(IC.metricLabel(d.metric)) + '</dt><dd class="dec-metric">' + evaluationHtml(d) + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
@@ -2489,27 +2581,33 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (t.dataset.ai) { suggestQueue(); return; }
     if (t.dataset.aiok) { const s = S.aiSuggest.get(t.dataset.aiok); if (s && s.line && s.line !== '?') { S.dict[t.dataset.aiok] = { line: s.line, by: 'ai', at: new Date().toISOString() }; setPref('ic-dict', S.dict); } render(); return; }
     if (t.dataset.dictclear) { if (window.confirm(L('Clear the clinic dictionary on this computer? The texts will go back to the review queue.', '¿Borrar el diccionario de la clínica de este ordenador? Los textos volverán a la cola de revisión.'))) { S.dict = {}; setPref('ic-dict', S.dict); render(); } return; }
-    if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; render(); window.scrollTo(0, 0); const f = $('#lOwner'); if (f) f.focus(); return; }
+    if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; S.lfKindPicked = true; S.lfMetricPicked = true; render(); window.scrollTo(0, 0); lfPreview(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
     if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); return; }
     if (t.dataset.review) { S.open = { decId: t.dataset.review }; render(); return; }
-    if (t.dataset.log) { S.open = { log: true }; render(); const f = $('#lTitle'); if (f) f.focus(); return; }
+    // One-tap choices: a pressed button in its group; the type also picks the metric that fits it.
+    if (t.dataset.chip != null) {
+      const g = t.closest('[data-group]'); if (!g) return;
+      const was = t.getAttribute('aria-pressed') === 'true';
+      g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      t.setAttribute('aria-pressed', g.dataset.group === 'lkind' && was ? 'false' : 'true');
+      if (g.dataset.group === 'lkind' && !was) { S.lfKindPicked = true; lfSetMetric(guessMetric(t.dataset.chip, $('#lTitle').value)); }
+      lfPreview(); return;
+    }
+    if (t.dataset.decfilter) { S.decFilter = t.dataset.decfilter; render(); return; }
+    if (t.dataset.log) { S.open = { log: true }; S.lfKindPicked = false; S.lfMetricPicked = false; render(); const f = $('#lTitle'); if (f) f.focus(); lfPreview(); return; }
     if (t.dataset.logsave) {
       const title = $('#lTitle').value.trim();
       if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = L('Write what you decided', 'Escribe qué habéis decidido'); return; }
-      const [type, param] = $('#lMetric').value.split('|');
-      const base = IC.METRICS[type];
-      const metric = { type, fmt: base.fmt, better: base.better };
-      if (base.param) metric[base.param] = param;
-      metric.label = IC.metricLabel(metric);
+      const metric = buildMetric($('#lMetric').value);
       const day = $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
-      const exp = $('#lExpected').value === '' ? null : Number($('#lExpected').value) / 100;
+      const expV = chipVal('lexp'), exp = expV === '' ? null : Number(expV);
       const d = {
-        recId: null, manual: true, kind: $('#lKind').value, title, action: title, decision: 'Accepted',
-        note: $('#lWhy').value.trim(), owner: $('#lOwner').value.trim(),
-        decidedOn: IC.iso(day), reviewDay: IC.iso(day + Number($('#lReview').value)), decidedAt: new Date().toISOString(),
+        recId: null, manual: true, kind: chipVal('lkind') || guessKind(title) || 'line', title, action: title, decision: 'Accepted',
+        note: $('#lWhy').value.trim(), owner: chipVal('lowner'),
+        decidedOn: IC.iso(day), reviewDay: IC.iso(day + Number(chipVal('lreview') || 61)), decidedAt: new Date().toISOString(),
         metric, expected: exp == null || isNaN(exp) ? null : { pct: exp }, baseline: { value: baselineFor(metric, IC.iso(day)), asOf: IC.iso(S.ds.asOf) },
         outcome: null, dataLabel: S.ds.label, source: S.ds.source
       };
@@ -2537,14 +2635,27 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     }
     if (t.dataset.outcome) {
       const d = S.decisions.find((x) => x.id === t.dataset.outcome); if (!d) return;
-      const ev = IC.evalDecision(S.ds, d);
-      const patch = { outcome: { verdict: $('#fVerdict').value, note: $('#fOutNote').value.trim(), value: ev.after, change: ev.change == null ? null : ev.change, asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
+      const ev = IC.evalDecision(S.ds, d), noteEl = document.getElementById('vNote-' + d.id);
+      const patch = { outcome: { verdict: t.dataset.verdict, note: noteEl ? noteEl.value.trim() : '', value: ev.after, change: ev.change == null ? null : ev.change, asOf: IC.iso(S.ds.asOf), at: new Date().toISOString() } };
       t.disabled = true;
       try { await Store.update(d.id, patch); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
     }
   });
   // Call results on follow-up lists: one change saves one result.
+  // Quick log: as the manager types, the type and metric follow the words (until they pick them by hand).
+  $('#view').addEventListener('input', (e) => {
+    if (e.target.id !== 'lTitle') return;
+    const text = e.target.value;
+    if (!S.lfKindPicked) {
+      const k = guessKind(text), g = document.querySelector('[data-group="lkind"]');
+      if (k && g) { g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.chip === k))); }
+      if (k && !S.lfMetricPicked) lfSetMetric(guessMetric(k, text));
+    } else if (!S.lfMetricPicked) lfSetMetric(guessMetric(chipVal('lkind'), text));
+    lfPreview();
+  });
   $('#view').addEventListener('change', async (e) => {
+    if (e.target.id === 'lMetric') { S.lfMetricPicked = true; lfSetMetric(e.target.value); lfPreview(); return; }
+    if (e.target.id === 'lDate') { lfPreview(); return; }
     // A person confirms the line of a free text: the clinic's dictionary remembers it on this computer.
     const dsel = e.target.closest('.dict-sel');
     if (dsel) { const k = dsel.dataset.key; if (dsel.value) S.dict[k] = { line: dsel.value, by: 'person', at: new Date().toISOString() }; else delete S.dict[k]; setPref('ic-dict', S.dict); render(); return; }
