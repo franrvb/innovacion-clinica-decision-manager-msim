@@ -1043,17 +1043,17 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const parts = [t.decided + L(' decided before', ' decididas antes')];
     if (t.reviewed) parts.push(L(t.worked + ' of ' + t.reviewed + ' reviewed worked' + (t.partly ? ', ' + t.partly + ' partly' : ''), t.worked + ' de ' + t.reviewed + ' revisadas funcionaron' + (t.partly ? ', ' + t.partly + ' en parte' : '')));
     if (t.rejected) parts.push(t.rejected + L(' rejected', ' rechazadas'));
-    return '<p class="note">' + L('Track record of this kind: ', 'Historial de este tipo: ') + esc(parts.join(' · ')) + '.</p>';
+    return '<p class="note">' + L('Similar recommendations before: ', 'Recomendaciones parecidas antes: ') + esc(parts.join(' · ')) + '.</p>';
   }
 
   function viewRecs() {
     const ds = S.ds;
-    const head = '<div class="page-head"><div><h1>' + L('Recommendations', 'Recomendaciones') + '</h1><p class="sub">' + L('From the data up to ', 'Con los datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + L('. You decide. Each decision goes to the log and is checked against the next data import. Kinds of decision that worked before are listed first.', '. Tú decides. Cada decisión va al registro y se comprueba con la siguiente importación. Los tipos de decisión que funcionaron antes aparecen primero.') + '</p></div></div>';
+    const head = '<div class="page-head"><div><h1>' + L('Recommendations', 'Recomendaciones') + '</h1><p class="sub">' + L('From the data up to ', 'Con los datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + L('. You decide. Each decision goes to the log and is checked against the next data import. Recommendations like the ones that worked before are listed first.', '. Tú decides. Cada decisión va al registro y se comprueba con la siguiente importación. Las recomendaciones parecidas a las que funcionaron antes aparecen primero.') + '</p></div></div>';
     if (!S.recs.length) return head + '<div class="empty">' + L('Nothing needs a decision in this data.', 'Nada requiere una decisión con estos datos.') + '</div>';
     return head + S.recs.map((r) => {
       const d = decisionFor(r), open = S.open && S.open.recId === r.id ? S.open : null;
       if (d) {
-        return '<article class="rec decided"><span class="kind">' + esc(kindLabel(r.kind)) + '</span><h2>' + esc(r.title) + '</h2><p class="decided-line">' + decisionLine(d) + ' · <button class="btn quiet" data-go="decisions">' + L('See in Decisions', 'Ver en Decisiones') + '</button></p></article>';
+        return '<article class="rec decided"><h2>' + esc(r.title) + '</h2><p class="decided-line">' + decisionLine(d) + ' · <button class="btn quiet" data-go="decisions">' + L('See in Decisions', 'Ver en Decisiones') + '</button></p></article>';
       }
       const now = IC.evalMetric(ds, r.metric);
       let foot;
@@ -1067,7 +1067,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
         foot = '<div class="actions"><button class="btn primary" data-decide="Accepted" data-rec="' + esc(r.id) + '">' + L('Accept', 'Aceptar') + '</button><button class="btn" data-decide="Modified" data-rec="' + esc(r.id) + '">' + L('Change', 'Modificar') + '</button><button class="btn danger" data-decide="Rejected" data-rec="' + esc(r.id) + '">' + L('Reject', 'Rechazar') + '</button></div>';
       }
       const ids = r.metric.type === 'prepaid_ids' ? '<details class="more"><summary>' + L('See the ', 'Ver los ') + r.metric.ids.length + L(' patients', ' pacientes') + '</summary><p class="ids">' + r.metric.ids.map((id) => pat(id)).join(' · ') + '</p></details>' : '';
-      return '<article class="rec"><span class="kind">' + esc(kindLabel(r.kind)) + '</span><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
+      return '<article class="rec"><h2>' + esc(r.title) + '</h2><p>' + esc(r.evidence) + '</p>' +
         '<dl><dt>' + L('Suggested action', 'Acción propuesta') + '</dt><dd>' + esc(r.action) + '</dd><dt>' + L('Expected effect', 'Efecto esperado') + '</dt><dd>' + esc(r.impact) + '</dd><dt>' + L('Measured by', 'Se mide con') + '</dt><dd>' + esc(IC.metricLabel(r.metric)) + L(': now ', ': ahora ') + '<b class="num">' + fmt(now, r.metric.fmt) + '</b></dd></dl>' + trackLine(r.track) + ids + foot + '</article>';
     }).join('');
   }
@@ -1090,7 +1090,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     }
     if (m) items.push(m.useRule ? L('Risk model: the simple rule is in use because the model did not beat it on the latest test.', 'Modelo de riesgo: se usa la regla simple porque el modelo no la superó en la última prueba.') : L('Risk model retrained on data up to ', 'Modelo de riesgo reentrenado con datos hasta el ') + IC.dayLabel(S.ds.asOf) + (m.calls.trainingCases ? L(', including ' + m.calls.trainingCases + ' cases with a recorded call.', ', con ' + m.calls.trainingCases + ' casos con llamada anotada.') : L('. Call results join its training data once their 90-day outcome is known.', '. Los resultados de llamada entran en el entrenamiento cuando se conoce su desenlace a 90 días.')));
     const kinds = S.learned ? Object.entries(S.learned.byKind).filter(([, s]) => s.reviewed) : [];
-    if (kinds.length) items.push(L('Recommendation order now reflects past results: ', 'El orden de las recomendaciones ya refleja resultados pasados: ') + kinds.map(([k, s]) => kindLabel(k) + ' ' + s.worked + '/' + s.reviewed + L(' worked', ' funcionaron')).join(', ') + '.');
+    if (kinds.length) { const wk = kinds.reduce((a, [, s]) => a + s.worked, 0), rv = kinds.reduce((a, [, s]) => a + s.reviewed, 0); items.push(L('Recommendation order now reflects the results recorded: ' + wk + ' of ' + rv + ' reviewed recommendations worked.', 'El orden de las recomendaciones ya tiene en cuenta los resultados anotados: ' + wk + ' de ' + rv + ' recomendaciones revisadas funcionaron.')); }
     if (!items.length) return '';
     return '<section class="card"><h2>' + L('What the app has learned', 'Lo que la app ha aprendido') + '</h2><ul class="learned">' + items.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></section>';
   }
@@ -1244,7 +1244,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
         [['Worked', 'ok'], ['Partly', 'medium'], ['Did not work', 'high']].map(([v, c]) => '<button class="btn v-' + c + '" data-outcome="' + esc(d.id) + '" data-verdict="' + v + '">' + esc(verdictLabel(v)) + '</button>').join('') +
         '</div><input class="v-note" id="vNote-' + esc(d.id) + '" placeholder="' + L('What happened (optional)', 'Qué pasó (opcional)') + '"></div>';
       const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
-      return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + (d.manual ? L('Logged by the managers', 'Registrada por la dirección') : L('From a recommendation · ', 'De una recomendación · ') + esc(kindLabel(d.kind))) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
+      return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + (d.manual ? L('Logged by the managers', 'Registrada por la dirección') : L('From a recommendation', 'De una recomendación')) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
         '<p class="decided-line">' + decisionLine(d) + '</p>' +
         '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') +
         (d.expectText ? '<dt>' + L('Expected result', 'Resultado esperado') + '</dt><dd>' + esc(d.expectText) + '</dd>' : '') + (d.measureText ? '<dt>' + L('How it is measured', 'Cómo se mide') + '</dt><dd>' + esc(d.measureText) + '</dd>' : '') +
