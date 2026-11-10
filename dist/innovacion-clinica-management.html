@@ -667,7 +667,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const profs = new Set(); ds.lines.forEach((l) => l.prof && profs.add(l.prof));
     ds.profs = Array.from(profs).sort();
     ds.lineCats = Array.from(new Set(ds.lines.map((l) => l.cat).filter(Boolean))).sort();
-    ds.lastMonth = mk(ds.asOf + 1) - 1; // latest complete month
+    // Latest complete month: a month whose remaining days are only a weekend counts as complete (data to Friday 30 October covers October).
+    { let e = ds.asOf; while (mk(e + 1) === mk(e) && [0, 6].includes(toDate(e + 1).getUTCDay())) e++; ds.lastMonth = mk(e + 1) - 1; }
     ds.firstMonth = Math.max(mk(Math.min.apply(null, ds.appts.map((a) => a.day).concat([ds.asOf]))), ds.lastMonth - 35);
     const cabs = new Set(); ds.lines.forEach((l) => l.cab && cabs.add(l.cab)); ds.appts.forEach((a) => a.cab && cabs.add(a.cab));
     ds.cabs = Array.from(cabs).sort();
@@ -1334,14 +1335,18 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
         const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || ''), nd = norm(desc);
         let status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
         // MN's own agenda export has no state or colour, only the "Cancelada" and "Actuación Realizada" flags,
-        // which reception rarely uses: a past appointment not flagged as cancelled counts as attended.
+        // which reception rarely uses: an appointment not flagged as cancelled counts as attended if it falls on or
+        // before the date of the other data (set below, once every file is read), and as booked after it.
+        let inferred = false;
         if (t.mnAgenda) {
           const canc = norm(pick(r, ['cancelada'])), done = norm(pick(r, ['actuacion realizada']));
-          status = ['true', 'si', 's', 'verdadero', '1'].includes(canc) ? ST.CANCEL : day <= todayDn() || done === 'si' || done === 's' ? ST.DONE : ST.FUTURE;
+          if (['true', 'si', 's', 'verdadero', '1'].includes(canc)) status = ST.CANCEL;
+          else if (done === 'si' || done === 's') status = ST.DONE;
+          else { status = ST.FUTURE; inferred = true; }
         }
         // MN marks first visits as "1 consulta".
         const type = tipo.includes('primera') || nd.includes('primera visita') || /(^| )1 consulta/.test(nd) ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
-        ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status });
+        ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status, inferred });
       });
       if (t.kind === 'lines') t.rows.forEach((r, i) => {
         const id = pid(r); if (id == null) return;
@@ -1382,10 +1387,28 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       for (const p of P.pays) if (p.pid != null && p.total > 0 && !inMN(p.day)) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
       ds.fromPartes = true;
     }
+    // MN's pending list, when it carries the patient number, is each patient's accepted treatment not yet done: it
+    // feeds the follow-up risk model and "paid, not yet done". Lines a later daily sheet already shows as done are
+    // left out here (their work is counted from the sheet) and listed apart as "probably already done".
+    if (ds.pending.some((x) => x.pid != null)) {
+      const doneItems = new Set(pendingLikelyDone(ds).matches.map((m) => m.item));
+      ds.pending.forEach((x, i) => {
+        if (x.pid == null || !(x.amount > 0) || doneItems.has(x)) return;
+        const c = cleanText(x.desc).line;
+        ds.lines.push({ pid: x.pid, plan: x.budget || 'pend-' + i, accept: x.day, name: up(x.desc), cat: c ? LINE_ES[c] : 'Sin clasificar', price: x.amount, cost: null, status: 'Pendiente', done: null, prof: '', cab: null }); // MN's user name would add a second "dentist"
+      });
+    }
+    // "Paid, not yet done" needs payments by patient: true when nearly every payment carries a patient number.
+    ds.paysWithPatient = ds.pays.length > 0 && ds.pays.filter((p) => p.pid != null).length / ds.pays.length > 0.9;
     if (!ds.appts.length && !P.lines.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
     if (!ds.lines.length) warn.push(L('No treatments table or daily sheets found: production, treatment mix and risk need one of them.', 'No hay tabla de tratamientos ni partes diarios: la producción, las líneas y el riesgo necesitan uno de los dos.'));
     if (!ds.pays.length && !P.lines.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
     const now = new Date(), today = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    // The agenda export reaches into the future: its appointments count as attended up to the date of the rest of the
+    // data (payments, daily sheets, treatments), never up to today, so a later "today" does not invent visits.
+    { const ref = [].concat(ds.pays.map((p) => p.day), P.lines.map((l) => l.day), ds.lines.filter((l) => l.done != null).map((l) => l.done)).filter((d) => d != null && d <= today);
+      const cut = ref.length ? ref.reduce((a, b) => Math.max(a, b), -Infinity) : today;
+      ds.appts.forEach((a) => { if (a.inferred) { a.status = a.day <= cut ? ST.DONE : ST.FUTURE; delete a.inferred; } }); }
     const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done),
       P.lines.map((l) => l.day), P.pays.map((p) => p.day), ds.pending.map((x) => x.day), ds.patients.map((p) => p.first), ds.patients.map((p) => p.last)).filter((d) => d != null && d <= today);
     if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
@@ -1749,13 +1772,20 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       for (let i = 0; i < Math.min(4, aoa.length); i++) {
         const texts = aoa[i].filter((v) => typeof v === 'string' && /[a-zA-Z]/.test(v) && !/^\d{4}-\d\d-\d\d/.test(v));
         const score = texts.filter((v) => KNOWN_HEADERS.has(norm(v))).length * 10 + texts.length;
-        if (texts.length >= 3 && score > best) { best = score; hr = i; }
+        const keyHdr = texts.length === 2 && texts.some((v) => /nombre/i.test(v)) && texts.some((v) => /n[uú]mero|n[º°.]/i.test(v)); // a names key: Nº + Nombre
+        if ((texts.length >= 3 || keyHdr) && score > best) { best = score; hr = i; }
       }
       if (hr < 0) { if (aoa.some((r) => r.some((v) => v !== '' && v != null))) skipped.push(from); continue; }
       const hdr = aoa[hr].map((v) => String(v == null ? '' : v).trim()), H = hdr.map(norm);
       const has = (k) => H.includes(k);
       const col = (...ks) => { for (const k of ks) { const i = H.indexOf(k); if (i >= 0) return i; } return -1; };
       const body = aoa.slice(hr + 1);
+      // Names key (patient number + name and nothing else): read into the names key, never into the data
+      if (H.filter(Boolean).length <= 3 && col('numero cliente', 'n cliente', 'numero paciente', 'n paciente', 'clientes numero cliente') >= 0 && col('nombre', 'nombre y apellidos', 'nombre completo', 'paciente') >= 0) {
+        const iP = col('numero cliente', 'n cliente', 'numero paciente', 'n paciente', 'clientes numero cliente'), iN = col('nombre', 'nombre y apellidos', 'nombre completo', 'paciente');
+        for (const r of body) { const pid = pidOf(r[iP]); if (pid != null && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim()); }
+        continue;
+      }
       // Daily sheet: one tab per doctor, or the PRODUCCION tab that consolidates them
       if (has('fecha actuacion') && col('clientes numero cliente', 'numero cliente', 'n paciente') >= 0 && (has('realizada') || has('valoracion'))) {
         const iD = col('fecha actuacion'), iP = col('clientes numero cliente', 'numero cliente', 'n paciente'), iN = col('nombre', 'paciente'), iU = col('usuario'), iDe = col('descripcion'),
@@ -2244,9 +2274,9 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="' + L('Previous month', 'Mes anterior') + '"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="' + L('Next month', 'Mes siguiente') + '"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' + attentionStrip() +
 
     '<section class="tiles">' +
-      '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + (partesDaysIn ? esc(L('Only the ' + partesDaysIn + ' days with a daily sheet this month', 'Solo los ' + partesDaysIn + ' días con parte de este mes')) : delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl)) + '</span></div>' +
+      '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + (partesDaysIn && partesDaysIn < 15 ? esc(L('Only the ' + partesDaysIn + ' days with a daily sheet this month', 'Solo los ' + partesDaysIn + ' días con parte de este mes')) : delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl)) + '</span></div>' +
       '<div class="tile"><span class="lbl">' + L('Margin after materials and lab', 'Margen tras materiales y laboratorio') + '</span><span class="val">' + (o.marginPct == null ? '—' : pct1(o.marginPct)) + '</span><span class="cmp">' + (o.margin == null ? L('No cost data in this import', 'Esta importación no trae costes') : eur(o.margin) + ' · ' + marginCmp) + '</span></div>' +
-      (ds.fromPartes ? '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">—</span><span class="cmp">' + L('Needs the full MN payments export; see Pending production', 'Necesita la exportación completa de cobros de MN; ver Producción pendiente') + '</span></div>'
+      (ds.fromPartes && !ds.paysWithPatient ? '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">—</span><span class="cmp">' + L('Needs the full MN payments export; see Pending production', 'Necesita la exportación completa de cobros de MN; ver Producción pendiente') + '</span></div>'
         : '<div class="tile"><span class="lbl">' + L('Paid, not yet done', 'Cobrado, no realizado') + '</span><span class="val">' + eur(o.unearnedRevenue) + '</span><span class="cmp">' + o.unearnedPatients + L(' patients · ', ' pacientes · ') + delta(o.unearnedRevenue, o.unearnedPrevMonthEnd, false, L('vs end of ', 'vs fin de ') + prevLbl) + '</span></div>') +
       '<div class="tile"><span class="lbl">' + L('New patients', 'Pacientes nuevos') + '</span><span class="val">' + o.firstVisits + '</span><span class="cmp">' + delta(o.firstVisits, o.firstVisitsAvgPrior6, true, L('vs 6-month average (', 'vs media de 6 meses (') + Math.round(o.firstVisitsAvgPrior6) + ')') + '</span></div>' +
     '</section>' +
@@ -2308,7 +2338,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
 
   function viewPartes() {
     const R = partesReportNow(), P = pat;
-    const head = '<div class="page-head"><div><h1>' + L('Daily sheets', 'Partes diarios') + '</h1><p class="sub">' + (R ? esc(L('Days: ', 'Días: ') + R.days.map((d) => IC.dayLabel(d)).join(', ')) + ' · ' : '') + esc(S.ds.label) + '</p></div></div>';
+    const head = '<div class="page-head"><div><h1>' + L('Daily sheets', 'Partes diarios') + '</h1><p class="sub">' + (R ? esc((R.days.length > 6 ? R.days.length + L(' days, ', ' días, ') + IC.dayLabel(R.days[0]) + ' – ' + IC.dayLabel(R.days[R.days.length - 1]) : L('Days: ', 'Días: ') + R.days.map((d) => IC.dayLabel(d)).join(', '))) + ' · ' : '') + esc(S.ds.label) + '</p></div></div>';
     if (!R) {
       return head + emptyImport(S.ds.source === 'sample' ? L('The sample data has no daily sheets. Import reception\'s Excel sheets (one tab per doctor) to see production, collections and each dentist\'s share, the check against the PRODUCCION tab and the cleaning of the free text.', 'Los datos de ejemplo no traen partes diarios. Importa los Excel de recepción (una pestaña por doctor) para ver la producción, los cobros y lo que corresponde a cada doctor, la comprobación con la pestaña PRODUCCION y la limpieza del texto libre.') : L('The imported data has no daily sheets. Import reception\'s Excel sheets to see them here.', 'Los datos importados no traen partes diarios. Importa los Excel de recepción para verlos aquí.'));
     }
@@ -2625,16 +2655,16 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (!id) return;
     const sample = await getSample(); if (!sample) return;
     const opts = metricChoices();
-    const prompt = 'Classify a management decision of a Spanish dental clinic. Kinds: ' + KIND_KEYS.map((k) => k + ' = ' + kindLabel(k)).join('; ') + '.\nFigures the app can follow (value = label): ' + opts.map((o) => o.value + ' = ' + o.label).join('; ') +
-      '.\nDecision: ' + d.title + '\nExpected result: ' + (d.expectText || '-') + '\nHow they will measure it: ' + (d.measureText || '-') + '\nAnswer only with JSON like {"kind":"acq","metric":"new_patients"}, choosing the figure that best tracks the expected result.';
+    const prompt = 'A manager of a Spanish dental clinic logged a decision. Choose the one figure the app should follow to see whether it worked.\nFigures the app can follow (value = label): ' + opts.map((o) => o.value + ' = ' + o.label).join('; ') +
+      '.\nDecision: ' + d.title + '\nExpected result: ' + (d.expectText || '-') + '\nHow they will measure it: ' + (d.measureText || '-') + '\nAnswer only with JSON like {"metric":"new_patients"}, choosing the figure that best tracks the expected result.';
     try {
       const res = await sample(prompt, { modelTier: 'quick', cache: false });
       const t = (res && res.text) || '', a = t.indexOf('{'), b = t.lastIndexOf('}');
       const r = a >= 0 && b > a ? JSON.parse(t.slice(a, b + 1)) : null;
-      if (!r || !KIND_KEYS.includes(r.kind) || !opts.some((o) => o.value === r.metric)) return;
+      if (!r || !opts.some((o) => o.value === r.metric)) return;
       const metric = buildMetric(r.metric);
-      if (r.kind === d.kind && metric.label === d.metric.label) return;
-      await Store.update(id, { kind: r.kind, metric, baseline: { value: baselineFor(metric, d.decidedOn), asOf: d.baseline.asOf }, classifiedBy: 'ai' });
+      if (metric.label === d.metric.label) return;
+      await Store.update(id, { metric, baseline: { value: baselineFor(metric, d.decidedOn), asOf: d.baseline.asOf }, classifiedBy: 'ai' });
     } catch (e) { /* the word-based guess stays */ }
   }
   const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
@@ -2687,7 +2717,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
         [['Worked', 'ok'], ['Partly', 'medium'], ['Did not work', 'high']].map(([v, c]) => '<button class="btn v-' + c + '" data-outcome="' + esc(d.id) + '" data-verdict="' + v + '">' + esc(verdictLabel(v)) + '</button>').join('') +
         '</div><input class="v-note" id="vNote-' + esc(d.id) + '" placeholder="' + L('What happened (optional)', 'Qué pasó (opcional)') + '"></div>';
       const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
-      return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + esc(kindLabel(d.kind)) + (d.manual ? L(' · logged by a manager', ' · registrada por la dirección') : L(' · from a recommendation', ' · de una recomendación')) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
+      return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + (d.manual ? L('Logged by the managers', 'Registrada por la dirección') : L('From a recommendation · ', 'De una recomendación · ') + esc(kindLabel(d.kind))) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
         '<p class="decided-line">' + decisionLine(d) + '</p>' +
         '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') +
         (d.expectText ? '<dt>' + L('Expected result', 'Resultado esperado') + '</dt><dd>' + esc(d.expectText) + '</dd>' : '') + (d.measureText ? '<dt>' + L('How it is measured', 'Cómo se mide') + '</dt><dd>' + esc(d.measureText) + '</dd>' : '') +
@@ -2752,7 +2782,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = L('Write what you are going to decide', 'Escribe qué vais a decidir'); return; }
       if (chipVal('lreview') === 'date' && !$('#lReviewDate').value) { $('#lReviewDate').focus(); return; }
       const expectText = $('#lExpect').value.trim(), measureText = $('#lMeasure').value.trim(), all = title + ' ' + expectText + ' ' + measureText;
-      const kind = guessKind(all) || 'general', metric = buildMetric(guessMetric(kind, all)), exp = null;
+      const metric = buildMetric(guessMetric(guessKind(all), all)), kind = 'manual', exp = null; // no decision types: the words only pick the figure to follow
       const day = lfDay();
       let executor = $('#lExec').value; if (executor === '__other') executor = $('#lExecOther').value.trim();
       const d = {

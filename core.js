@@ -273,7 +273,8 @@
     const profs = new Set(); ds.lines.forEach((l) => l.prof && profs.add(l.prof));
     ds.profs = Array.from(profs).sort();
     ds.lineCats = Array.from(new Set(ds.lines.map((l) => l.cat).filter(Boolean))).sort();
-    ds.lastMonth = mk(ds.asOf + 1) - 1; // latest complete month
+    // Latest complete month: a month whose remaining days are only a weekend counts as complete (data to Friday 30 October covers October).
+    { let e = ds.asOf; while (mk(e + 1) === mk(e) && [0, 6].includes(toDate(e + 1).getUTCDay())) e++; ds.lastMonth = mk(e + 1) - 1; }
     ds.firstMonth = Math.max(mk(Math.min.apply(null, ds.appts.map((a) => a.day).concat([ds.asOf]))), ds.lastMonth - 35);
     const cabs = new Set(); ds.lines.forEach((l) => l.cab && cabs.add(l.cab)); ds.appts.forEach((a) => a.cab && cabs.add(a.cab));
     ds.cabs = Array.from(cabs).sort();
@@ -940,14 +941,18 @@
         const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || ''), nd = norm(desc);
         let status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
         // MN's own agenda export has no state or colour, only the "Cancelada" and "Actuación Realizada" flags,
-        // which reception rarely uses: a past appointment not flagged as cancelled counts as attended.
+        // which reception rarely uses: an appointment not flagged as cancelled counts as attended if it falls on or
+        // before the date of the other data (set below, once every file is read), and as booked after it.
+        let inferred = false;
         if (t.mnAgenda) {
           const canc = norm(pick(r, ['cancelada'])), done = norm(pick(r, ['actuacion realizada']));
-          status = ['true', 'si', 's', 'verdadero', '1'].includes(canc) ? ST.CANCEL : day <= todayDn() || done === 'si' || done === 's' ? ST.DONE : ST.FUTURE;
+          if (['true', 'si', 's', 'verdadero', '1'].includes(canc)) status = ST.CANCEL;
+          else if (done === 'si' || done === 's') status = ST.DONE;
+          else { status = ST.FUTURE; inferred = true; }
         }
         // MN marks first visits as "1 consulta".
         const type = tipo.includes('primera') || nd.includes('primera visita') || /(^| )1 consulta/.test(nd) ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
-        ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status });
+        ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status, inferred });
       });
       if (t.kind === 'lines') t.rows.forEach((r, i) => {
         const id = pid(r); if (id == null) return;
@@ -988,10 +993,28 @@
       for (const p of P.pays) if (p.pid != null && p.total > 0 && !inMN(p.day)) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
       ds.fromPartes = true;
     }
+    // MN's pending list, when it carries the patient number, is each patient's accepted treatment not yet done: it
+    // feeds the follow-up risk model and "paid, not yet done". Lines a later daily sheet already shows as done are
+    // left out here (their work is counted from the sheet) and listed apart as "probably already done".
+    if (ds.pending.some((x) => x.pid != null)) {
+      const doneItems = new Set(pendingLikelyDone(ds).matches.map((m) => m.item));
+      ds.pending.forEach((x, i) => {
+        if (x.pid == null || !(x.amount > 0) || doneItems.has(x)) return;
+        const c = cleanText(x.desc).line;
+        ds.lines.push({ pid: x.pid, plan: x.budget || 'pend-' + i, accept: x.day, name: up(x.desc), cat: c ? LINE_ES[c] : 'Sin clasificar', price: x.amount, cost: null, status: 'Pendiente', done: null, prof: '', cab: null }); // MN's user name would add a second "dentist"
+      });
+    }
+    // "Paid, not yet done" needs payments by patient: true when nearly every payment carries a patient number.
+    ds.paysWithPatient = ds.pays.length > 0 && ds.pays.filter((p) => p.pid != null).length / ds.pays.length > 0.9;
     if (!ds.appts.length && !P.lines.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
     if (!ds.lines.length) warn.push(L('No treatments table or daily sheets found: production, treatment mix and risk need one of them.', 'No hay tabla de tratamientos ni partes diarios: la producción, las líneas y el riesgo necesitan uno de los dos.'));
     if (!ds.pays.length && !P.lines.length) warn.push(L('No payments table found: collections and unearned revenue need it.', 'No hay tabla de cobros: los cobros y lo cobrado no realizado la necesitan.'));
     const now = new Date(), today = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    // The agenda export reaches into the future: its appointments count as attended up to the date of the rest of the
+    // data (payments, daily sheets, treatments), never up to today, so a later "today" does not invent visits.
+    { const ref = [].concat(ds.pays.map((p) => p.day), P.lines.map((l) => l.day), ds.lines.filter((l) => l.done != null).map((l) => l.done)).filter((d) => d != null && d <= today);
+      const cut = ref.length ? ref.reduce((a, b) => Math.max(a, b), -Infinity) : today;
+      ds.appts.forEach((a) => { if (a.inferred) { a.status = a.day <= cut ? ST.DONE : ST.FUTURE; delete a.inferred; } }); }
     const days = [].concat(ds.appts.filter((a) => a.status !== ST.FUTURE).map((a) => a.day), ds.pays.map((p) => p.day), ds.lines.filter((l) => l.done != null).map((l) => l.done),
       P.lines.map((l) => l.day), P.pays.map((p) => p.day), ds.pending.map((x) => x.day), ds.patients.map((p) => p.first), ds.patients.map((p) => p.last)).filter((d) => d != null && d <= today);
     if (!days.length) throw new Error(L('No dated rows found. Check that the files have the expected columns.', 'No hay filas con fecha. Comprueba que los archivos tienen las columnas esperadas.'));
@@ -1355,13 +1378,20 @@
       for (let i = 0; i < Math.min(4, aoa.length); i++) {
         const texts = aoa[i].filter((v) => typeof v === 'string' && /[a-zA-Z]/.test(v) && !/^\d{4}-\d\d-\d\d/.test(v));
         const score = texts.filter((v) => KNOWN_HEADERS.has(norm(v))).length * 10 + texts.length;
-        if (texts.length >= 3 && score > best) { best = score; hr = i; }
+        const keyHdr = texts.length === 2 && texts.some((v) => /nombre/i.test(v)) && texts.some((v) => /n[uú]mero|n[º°.]/i.test(v)); // a names key: Nº + Nombre
+        if ((texts.length >= 3 || keyHdr) && score > best) { best = score; hr = i; }
       }
       if (hr < 0) { if (aoa.some((r) => r.some((v) => v !== '' && v != null))) skipped.push(from); continue; }
       const hdr = aoa[hr].map((v) => String(v == null ? '' : v).trim()), H = hdr.map(norm);
       const has = (k) => H.includes(k);
       const col = (...ks) => { for (const k of ks) { const i = H.indexOf(k); if (i >= 0) return i; } return -1; };
       const body = aoa.slice(hr + 1);
+      // Names key (patient number + name and nothing else): read into the names key, never into the data
+      if (H.filter(Boolean).length <= 3 && col('numero cliente', 'n cliente', 'numero paciente', 'n paciente', 'clientes numero cliente') >= 0 && col('nombre', 'nombre y apellidos', 'nombre completo', 'paciente') >= 0) {
+        const iP = col('numero cliente', 'n cliente', 'numero paciente', 'n paciente', 'clientes numero cliente'), iN = col('nombre', 'nombre y apellidos', 'nombre completo', 'paciente');
+        for (const r of body) { const pid = pidOf(r[iP]); if (pid != null && String(r[iN] || '').trim()) names.set(pid, String(r[iN]).trim()); }
+        continue;
+      }
       // Daily sheet: one tab per doctor, or the PRODUCCION tab that consolidates them
       if (has('fecha actuacion') && col('clientes numero cliente', 'numero cliente', 'n paciente') >= 0 && (has('realizada') || has('valoracion'))) {
         const iD = col('fecha actuacion'), iP = col('clientes numero cliente', 'numero cliente', 'n paciente'), iN = col('nombre', 'paciente'), iU = col('usuario'), iDe = col('descripcion'),
