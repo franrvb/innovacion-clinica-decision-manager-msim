@@ -1236,6 +1236,39 @@
   }
   const pendingOld = (ds) => { const r = pendingReport(ds); return r ? r.oldAmount : 0; };
 
+  // Pending lines the daily sheets say are probably done already: the same patient has a later sheet line of the
+  // same treatment line, or a delivery (entrega, cementar, colocar…), with a value close to the pending amount.
+  // MN still lists them because reception wrote the work in the sheet, not in MN. Needs the patient number in the
+  // pending export. Each sheet line backs one pending line at most; the PRODUCCION tab's value is preferred.
+  const DELIVERY = /ENTREG|CEMENT|COLOC|DEFINITIV|\bIOI\b|IMPLANT|HIBRID|ALL ON|PROTESIS|PRÓTESIS/;
+  function pendingLikelyDone(ds) {
+    const all = ds.pending || [], items = all.filter((x) => x.pid != null && x.amount > 0);
+    if (!all.length) return { available: null, matches: [], amount: 0 };
+    if (!items.length) return { available: false, matches: [], amount: 0 };
+    const keep = new Map(); // one sheet line per patient, day and text (PRODUCCION over the doctor's tab)
+    ((ds.partes && ds.partes.lines) || []).forEach((l) => {
+      const v = l.realizada || 0; if (!(v > 0) && !(l.especial > 0)) return;
+      const k = l.pid + '|' + l.day + '|' + up(l.desc).trim(), cur = keep.get(k);
+      if (!cur || (l.src === 'produccion' && cur.src !== 'produccion')) keep.set(k, l);
+    });
+    const byPid = new Map(); keep.forEach((l) => { const a = byPid.get(l.pid) || []; a.push(l); byPid.set(l.pid, a); });
+    const used = new Set(), out = [];
+    items.slice().sort((a, b) => b.amount - a.amount).forEach((x) => {
+      const xl = cleanText(x.desc).line;
+      let best = null, bs = 0;
+      (byPid.get(x.pid) || []).forEach((l) => {
+        if (used.has(l) || l.day < x.day - 14) return;
+        const ll = l.line || cleanText(l.desc).line, v = l.realizada || 0;
+        const s = (ll && xl && ll === xl ? 2 : 0) + (DELIVERY.test(up(l.desc)) ? 1 : 0) + (v > 0 && Math.abs(v - x.amount) / x.amount <= 0.05 ? 3 : v > 0 && Math.abs(v - x.amount) / x.amount <= 0.3 ? 2 : 0);
+        if (s > bs || (s === bs && best && Math.abs(v - x.amount) < Math.abs((best.realizada || 0) - x.amount))) { bs = s; best = l; }
+      });
+      if (!best || bs < 3) return;
+      used.add(best);
+      out.push({ item: x, line: best, confidence: bs >= 4 ? 'high' : 'medium' });
+    });
+    return { available: true, matches: out, amount: out.reduce((s, m) => s + m.item.amount, 0) };
+  }
+
   // Patient base: files opened, who has really been seen, who is due a recall.
   function patientBase(ds) {
     if (!ds.patients || !ds.patients.length) return null;
@@ -1402,7 +1435,7 @@
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
     keyFromRows, sampleNames,
-    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, patientDetail, tablesFromSheets, up
+    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, pendingLikelyDone, patientBase, patientDetail, tablesFromSheets, up
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);

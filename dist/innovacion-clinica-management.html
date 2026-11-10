@@ -176,6 +176,35 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .seg button { border: 0; background: none; padding: 7px 12px; font-weight: 600; color: var(--ink-2); }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+/* Assistant: one fixed button, bottom right */
+.top-actions #askBtn { display: none; }
+.ask-fab { position: fixed; z-index: 20; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 18px; border: 0; border-radius: 999px; background: var(--brand-teal); color: var(--brand); font-weight: 700; font-size: 15px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; }
+.ask-fab:hover { filter: brightness(1.05); }
+.ask-fab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+body:has(#chat:not([hidden])) .ask-fab { display: none; }
+main#view { padding-bottom: 88px; }
+/* Overview: what needs attention today */
+.attn { display: grid; gap: 8px; }
+.attn h2 { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.attn-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.attn-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+.attn-item b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.attn-item span { font-size: 13.5px; color: var(--ink-2); }
+.attn-item.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.attn-item.accent { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.attn-item .attn-go { font-size: 20px; color: var(--ink-2); }
+.attn-item:hover { border-color: var(--accent); }
+/* Pending: probably already done */
+.card.likely { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+/* Import: drop a folder, progress */
+.drop { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 20px 16px; border: 2px dashed var(--line); border-radius: var(--r); background: var(--bg); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop-main { margin: 0; font-weight: 600; }
+.drop-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.drop-btns label { cursor: pointer; }
+.imp-progress { display: grid; gap: 4px; width: 100%; }
+.imp-progress progress { width: 100%; height: 10px; accent-color: var(--accent); }
 /* Decision log: quick form, states, one-tap result */
 .seg.chips { flex-wrap: wrap; }
 .seg.chips button + button, .dec-filter button + button { border-left: 1px solid var(--line); }
@@ -270,6 +299,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
 
 <main id="view"><p class="sub">…</p></main>
 
+<button id="askFab" class="ask-fab" type="button"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span data-t="ask"></span></button>
+
 <aside id="chat" class="chat" hidden>
   <div class="chat-head"><b data-t="chatTitle"></b><button id="chatClose" class="btn quiet" data-t="close"></button></div>
   <div id="chatLog" class="chat-log"></div>
@@ -294,7 +325,14 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       <li data-t="impPending" data-html="1"></li>
     </ul>
     <p class="note" data-t="impNote"></p>
-    <input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv">
+    <div id="impDrop" class="drop" tabindex="-1">
+      <p class="drop-main" data-t="impDrop"></p>
+      <div class="drop-btns">
+        <label class="btn primary"><span data-t="impPickFolder"></span><input type="file" id="impFolder" webkitdirectory multiple hidden></label>
+        <label class="btn"><span data-t="impPickFiles"></span><input type="file" id="impFiles" multiple accept=".xlsx,.xls,.csv" hidden></label>
+      </div>
+      <div id="impProgress" class="imp-progress" hidden><progress id="impProg" value="0" max="1"></progress><span id="impProgText" class="note"></span></div>
+    </div>
     <div id="impResult"></div>
     <div id="impSave" class="save-box" hidden>
       <div id="impMode"></div>
@@ -1577,6 +1615,39 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   }
   const pendingOld = (ds) => { const r = pendingReport(ds); return r ? r.oldAmount : 0; };
 
+  // Pending lines the daily sheets say are probably done already: the same patient has a later sheet line of the
+  // same treatment line, or a delivery (entrega, cementar, colocar…), with a value close to the pending amount.
+  // MN still lists them because reception wrote the work in the sheet, not in MN. Needs the patient number in the
+  // pending export. Each sheet line backs one pending line at most; the PRODUCCION tab's value is preferred.
+  const DELIVERY = /ENTREG|CEMENT|COLOC|DEFINITIV|\bIOI\b|IMPLANT|HIBRID|ALL ON|PROTESIS|PRÓTESIS/;
+  function pendingLikelyDone(ds) {
+    const all = ds.pending || [], items = all.filter((x) => x.pid != null && x.amount > 0);
+    if (!all.length) return { available: null, matches: [], amount: 0 };
+    if (!items.length) return { available: false, matches: [], amount: 0 };
+    const keep = new Map(); // one sheet line per patient, day and text (PRODUCCION over the doctor's tab)
+    ((ds.partes && ds.partes.lines) || []).forEach((l) => {
+      const v = l.realizada || 0; if (!(v > 0) && !(l.especial > 0)) return;
+      const k = l.pid + '|' + l.day + '|' + up(l.desc).trim(), cur = keep.get(k);
+      if (!cur || (l.src === 'produccion' && cur.src !== 'produccion')) keep.set(k, l);
+    });
+    const byPid = new Map(); keep.forEach((l) => { const a = byPid.get(l.pid) || []; a.push(l); byPid.set(l.pid, a); });
+    const used = new Set(), out = [];
+    items.slice().sort((a, b) => b.amount - a.amount).forEach((x) => {
+      const xl = cleanText(x.desc).line;
+      let best = null, bs = 0;
+      (byPid.get(x.pid) || []).forEach((l) => {
+        if (used.has(l) || l.day < x.day - 14) return;
+        const ll = l.line || cleanText(l.desc).line, v = l.realizada || 0;
+        const s = (ll && xl && ll === xl ? 2 : 0) + (DELIVERY.test(up(l.desc)) ? 1 : 0) + (v > 0 && Math.abs(v - x.amount) / x.amount <= 0.05 ? 3 : v > 0 && Math.abs(v - x.amount) / x.amount <= 0.3 ? 2 : 0);
+        if (s > bs || (s === bs && best && Math.abs(v - x.amount) < Math.abs((best.realizada || 0) - x.amount))) { bs = s; best = l; }
+      });
+      if (!best || bs < 3) return;
+      used.add(best);
+      out.push({ item: x, line: best, confidence: bs >= 4 ? 'high' : 'medium' });
+    });
+    return { available: true, matches: out, amount: out.reduce((s, m) => s + m.item.amount, 0) };
+  }
+
   // Patient base: files opened, who has really been seen, who is due a recall.
   function patientBase(ds) {
     if (!ds.patients || !ds.patients.length) return null;
@@ -1743,7 +1814,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     balances, treatmentMix, topPatients, trainRisk, riskList, dormantPlans, contactsFrom, learnFromDecisions, followUpCheck, CALLED, recommendations, evalMetric, detect, fromTables, apptStatus, eur, pct,
     METRICS, monthlyValue, evalDecision, metricLabel, treatmentLines, dataQuality, marginPct, directCost, productionBy, isHygienist, EVENTS,
     keyFromRows, sampleNames,
-    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, patientBase, patientDetail, tablesFromSheets, up
+    LINE_CODES, lineName, actLabel, eventLabel, ACTS, TEXT_EVENTS, cleanText, dictKey, payKind, payCode, partesReport, pendingReport, pendingOld, pendingLikelyDone, patientBase, patientDetail, tablesFromSheets, up
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = IC; else G.IC = IC;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1777,6 +1848,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     impLines: L('<b>Treatments:</b> patient number, treatment, amount, status, date accepted, date done, room', '<b>Tratamientos:</b> número de paciente, tratamiento, importe, estado, fecha de aceptación, fecha de realización, gabinete'),
     impPays: L('<b>Payments:</b> patient number, payment date, amount, payment method', '<b>Cobros:</b> número de paciente, fecha de cobro, importe, forma de cobro'),
     impPatients: L('<b>Patients</b> (template "MSIM Saldos"): patient number, registration date, last and next visit', '<b>Pacientes</b> (plantilla "MSIM Saldos"): número de paciente, fecha de alta, última y próxima actuación'),
+    impDrop: L('Drag the files or a whole folder here (daily sheets and MN exports at once)', 'Arrastra aquí los archivos o una carpeta entera (partes diarios y exportaciones de MN a la vez)'),
+    impPickFolder: L('Choose a folder', 'Elegir carpeta'), impPickFiles: L('Choose files', 'Elegir archivos'),
     impPartes: L('<b>Daily sheets</b> from reception (Excel, one tab per doctor, with the Clínica and PRODUCCION tabs): several days at once', '<b>Partes diarios</b> de recepción (Excel, una pestaña por doctor, con las pestañas Clínica y PRODUCCION): varios días a la vez'),
     impPending: L('<b>Pending production</b>: MN list "Presupuestos aceptados no realizados" (template "MSIM Pendiente")', '<b>Producción pendiente</b>: lista de MN "Presupuestos aceptados no realizados" (plantilla "MSIM Pendiente")'),
     impNote: L('Leave patient names out of the MN exports: the data, the shared decision log and the assistant work with patient numbers. Reception\'s daily sheets do carry names: the app takes them out of the data and keeps them only as the names key in this browser (encrypted if you save the data).', 'Deja los nombres de pacientes fuera de las exportaciones de MN: los datos, el registro de decisiones compartido y el asistente trabajan con números de paciente. Los partes diarios de recepción sí traen nombres: la app los separa de los datos y los guarda solo como clave de nombres en este navegador (cifrados si guardas los datos).'),
@@ -2153,7 +2226,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
 
     return '' +
     '<div class="page-head"><div><h1>' + esc(IC.mkLabel(k)) + '</h1><p class="sub">' + L('Data up to ', 'Datos hasta el ') + esc(IC.dayLabel(ds.asOf)) + ' · ' + esc(ds.label) + '</p></div>' +
-    '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="' + L('Previous month', 'Mes anterior') + '"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="' + L('Next month', 'Mes siguiente') + '"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' +
+    '<div class="month-nav"><button class="icon-btn" data-month="-1" aria-label="' + L('Previous month', 'Mes anterior') + '"' + (k <= ds.lastMonth - 11 ? ' disabled' : '') + '>‹</button><button class="icon-btn" data-month="1" aria-label="' + L('Next month', 'Mes siguiente') + '"' + (k >= ds.lastMonth ? ' disabled' : '') + '>›</button></div></div>' + attentionStrip() +
 
     '<section class="tiles">' +
       '<div class="tile"><span class="lbl">' + L('Production', 'Producción') + '</span><span class="val">' + eur(o.production) + '</span><span class="cmp">' + (partesDaysIn ? esc(L('Only the ' + partesDaysIn + ' days with a daily sheet this month', 'Solo los ' + partesDaysIn + ' días con parte de este mes')) : delta(o.production, o.productionPrevMonth, true, 'vs ' + prevLbl) + ' · ' + delta(o.production, o.productionSameMonthLastYear, true, 'vs ' + lyLbl)) + '</span></div>' +
@@ -2342,7 +2415,34 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       '<tr><td>' + L('Lines with the doctor recorded', 'Líneas con el doctor registrado') + '</td><td class="r">' + pct0(F.userShare) + '</td></tr>' +
       (F.sourceShare != null ? '<tr><td>' + L('Lines with how the patient found the clinic', 'Líneas con cómo conoció el paciente la clínica') + '</td><td class="r">' + pct0(F.sourceShare) + '</td></tr>' : '') +
       '</tbody></table></div><p class="note">' + L('Payments are not linked to treatments in MN, so the paid share of each line cannot be read from MN; the accountant reconciles it by hand.', 'En MN los cobros no se ligan a los tratamientos, así que lo cobrado de cada línea no se puede leer de MN; contabilidad lo cuadra a mano.') + '</p></section>';
-    return head + tiles + grid + old + '<div class="grid2">' + budgets + mn + '</div>';
+    return head + tiles + likelyDoneCard() + grid + old + '<div class="grid2">' + budgets + mn + '</div>';
+  }
+  // What needs a manager today, at the top of the overview: each item says what and opens the screen that handles it.
+  function attentionStrip() {
+    const ds = S.ds, items = [];
+    const due = relevant().filter((d) => d.decision !== 'Rejected' && !d.outcome && ds.asOf >= IC.fromIso(d.reviewDay)).length;
+    if (due) items.push({ go: 'decisions', tone: 'warn', n: due, text: L(due > 1 ? 'decisions are due for review' : 'decision is due for review', due > 1 ? 'decisiones toca revisar' : 'decisión toca revisar') });
+    const recs = S.recs.filter((r) => !decisionFor(r)).length;
+    if (recs) items.push({ go: 'recs', tone: 'accent', n: recs, text: L(recs > 1 ? 'recommendations waiting for a decision' : 'recommendation waiting for a decision', recs > 1 ? 'recomendaciones esperan una decisión' : 'recomendación espera una decisión') });
+    const D = IC.pendingLikelyDone(ds);
+    if (D.available && D.matches.length) items.push({ go: 'pending', tone: 'accent', n: eur(D.amount), text: L('pending in MN probably already done (' + D.matches.length + ' lines to enter)', 'pendientes en MN probablemente ya realizados (' + D.matches.length + ' líneas por introducir)') });
+    const Q = IC.pendingReport(ds);
+    if (Q && Q.oldAmount > 0) items.push({ go: 'pending', tone: 'warn', n: eur(Q.oldAmount), text: L('pending for more than 6 months (' + Q.old.length + ' lines)', 'pendientes desde hace más de 6 meses (' + Q.old.length + ' líneas)') });
+    if (!items.length) return '';
+    return '<section class="attn"><h2>' + L('Needs attention today', 'Lo que requiere atención hoy') + '</h2><div class="attn-list">' + items.map((x) => '<button class="attn-item ' + x.tone + '" data-go="' + x.go + '"><b class="num">' + esc(String(x.n)) + '</b><span>' + esc(x.text) + '</span><span class="attn-go" aria-hidden="true">›</span></button>').join('') + '</div></section>';
+  }
+  // Pending lines that the daily sheets show as already done: the accountant only has to enter them in MN.
+  function likelyDoneCard() {
+    const D = IC.pendingLikelyDone(S.ds);
+    const head = '<section class="card likely"><h2>' + L('Probably already done', 'Probablemente ya realizado') + '</h2>';
+    if (D.available === false) return head + '<p class="def">' + L('To find pending lines that the daily sheets already show as done, the pending export needs the patient number column ("Clientes.Número Cliente"). Add it to the MN template.', 'Para encontrar las líneas pendientes que los partes ya dan por hechas, la exportación de pendientes necesita la columna de número de paciente ("Clientes.Número Cliente"). Añádela a la plantilla de MN.') + '</p></section>';
+    if (!D.matches.length) return head + '<p class="def">' + L('No pending line has a matching delivery in the daily sheets loaded.', 'Ninguna línea pendiente tiene una entrega que encaje en los partes cargados.') + '</p></section>';
+    const row = (m) => '<tr><td>' + pat(m.item.pid) + '</td><td>' + esc(IC.dayLabel(m.item.day)) + '</td><td class="txt">' + esc(m.item.desc) + '</td><td class="r">' + eur(m.item.amount) + '</td><td>' + esc(IC.dayLabel(m.line.day)) + ' · ' + esc(m.line.doctor) + '</td><td class="txt">' + esc(m.line.desc) + '</td><td class="r">' + eur(m.line.realizada) + '</td><td><span class="pill ' + (m.confidence === 'high' ? 'ok' : 'medium') + '">' + (m.confidence === 'high' ? L('High', 'Alta') : L('Medium', 'Media')) + '</span></td></tr>';
+    const th = '<thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Pending since', 'Pendiente desde') + '</th><th>' + L('Pending in MN', 'Pendiente en MN') + '</th><th class="r">' + L('Amount', 'Importe') + '</th><th>' + L('Daily sheet', 'Parte') + '</th><th>' + L('Written in the sheet', 'Escrito en el parte') + '</th><th class="r">' + L('Done', 'Realizado') + '</th><th>' + L('Match', 'Coincidencia') + '</th></tr></thead>';
+    return head + '<p class="def">' + esc(L(D.matches.length + ' pending lines (' + eur(D.amount) + ') appear as done in a later daily sheet of the same patient. They are probably work done but not entered in MN: the accountant checks each one and enters it, and the pending figure falls.', D.matches.length + ' líneas pendientes (' + eur(D.amount) + ') aparecen como hechas en un parte posterior del mismo paciente. Probablemente es trabajo hecho y no introducido en MN: contabilidad comprueba cada una y la introduce, y el pendiente baja.')) + '</p>' +
+      '<div class="tbl-wrap"><table>' + th + '<tbody>' + D.matches.slice(0, 15).map(row).join('') + '</tbody></table></div>' +
+      (D.matches.length > 15 ? '<details class="more"><summary>' + L('See the other ', 'Ver las otras ') + (D.matches.length - 15) + L(' lines', ' líneas') + '</summary><div class="tbl-wrap"><table>' + th + '<tbody>' + D.matches.slice(15).map(row).join('') + '</tbody></table></div></details>' : '') +
+      '<div class="actions"><button class="btn primary" data-logdone="' + D.matches.length + '">' + L('Log the decision to enter these lines in MN', 'Registrar la decisión de introducir estas líneas en MN') + '</button></div></section>';
   }
 
   // Patient base card for the overview: files, who has really been seen, who is due a recall, new files.
@@ -2388,7 +2488,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       if (open) {
         foot = '<div class="form">' +
           (open.mode === 'Modified' ? '<label>' + L('Your version of the action', 'Tu versión de la acción') + '<textarea id="fAction" rows="3">' + esc(r.action) + '</textarea></label>' : '') +
-          (open.mode !== 'Rejected' ? '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="fOwner" placeholder="' + L('e.g. Reception lead', 'p. ej. Jefa de recepción') + '"></label><label>' + L('Check the result in', 'Revisar el resultado en') + '<select id="fReview"><option value="14">' + L('2 weeks', '2 semanas') + '</option><option value="30" selected>' + L('1 month', '1 mes') + '</option><option value="61">' + L('2 months', '2 meses') + '</option></select></label></div>' : '') +
+          (open.mode !== 'Rejected' ? '<div class="row"><label>' + L('Who is responsible', 'Responsable') + '<input id="fOwner" placeholder="' + L('e.g. Reception lead', 'p. ej. Jefa de recepción') + '"></label></div><div class="ql-field"><span>' + L('Check the result in', 'Revisar el resultado en') + '</span>' + reviewPicker('f') + '</div>' : '') +
           '<label>' + (open.mode === 'Rejected' ? L('Why not', 'Por qué no') : L('Note (optional)', 'Nota (opcional)')) + '<textarea id="fNote" rows="2"></textarea></label>' +
           '<div class="actions"><button class="btn primary" data-save="' + esc(r.id) + '">' + (open.mode === 'Rejected' ? L('Save rejection', 'Guardar rechazo') : L('Save decision', 'Guardar decisión')) + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></div>';
       } else {
@@ -2484,23 +2584,24 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     return [...seen.values()];
   }
   const lfDay = () => $('#lDate') && $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
-  function reviewDays(day) {
-    const v = chipVal('lreview') || '91'; if (v !== 'date') return Number(v);
-    const x = $('#lReviewDate') && $('#lReviewDate').value; return x ? Math.max(1, IC.fromIso(x) - day) : 91;
+  // Review time: a preset, or any date the manager picks ("l" = decision log form, "f" = accepting a recommendation).
+  function reviewDays(day, p) {
+    p = p || 'l'; const v = chipVal(p + 'review') || '91'; if (v !== 'date') return Number(v);
+    const x = $('#' + p + 'ReviewDate') && $('#' + p + 'ReviewDate').value; return x ? Math.max(1, IC.fromIso(x) - day) : 91;
   }
-  function lfReviewNote() { const el = $('#lReviewOn'); if (el) { const day = lfDay(); el.textContent = L('Review on ', 'Revisar el ') + IC.dayLabel(day + reviewDays(day)); } }
+  function reviewNote(p) { p = p || 'l'; const el = $('#' + p + 'ReviewOn'); if (el) { const day = p === 'l' ? lfDay() : S.ds.asOf; el.textContent = L('Review on ', 'Revisar el ') + IC.dayLabel(day + reviewDays(day, p)); } }
+  const lfReviewNote = () => reviewNote('l');
+  const reviewPicker = (p) => '<div class="ql-review">' + chipGroup(p + 'review', REVIEWS(), p === 'f' ? '30' : '91') + '<input id="' + p + 'ReviewDate" type="date" hidden min="' + IC.iso(S.ds.asOf + 1) + '" aria-label="' + L('Review date', 'Fecha de revisión') + '"><span class="note" id="' + p + 'ReviewOn"></span></div>';
   function logForm() {
     const p = (S.open && S.open.preset) || {};
     return '<section class="card form-card quicklog"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2>' +
       '<label class="big"><span>' + L('What are you going to decide?', '¿Qué vais a decidir?') + '</span><textarea id="lTitle" rows="2" placeholder="' + L('e.g. Run an Instagram giveaway in March', 'p. ej. Hacer un sorteo en Instagram en marzo') + '">' + esc(p.title || '') + '</textarea></label>' +
       '<div class="ql-pair"><label class="ql-field"><span>' + L('What result do you expect?', '¿Qué resultado esperáis?') + '</span><textarea id="lExpect" rows="2" placeholder="' + L('e.g. 15 more new patients a month', 'p. ej. 15 pacientes nuevos más al mes') + '"></textarea></label>' +
       '<label class="ql-field"><span>' + L('How will you measure it?', '¿Cómo lo vais a medir?') + '</span><textarea id="lMeasure" rows="2" placeholder="' + L('e.g. new patients who say they came through Instagram', 'p. ej. pacientes nuevos que digan que vienen por Instagram') + '"></textarea></label></div>' +
-      '<div class="ql-field"><span>' + L('Review in', 'Revisar en') + '</span><div class="ql-review">' + chipGroup('lreview', REVIEWS(), '91') +
-      '<input id="lReviewDate" type="date" hidden min="' + IC.iso(S.ds.asOf + 1) + '" aria-label="' + L('Review date', 'Fecha de revisión') + '"><span class="note" id="lReviewOn"></span></div></div>' +
+      '<div class="ql-field"><span>' + L('Review in', 'Revisar en') + '</span>' + reviewPicker('l') + '</div>' +
       '<div class="ql-pair"><label class="ql-field"><span>' + L('Manager in charge', 'Responsable (gerencia)') + '</span><select id="lOwner">' + MANAGERS().map((m) => '<option>' + esc(m) + '</option>').join('') + '</select></label>' +
       '<label class="ql-field"><span>' + L('Who carries it out', 'Quién lo ejecuta') + '</span><select id="lExec"><option value="">' + L('— choose a person —', '— elige una persona —') + '</option>' + staffList().map((s) => '<option>' + esc(s) + '</option>').join('') +
       '<option value="__other">' + L('Another person…', 'Otra persona…') + '</option></select><input id="lExecOther" hidden placeholder="' + L('Name or role', 'Nombre o puesto') + '"></label></div>' +
-      '<details class="more"><summary>' + L('More details (optional)', 'Más detalles (opcional)') + '</summary><div class="form"><label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label><label>' + L('Why', 'Por qué') + '<textarea id="lWhy" rows="2"></textarea></label></div></details>' +
       '<div class="actions"><button class="btn primary" data-logsave="1">' + L('Save decision', 'Guardar decisión') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></section>';
   }
   // After saving, the AI (on claude.ai) reads the three texts and picks the type and the figure that best follows the
@@ -2616,16 +2717,17 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (t.dataset.aiok) { const s = S.aiSuggest.get(t.dataset.aiok); if (s && s.line && s.line !== '?') { S.dict[t.dataset.aiok] = { line: s.line, by: 'ai', at: new Date().toISOString() }; setPref('ic-dict', S.dict); } render(); return; }
     if (t.dataset.dictclear) { if (window.confirm(L('Clear the clinic dictionary on this computer? The texts will go back to the review queue.', '¿Borrar el diccionario de la clínica de este ordenador? Los textos volverán a la cola de revisión.'))) { S.dict = {}; setPref('ic-dict', S.dict); render(); } return; }
     if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; render(); window.scrollTo(0, 0); lfReviewNote(); return; }
+    if (t.dataset.logdone) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Enter in MN the ' + t.dataset.logdone + ' pending lines the daily sheets show as done', 'Introducir en MN las ' + t.dataset.logdone + ' líneas pendientes que los partes dan por hechas') } }; render(); window.scrollTo(0, 0); lfReviewNote(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
-    if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); return; }
+    if (t.dataset.decide) { S.open = { recId: t.dataset.rec, mode: t.dataset.decide }; render(); const f = $('#fOwner') || $('#fNote'); if (f) f.focus(); reviewNote('f'); return; }
     if (t.dataset.review) { S.open = { decId: t.dataset.review }; render(); return; }
     // One-tap choices: a pressed button in its group; the type also picks the metric that fits it.
     if (t.dataset.chip != null) {
       const g = t.closest('[data-group]'); if (!g) return;
       g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', String(b === t)));
-      if (g.dataset.group === 'lreview') { const di = $('#lReviewDate'); di.hidden = t.dataset.chip !== 'date'; if (!di.hidden) di.focus(); lfReviewNote(); }
+      if (g.dataset.group === 'lreview' || g.dataset.group === 'freview') { const p = g.dataset.group[0], di = $('#' + p + 'ReviewDate'); di.hidden = t.dataset.chip !== 'date'; if (!di.hidden) di.focus(); reviewNote(p); }
       return;
     }
     if (t.dataset.decfilter) { S.decFilter = t.dataset.decfilter; render(); return; }
@@ -2640,7 +2742,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       let executor = $('#lExec').value; if (executor === '__other') executor = $('#lExecOther').value.trim();
       const d = {
         recId: null, manual: true, kind, title, action: title, decision: 'Accepted', expectText, measureText, executor,
-        note: $('#lWhy').value.trim(), owner: $('#lOwner').value,
+        note: '', owner: $('#lOwner').value,
         decidedOn: IC.iso(day), reviewDay: IC.iso(day + reviewDays(day)), decidedAt: new Date().toISOString(),
         metric, expected: exp == null || isNaN(exp) ? null : { pct: exp }, baseline: { value: baselineFor(metric, IC.iso(day)), asOf: IC.iso(S.ds.asOf) },
         outcome: null, dataLabel: S.ds.label, source: S.ds.source
@@ -2654,7 +2756,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       const r = S.recs.find((x) => x.id === t.dataset.save); if (!r) return;
       const mode = S.open.mode, note = ($('#fNote') || {}).value || '';
       if (mode === 'Rejected' && !note.trim()) { $('#fNote').focus(); $('#fNote').placeholder = L('Please say why, so the recommendations can improve', 'Di por qué, para que las recomendaciones mejoren'); return; }
-      const days = Number(($('#fReview') || {}).value || 30);
+      if (chipVal('freview') === 'date' && !$('#fReviewDate').value) { $('#fReviewDate').focus(); return; }
+      const days = reviewDays(S.ds.asOf, 'f');
       const d = {
         recId: r.id, kind: r.kind, title: r.title, decision: mode,
         action: mode === 'Modified' ? ($('#fAction').value.trim() || r.action) : r.action,
@@ -2678,7 +2781,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   // Call results on follow-up lists: one change saves one result.
   $('#view').addEventListener('change', async (e) => {
     // Decision log: review date and "another person" field.
-    if (e.target.id === 'lDate' || e.target.id === 'lReviewDate') { lfReviewNote(); return; }
+    if (e.target.id === 'lReviewDate' || e.target.id === 'fReviewDate') { reviewNote(e.target.id[0]); return; }
     if (e.target.id === 'lExec') { const o = $('#lExecOther'); o.hidden = e.target.value !== '__other'; if (!o.hidden) o.focus(); return; }
     // A person confirms the line of a free text: the clinic's dictionary remembers it on this computer.
     const dsel = e.target.closest('.dict-sel');
@@ -2802,14 +2905,38 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     }
     return XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
   }
-  $('#impFiles').addEventListener('change', async (e) => {
+  // Files come from "choose files", "choose folder" (every Excel/CSV inside, subfolders too) or a drop of files or folders.
+  const importable = (f) => /\.(xlsx|xls|csv)$/i.test(f.name) && !/^~\$/.test(f.name);
+  async function filesFromDrop(dt) {
+    const entries = Array.from(dt.items || []).map((it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null)).filter(Boolean);
+    if (!entries.length) return Array.from(dt.files || []);
+    const out = [];
+    const walk = async (en) => {
+      if (en.isFile) { out.push(await new Promise((res, rej) => en.file(res, rej))); return; }
+      const rd = en.createReader();
+      for (;;) { const batch = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!batch.length) break; for (const b of batch) await walk(b); }
+    };
+    for (const en of entries) await walk(en);
+    return out;
+  }
+  const drop = $('#impDrop');
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('over')));
+  drop.addEventListener('drop', async (e) => { e.preventDefault(); importFiles(await filesFromDrop(e.dataTransfer)); });
+  $('#impFiles').addEventListener('change', (e) => { importFiles(Array.from(e.target.files || [])); e.target.value = ''; });
+  $('#impFolder').addEventListener('change', (e) => { importFiles(Array.from(e.target.files || [])); e.target.value = ''; });
+  async function importFiles(all) {
     const out = $('#impResult'); $('#impUse').hidden = true; $('#impSave').hidden = true; parsed = null; parsedTables = null; parsedNames = null;
-    const files = Array.from(e.target.files || []); if (!files.length) return;
-    out.innerHTML = '<p class="sub">' + L('Reading…', 'Leyendo…') + '</p>';
+    const files = all.filter(importable).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name));
+    if (!files.length) { out.innerHTML = '<p class="bad">' + L('No Excel or CSV files found there.', 'No hay archivos Excel o CSV ahí.') + '</p>'; return; }
+    const prog = $('#impProg'), progText = $('#impProgText'); $('#impProgress').hidden = false; prog.max = files.length; prog.value = 0;
+    out.innerHTML = '';
     try {
       await loadXlsx();
       const tables = [], skipped = [], names = new Map();
-      for (const f of files) {
+      for (const [fi, f] of files.entries()) {
+        prog.value = fi; progText.textContent = L('Reading ', 'Leyendo ') + (fi + 1) + L(' of ', ' de ') + files.length + ' · ' + f.name;
+        if (fi % 4 === 0) await new Promise((r) => setTimeout(r, 0)); // let the bar repaint
         const wb = await readBook(f);
         // Each sheet as rows of cells; dates become plain days ("2026-10-26") so a time zone can never move them.
         const sheets = wb.SheetNames.map((name) => ({ name, aoa: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }).map((r) => r.map((v) => (v instanceof Date ? (isNaN(v) ? '' : dayOf(v)) : v))) }));
@@ -2829,7 +2956,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     } catch (err) {
       out.innerHTML = '<p class="bad">' + esc(err && err.message ? err.message : L('The files could not be read.', 'No se pudieron leer los archivos.')) + '</p>';
     }
-  });
+    $('#impProg').value = $('#impProg').max; $('#impProgText').textContent = L('Read ', 'Leídos ') + files.length + L(' files', ' archivos');
+  }
   $('#impUse').addEventListener('click', async () => {
     if (!parsed) return;
     const msg = (t) => { $('#impResult').insertAdjacentHTML('beforeend', '<p class="note bad">' + esc(t) + '</p>'); };
@@ -2930,7 +3058,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     { name: 'get_daily_sheets', description: 'Reception\'s daily sheets loaded in the app:days covered; per doctor the clinic production (PRODUCCION tab where there is one), the base of the dentist\'s share (doctor\'s tab plus insurance fees), fixed specials, the dentist\'s share at the current rate and collections by card or cash; the check against the PRODUCCION tab; how much free text the cleaning layer understood; clinic production by treatment line (G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants); payments on account by line letter; events written in the text (no-shows, rescheduled, urgencies, complaints).', inputSchema: { type: 'object', properties: {} },
       execute: () => { const R = partesReportNow(); if (!R) return { available: false, note: 'No daily sheets loaded.' }; const C = R.check; return round({ days: R.days.map(IC.iso), dentistShareRate: R.rate, totals: R.totals, doctors: R.doctors.map((d) => ({ doctor: d.doctor, days: d.days, lines: d.lines, clinicProduction: d.production, shareBase: d.base, insuranceFees: d.insurance, specials: d.special, share: d.share, collected: d.collected, card: d.card, cash: d.cash })), checkAgainstProduccion: { hasProduccionTab: R.hasProd, linesWithDifferentAmount: C.different.length, ofWhichImplantOrProsthesis: C.diffImplantProsthesis, doctorTabsAmount: C.different.reduce((a, x) => a + x.sheet, 0), produccionAmount: C.different.reduce((a, x) => a + x.prod, 0), linesMissingInProduccion: C.missing.length, linesOnlyInProduccion: C.extra.length }, freeTextCleaning: Object.assign({ distinctTexts: R.distinct, linesWithSeveralTreatments: R.multiRows, linesWithTeeth: R.teethRows }, R.coverage), productionByLine: R.byLine, paymentsOnAccountByLine: R.paysByCode, eventsWritten: R.events, paymentMethodWrittenAs: R.fpWritten }); } },
     { name: 'get_pending_production', description: 'MN list "Presupuestos aceptados no realizados" (treatment planned and paid, not recorded as done): total, lines, quotes, amount by age (0-3, 3-6, 6-12, over 12 months), by treatment line, the amount older than 6 months (the list to reconcile), share of the 20 largest quotes, the largest quotes, the oldest lines, and how often MN records the acceptance tick, the doctor, a linked payment and how the patient found the clinic.', inputSchema: { type: 'object', properties: {} },
-      execute: () => { const Q = IC.pendingReport(S.ds); if (!Q) return { available: false, note: 'No pending list loaded.' }; return round({ asOf: IC.iso(Q.asOf), total: Q.total, lines: Q.n, quotes: Q.budgets, olderThan6Months: Q.oldAmount, linesOlderThan6Months: Q.old.length, byAgeMonths: Q.buckets.map((b, i) => ({ band: ['0-3', '3-6', '6-12', '12+'][i], lines: b.n, amount: b.amount })), byLine: Q.byLine, top20QuotesShare: Q.top20Share, topQuotes: Q.topBudgets.map((b) => ({ quote: b.budget, lines: b.n, amount: b.amount, since: IC.iso(b.first) })), oldestLargest: Q.old.slice(0, 10).map((x) => ({ date: IC.iso(x.day), treatment: x.desc, quote: x.budget, amount: x.amount })), recordedInMN: { acceptedTickShareOfAmount: Q.flags.acceptedShare, doctorShareOfLines: Q.flags.userShare, linkedPaymentShareOfLines: Q.flags.collectedShare, contactSourceShareOfLines: Q.flags.sourceShare } }); } },
+      execute: () => { const Q = IC.pendingReport(S.ds); if (!Q) return { available: false, note: 'No pending list loaded.' }; return round({ asOf: IC.iso(Q.asOf), total: Q.total, lines: Q.n, quotes: Q.budgets, olderThan6Months: Q.oldAmount, linesOlderThan6Months: Q.old.length, byAgeMonths: Q.buckets.map((b, i) => ({ band: ['0-3', '3-6', '6-12', '12+'][i], lines: b.n, amount: b.amount })), byLine: Q.byLine, top20QuotesShare: Q.top20Share, topQuotes: Q.topBudgets.map((b) => ({ quote: b.budget, lines: b.n, amount: b.amount, since: IC.iso(b.first) })), oldestLargest: Q.old.slice(0, 10).map((x) => ({ date: IC.iso(x.day), treatment: x.desc, quote: x.budget, amount: x.amount })), probablyDoneNotEnteredInMN: (() => { const D = IC.pendingLikelyDone(S.ds); return D.available ? { lines: D.matches.length, amount: D.amount, largest: D.matches.slice(0, 10).map((m) => ({ patient: m.item.pid, pendingSince: IC.iso(m.item.day), treatment: m.item.desc, amount: m.item.amount, sheetDate: IC.iso(m.line.day), sheetText: m.line.desc, sheetDoctor: m.line.doctor, confidence: m.confidence })) } : { available: false, note: 'The pending export has no patient number column.' }; })(), recordedInMN: { acceptedTickShareOfAmount: Q.flags.acceptedShare, doctorShareOfLines: Q.flags.userShare, linkedPaymentShareOfLines: Q.flags.collectedShare, contactSourceShareOfLines: Q.flags.sourceShare } }); } },
     { name: 'get_patient_base', description: 'Patient files: how many, seen in the last 12 and 24 months, with no visit recorded, with a next appointment, due a recall (seen in 12 months without an appointment), discharged, and new files per month with this year to date against the same months a year earlier.', inputSchema: { type: 'object', properties: {} },
       execute: () => { const B = IC.patientBase(S.ds); if (!B) return { available: false }; return round({ files: B.files, seenLast12Months: B.active12, seenLast24Months: B.active24, noVisitRecorded: B.noVisit, withNextAppointment: B.withNext, dueRecall: B.recallN, discharged: B.bajas, newFilesYearToDate: B.ytd.cur, newFilesSameMonthsLastYear: B.ytd.prev, change: B.ytd.change, newFilesByMonth: B.months.map((m) => ({ month: IC.mkShortYear(m.k), n: m.n })) }); } },
     { name: 'get_patient', description: 'Everything the loaded data holds about ONE patient, by patient number: file (registration, last and next visit, totals collected and billed recorded in MN), visits and lost visits, treatments done (by line) and accepted but not done, payments, daily-sheet lines and payments on account, pending production lines, and follow-up risk. Use it whenever the question is about a specific patient ("Nº 1234"); call it once per patient.', inputSchema: { type: 'object', properties: { patient: { type: 'integer', description: 'Patient number, without "Nº"' } }, required: ['patient'] },
@@ -3006,6 +3134,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     }
   });
   $('#chatClose').addEventListener('click', () => { $('#chat').hidden = true; });
+  $('#askFab').addEventListener('click', () => $('#askBtn').click());
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) ask(b.textContent); });
   $('#chatLog').addEventListener('click', (e) => { const b = e.target.closest('.pick-pt'); if (b && !S.busy) ask(b.dataset.q); });
   $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const q = $('#chatIn').value; $('#chatIn').value = ''; ask(q); });
