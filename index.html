@@ -183,6 +183,13 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .quicklog .big { display: grid; gap: 6px; font-weight: 700; font-size: 14px; }
 .quicklog .big input { font-size: 17px; padding: 12px 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--bg); }
 .ql-step { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 10px; }
+.quicklog .big textarea { font: inherit; font-size: 17px; padding: 12px 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--bg); resize: vertical; }
+.ql-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ql-field { display: grid; gap: 6px; align-content: start; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.ql-field textarea, .ql-field select, .ql-field input { font: inherit; font-weight: 400; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; background: var(--bg); resize: vertical; }
+.ql-review { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ql-review input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--bg); }
+@media (max-width: 700px) { .ql-pair { grid-template-columns: minmax(0, 1fr); } }
 .ql-lbl { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .ql-step select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); max-width: 420px; }
 .kind-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -511,7 +518,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   const KIND_KEYS = ['risk', 'acq', 'pricing', 'dentist', 'line', 'margin'];
   const kindLabel = (k) => ({
     risk: L('Follow-up of paid treatments', 'Seguimiento de tratamientos pagados'), acq: L('Marketing', 'Marketing'), pricing: L('Pricing and promotions', 'Precios y promociones'),
-    dentist: L('Hiring and dentist performance', 'Contratación y rendimiento'), line: L('Treatment lines', 'Líneas de tratamiento'), margin: L('Cost and margin', 'Costes y margen')
+    dentist: L('Hiring and dentist performance', 'Contratación y rendimiento'), line: L('Treatment lines', 'Líneas de tratamiento'), margin: L('Cost and margin', 'Costes y margen'), general: L('General', 'General')
   })[k] || k;
   const decLabel = (v) => ({ Accepted: L('Accepted', 'Aceptada'), Modified: L('Changed', 'Modificada'), Rejected: L('Rejected', 'Rechazada') })[v] || v;
   const verdictLabel = (v) => ({ Worked: L('Worked', 'Funcionó'), Partly: L('Partly', 'En parte'), 'Did not work': L('Did not work', 'No funcionó') })[v] || v;
@@ -597,8 +604,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       }, () => { clearTimeout(timer); this.db = null; S.store = 'local'; this.loadLocal(); decisionsChanged(); });
     },
     async add(d) {
-      if (this.db) { await this.db.collection('decisions').add(d); return; }
-      d.id = 'l' + Date.now(); S.decisions.push(d); this.saveLocal(); decisionsChanged();
+      if (this.db) { const ref = await this.db.collection('decisions').add(d); return ref && ref.id; }
+      d.id = 'l' + Date.now(); S.decisions.push(d); this.saveLocal(); decisionsChanged(); return d.id;
     },
     async update(id, patch) {
       if (this.db) { await this.db.collection('decisions').doc(id).update(patch); return; }
@@ -1016,27 +1023,28 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (dents.length) h += '<optgroup label="' + L('Dentist', 'Odontólogo') + '">' + dents.map((p) => o('dentist_production|' + p, IC.metricLabel({ type: 'dentist_production', prof: p }))).join('') + '</optgroup>';
     return h;
   }
-  // ---------- Quick decision log: one sentence, everything else pre-filled and changed with one tap ----------
-  const OWNERS = () => [[L('CEO', 'CEO'), L('CEO', 'CEO')], [L('Owner-dentist', 'Dentista propietario'), L('Owner-dentist', 'Dentista propietario')], [L('Accountant', 'Contable'), L('Accountant', 'Contable')]];
-  const REVIEWS = () => [['30', L('1 month', '1 mes')], ['61', L('2 months', '2 meses')], ['91', L('3 months', '3 meses')]];
-  const KIND_HINT = () => ({ acq: L('e.g. Instagram giveaway, Google ads', 'p. ej. sorteo en Instagram, anuncios'), pricing: L('e.g. 10% off implants', 'p. ej. 10 % en implantes'), dentist: L('e.g. hire, change hours', 'p. ej. contratar, cambiar horario'),
-    line: L('e.g. push orthodontics', 'p. ej. impulsar ortodoncia'), risk: L('e.g. call patients, reconcile pending', 'p. ej. llamar pacientes, cuadrar pendiente'), margin: L('e.g. change lab, supplier', 'p. ej. cambiar de laboratorio') });
+  // ---------- Decision log: what, expected result and how to measure it in free text; then when and who ----------
+  // The app works out the type of decision and the figure it follows by itself: from the words at once, and
+  // with the AI after saving when it is available (never asked of the manager).
+  const MANAGERS = () => [L('CEO', 'CEO'), L('Owner-dentist', 'Dentista propietario'), L('Accountant', 'Contable')];
+  const REVIEWS = () => [['14', L('2 weeks', '2 semanas')], ['30', L('1 month', '1 mes')], ['91', L('3 months', '3 meses')], ['182', L('6 months', '6 meses')], ['365', L('1 year', '1 año')], ['date', L('Other date…', 'Otra fecha…')]];
   const chipGroup = (name, opts, cur) => '<div class="seg chips" role="group" data-group="' + name + '">' + opts.map(([v, l]) => '<button type="button" data-chip="' + esc(v) + '" aria-pressed="' + (String(v) === String(cur)) + '">' + esc(l) + '</button>').join('') + '</div>';
   const chipVal = (name) => { const b = document.querySelector('[data-group="' + name + '"] [aria-pressed="true"]'); return b ? b.dataset.chip : ''; };
   const KIND_WORDS = [['risk', /llamar|llamada|seguimiento|pendiente|cuadrar|recordatorio|whatsapp|\bsms\b|recuperar|abandon|call|follow|reconcil/],
-    ['acq', /instagram|facebook|google|anuncio|publicidad|marketing|flyer|folleto|sorteo|campan|redes|resena|\bweb\b|radio|captar|tiktok|ads?\b/],
+    ['acq', /instagram|facebook|google|anuncio|publicidad|marketing|flyer|folleto|sorteo|campan|redes|resena|\bweb\b|radio|captar|tiktok|pacientes nuevos|new patients|ads?\b/],
     ['pricing', /precio|descuento|promo|oferta|tarifa|financia|gratis|price|discount/],
     ['dentist', /contrat|doctor|doctora|dentista|odontolog|horario|jornada|turno|higienista|personal|hire|staff/],
-    ['margin', /coste|costo|proveedor|laboratorio|material|gasto|ahorr|compra|cost|supplier|lab\b/],
+    ['margin', /coste|costo|proveedor|laboratorio|material|gasto|ahorr|compra|margen|cost|supplier|lab\b/],
     ['line', /implant|ortodon|aligner|invisalign|bracket|protesis|blanque|limpieza|endodon|estetic|carilla|corona/]];
   const LINE_WORDS = [[/implant/, 'impl'], [/ortodon|aligner|invisalign|bracket|orto\b/, 'orto'], [/protesis fija|corona|puente|fija/, 'fija'], [/protesis|dentadura|removible|esquelet/, 'remov'], [/limpieza|higiene|periodon/, 'higi'], [/endodon|empaste|general|conservadora/, 'gener']];
   function guessKind(text) { const t = nrm(text); const hit = KIND_WORDS.find(([, re]) => re.test(t)); return hit ? hit[0] : null; }
   function guessMetric(kind, text) {
     const ds = S.ds, t = nrm(text || '');
     const line = (() => { const w = LINE_WORDS.find(([re]) => re.test(t)); return w ? ds.lineCats.find((c) => nrm(c).includes(w[1])) : null; })();
+    if (/cobr|collect/.test(t) && kind !== 'risk') return 'collections';
     if (kind === 'acq') return 'new_patients';
     if (kind === 'pricing') return line ? 'line_production|' + line : 'production';
-    if (kind === 'line') return 'line_production|' + (line || ds.lineCats[0] || '');
+    if (kind === 'line') return line ? 'line_production|' + line : 'production';
     if (kind === 'dentist') { const p = ds.profs.find((x) => (nrm(x).match(/[a-z]+/g) || []).some((w) => w.length > 3 && t.includes(w))); return p ? 'dentist_production|' + p : 'production'; }
     if (kind === 'risk') return IC.pendingReport(ds) ? 'pending_old' : 'unearned';
     if (kind === 'margin') return 'margin_pct';
@@ -1047,37 +1055,61 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     const metric = { type, fmt: base.fmt, better: base.better }; if (base.param) metric[base.param] = param;
     metric.label = IC.metricLabel(metric); return metric;
   }
-  const expOpts = (metric) => metric.better === 'down' ? [['', L('No target', 'Sin objetivo')], ['-0.1', '−10 %'], ['-0.2', '−20 %'], ['-0.3', '−30 %']] : [['', L('No target', 'Sin objetivo')], ['0.05', '+5 %'], ['0.1', '+10 %'], ['0.2', '+20 %']];
+  // Every figure a decision can be followed with, for the AI to choose from.
+  function metricChoices() {
+    const ds = S.ds, out = ['new_patients', 'production', 'margin_pct', 'collections', 'unearned'].concat(IC.pendingReport(ds) ? ['pending_old'] : []);
+    ds.lineCats.forEach((c) => out.push('line_production|' + c));
+    ds.profs.filter((p) => !IC.isHygienist(p)).forEach((p) => out.push('dentist_production|' + p));
+    return out.map((v) => ({ value: v, label: buildMetric(v).label }));
+  }
+  // People who can carry a decision out: the managers, the usual roles, the dentists in the data and anyone typed before.
+  const titleCase = (s) => String(s).trim().toLowerCase().replace(/(^|[\s.-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+  function staffList() {
+    const ds = S.ds, seen = new Map();
+    const add = (n, keep) => { const s = String(n || '').trim(), k = nrm(s); if (!s || seen.has(k)) return; seen.set(k, keep || /\p{Ll}/u.test(s) ? s : titleCase(s)); };
+    MANAGERS().forEach((m) => add(m, true));
+    [L('Reception', 'Recepción'), L('Treatment coordinator', 'Coordinadora de tratamientos'), L('Hygienists', 'Higienistas')].forEach((m) => add(m, true));
+    if (ds) { new Set(((ds.partes && ds.partes.lines) || []).map((l) => l.doctor)).forEach(add); (ds.profs || []).forEach(add); new Set((ds.appts || []).map((a) => a.prof)).forEach(add); }
+    S.decisions.forEach((d) => add(d.executor));
+    return [...seen.values()];
+  }
+  const lfDay = () => $('#lDate') && $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
+  function reviewDays(day) {
+    const v = chipVal('lreview') || '91'; if (v !== 'date') return Number(v);
+    const x = $('#lReviewDate') && $('#lReviewDate').value; return x ? Math.max(1, IC.fromIso(x) - day) : 91;
+  }
+  function lfReviewNote() { const el = $('#lReviewOn'); if (el) { const day = lfDay(); el.textContent = L('Review on ', 'Revisar el ') + IC.dayLabel(day + reviewDays(day)); } }
   function logForm() {
     const p = (S.open && S.open.preset) || {};
-    const kind = p.kind || '', mv = p.metric || guessMetric(kind, p.title || '');
-    const kinds = KIND_KEYS;
-    return '<section class="card form-card quicklog"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2><p class="def">' + L('Write it in one sentence; the app fills in the rest and you change anything with one tap.', 'Escríbela en una frase; la app rellena el resto y cambias lo que quieras con un toque.') + '</p>' +
-      '<label class="big"><span>' + L('What did you decide?', '¿Qué habéis decidido?') + '</span><input id="lTitle" autocomplete="off" value="' + esc(p.title || '') + '" placeholder="' + L('e.g. Instagram giveaway in March', 'p. ej. Sorteo en Instagram en marzo') + '"></label>' +
-      '<div class="ql-step"><span class="ql-lbl">' + L('Type', 'Tipo') + '</span><div class="kind-grid" role="group" data-group="lkind">' + kinds.map((k) => '<button type="button" data-chip="' + k + '" aria-pressed="' + (k === kind) + '"><b>' + esc(kindLabel(k)) + '</b><small>' + esc(KIND_HINT()[k]) + '</small></button>').join('') + '</div></div>' +
-      '<div class="ql-step"><span class="ql-lbl">' + L('Measured by', 'Se mide con') + '</span><select id="lMetric">' + metricOptions(mv) + '</select></div>' +
-      '<div class="ql-step"><span class="ql-lbl">' + L('Target', 'Objetivo') + '</span><div id="lExpWrap">' + chipGroup('lexp', expOpts(buildMetric(mv)), '') + '</div></div>' +
-      '<div class="ql-step"><span class="ql-lbl">' + L('Review in', 'Revisar en') + '</span>' + chipGroup('lreview', REVIEWS(), '61') + '</div>' +
-      '<div class="ql-step"><span class="ql-lbl">' + L('Owner', 'Responsable') + '</span>' + chipGroup('lowner', OWNERS(), OWNERS()[0][0]) + '</div>' +
+    return '<section class="card form-card quicklog"><h2>' + L('Log a decision', 'Registrar una decisión') + '</h2>' +
+      '<label class="big"><span>' + L('What are you going to decide?', '¿Qué vais a decidir?') + '</span><textarea id="lTitle" rows="2" placeholder="' + L('e.g. Run an Instagram giveaway in March', 'p. ej. Hacer un sorteo en Instagram en marzo') + '">' + esc(p.title || '') + '</textarea></label>' +
+      '<div class="ql-pair"><label class="ql-field"><span>' + L('What result do you expect?', '¿Qué resultado esperáis?') + '</span><textarea id="lExpect" rows="2" placeholder="' + L('e.g. 15 more new patients a month', 'p. ej. 15 pacientes nuevos más al mes') + '"></textarea></label>' +
+      '<label class="ql-field"><span>' + L('How will you measure it?', '¿Cómo lo vais a medir?') + '</span><textarea id="lMeasure" rows="2" placeholder="' + L('e.g. new patients who say they came through Instagram', 'p. ej. pacientes nuevos que digan que vienen por Instagram') + '"></textarea></label></div>' +
+      '<div class="ql-field"><span>' + L('Review in', 'Revisar en') + '</span><div class="ql-review">' + chipGroup('lreview', REVIEWS(), '91') +
+      '<input id="lReviewDate" type="date" hidden min="' + IC.iso(S.ds.asOf + 1) + '" aria-label="' + L('Review date', 'Fecha de revisión') + '"><span class="note" id="lReviewOn"></span></div></div>' +
+      '<div class="ql-pair"><label class="ql-field"><span>' + L('Manager in charge', 'Responsable (gerencia)') + '</span><select id="lOwner">' + MANAGERS().map((m) => '<option>' + esc(m) + '</option>').join('') + '</select></label>' +
+      '<label class="ql-field"><span>' + L('Who carries it out', 'Quién lo ejecuta') + '</span><select id="lExec"><option value="">' + L('— choose a person —', '— elige una persona —') + '</option>' + staffList().map((s) => '<option>' + esc(s) + '</option>').join('') +
+      '<option value="__other">' + L('Another person…', 'Otra persona…') + '</option></select><input id="lExecOther" hidden placeholder="' + L('Name or role', 'Nombre o puesto') + '"></label></div>' +
       '<details class="more"><summary>' + L('More details (optional)', 'Más detalles (opcional)') + '</summary><div class="form"><label>' + L('Date decided', 'Fecha de la decisión') + '<input id="lDate" type="date" value="' + IC.iso(S.ds.asOf) + '" max="' + IC.iso(S.ds.asOf) + '"></label><label>' + L('Why', 'Por qué') + '<textarea id="lWhy" rows="2"></textarea></label></div></details>' +
-      '<p class="ql-preview" id="lPreview"></p>' +
       '<div class="actions"><button class="btn primary" data-logsave="1">' + L('Save decision', 'Guardar decisión') + '</button><button class="btn quiet" data-cancel="1">' + L('Cancel', 'Cancelar') + '</button></div></section>';
   }
-  // The sentence under the form says exactly what will be saved and from which value it will be measured.
-  function lfPreview() {
-    const el = $('#lPreview'); if (!el) return;
-    const title = $('#lTitle').value.trim(), metric = buildMetric($('#lMetric').value);
-    const day = $('#lDate') && $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
-    const base = baselineFor(metric, IC.iso(day)), exp = chipVal('lexp'), rev = Number(chipVal('lreview') || 61), owner = chipVal('lowner');
-    const target = exp !== '' && base != null ? base * (1 + Number(exp)) : null;
-    el.innerHTML = (title ? '<b>«' + esc(title) + '»</b> · ' : '') + esc(metric.label) + ': ' + L('now ', 'ahora ') + '<b class="num">' + fmt(base, metric.fmt) + '</b>' +
-      (target != null ? ' → ' + L('target ', 'objetivo ') + '<b class="num">' + fmt(target, metric.fmt) + '</b> (' + fmtChange(Number(exp), metric.fmt === 'pct' ? 'eur' : metric.fmt) + ')' : '') +
-      ' · ' + L('review on ', 'revisar el ') + esc(IC.dayLabel(day + rev)) + (owner ? ' · ' + esc(owner) : '');
-  }
-  function lfSetMetric(v) {
-    const sel = $('#lMetric'); if (!sel) return;
-    if (![...sel.options].some((o) => o.value === v)) return;
-    sel.value = v; $('#lExpWrap').innerHTML = chipGroup('lexp', expOpts(buildMetric(v)), '');
+  // After saving, the AI (on claude.ai) reads the three texts and picks the type and the figure that best follows the
+  // expected result. Only the texts travel, never patient data; if the AI is not there, the word-based guess stays.
+  async function aiClassify(id, d) {
+    if (!id) return;
+    const sample = await getSample(); if (!sample) return;
+    const opts = metricChoices();
+    const prompt = 'Classify a management decision of a Spanish dental clinic. Kinds: ' + KIND_KEYS.map((k) => k + ' = ' + kindLabel(k)).join('; ') + '.\nFigures the app can follow (value = label): ' + opts.map((o) => o.value + ' = ' + o.label).join('; ') +
+      '.\nDecision: ' + d.title + '\nExpected result: ' + (d.expectText || '-') + '\nHow they will measure it: ' + (d.measureText || '-') + '\nAnswer only with JSON like {"kind":"acq","metric":"new_patients"}, choosing the figure that best tracks the expected result.';
+    try {
+      const res = await sample(prompt, { modelTier: 'quick', cache: false });
+      const t = (res && res.text) || '', a = t.indexOf('{'), b = t.lastIndexOf('}');
+      const r = a >= 0 && b > a ? JSON.parse(t.slice(a, b + 1)) : null;
+      if (!r || !KIND_KEYS.includes(r.kind) || !opts.some((o) => o.value === r.metric)) return;
+      const metric = buildMetric(r.metric);
+      if (r.kind === d.kind && metric.label === d.metric.label) return;
+      await Store.update(id, { kind: r.kind, metric, baseline: { value: baselineFor(metric, d.decidedOn), asOf: d.baseline.asOf }, classifiedBy: 'ai' });
+    } catch (e) { /* the word-based guess stays */ }
   }
   const fmtChange = (ch, f) => ch == null ? '—' : f === 'pct' ? (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(1).replace('.', ',') + ' ' + L('pts', 'p.p.') : (ch >= 0 ? '+' : '−') + Math.abs(ch * 100).toFixed(0) + '%';
   function evaluationHtml(d) {
@@ -1131,8 +1163,10 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
       const calls = d.kind === 'risk' && d.decision !== 'Rejected' && d.metric.ids ? callList(d) : '';
       return '<article class="rec dec-' + state(d) + '"><div class="dec-top"><span class="kind">' + esc(kindLabel(d.kind)) + (d.manual ? L(' · logged by a manager', ' · registrada por la dirección') : L(' · from a recommendation', ' · de una recomendación')) + '</span>' + pillFor(d) + '</div><h2>' + esc(d.title) + '</h2>' +
         '<p class="decided-line">' + decisionLine(d) + '</p>' +
-        '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? L('Reason', 'Motivo') : L('Why', 'Por qué')) + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
-        (d.decision !== 'Rejected' ? '<dt>' + esc(IC.metricLabel(d.metric)) + '</dt><dd class="dec-metric">' + evaluationHtml(d) + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
+        '<dl>' + (d.action && d.action !== d.title ? '<dt>' + (d.decision === 'Rejected' ? L('Proposed action', 'Acción propuesta') : L('Action', 'Acción')) + '</dt><dd>' + esc(d.action) + '</dd>' : '') +
+        (d.expectText ? '<dt>' + L('Expected result', 'Resultado esperado') + '</dt><dd>' + esc(d.expectText) + '</dd>' : '') + (d.measureText ? '<dt>' + L('How it is measured', 'Cómo se mide') + '</dt><dd>' + esc(d.measureText) + '</dd>' : '') +
+        (d.executor ? '<dt>' + L('Carried out by', 'Lo ejecuta') + '</dt><dd>' + esc(d.executor) + '</dd>' : '') + (d.note ? '<dt>' + (d.decision === 'Rejected' ? L('Reason', 'Motivo') : L('Why', 'Por qué')) + '</dt><dd>' + esc(d.note) + '</dd>' : '') +
+        (d.decision !== 'Rejected' ? '<dt>' + L('The app follows: ', 'La app sigue: ') + esc(IC.metricLabel(d.metric)) + '</dt><dd class="dec-metric">' + evaluationHtml(d) + '</dd>' : '') + '</dl>' + calls + foot + '</article>';
     }).join('') + where;
   }
 
@@ -1171,7 +1205,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (t.dataset.ai) { suggestQueue(); return; }
     if (t.dataset.aiok) { const s = S.aiSuggest.get(t.dataset.aiok); if (s && s.line && s.line !== '?') { S.dict[t.dataset.aiok] = { line: s.line, by: 'ai', at: new Date().toISOString() }; setPref('ic-dict', S.dict); } render(); return; }
     if (t.dataset.dictclear) { if (window.confirm(L('Clear the clinic dictionary on this computer? The texts will go back to the review queue.', '¿Borrar el diccionario de la clínica de este ordenador? Los textos volverán a la cola de revisión.'))) { S.dict = {}; setPref('ic-dict', S.dict); render(); } return; }
-    if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; S.lfKindPicked = true; S.lfMetricPicked = true; render(); window.scrollTo(0, 0); lfPreview(); return; }
+    if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; render(); window.scrollTo(0, 0); lfReviewNote(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
     if (t.dataset.go) { S.tab = t.dataset.go; S.open = null; render(); window.scrollTo(0, 0); return; }
@@ -1180,29 +1214,29 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     // One-tap choices: a pressed button in its group; the type also picks the metric that fits it.
     if (t.dataset.chip != null) {
       const g = t.closest('[data-group]'); if (!g) return;
-      const was = t.getAttribute('aria-pressed') === 'true';
-      g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
-      t.setAttribute('aria-pressed', g.dataset.group === 'lkind' && was ? 'false' : 'true');
-      if (g.dataset.group === 'lkind' && !was) { S.lfKindPicked = true; lfSetMetric(guessMetric(t.dataset.chip, $('#lTitle').value)); }
-      lfPreview(); return;
+      g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', String(b === t)));
+      if (g.dataset.group === 'lreview') { const di = $('#lReviewDate'); di.hidden = t.dataset.chip !== 'date'; if (!di.hidden) di.focus(); lfReviewNote(); }
+      return;
     }
     if (t.dataset.decfilter) { S.decFilter = t.dataset.decfilter; render(); return; }
-    if (t.dataset.log) { S.open = { log: true }; S.lfKindPicked = false; S.lfMetricPicked = false; render(); const f = $('#lTitle'); if (f) f.focus(); lfPreview(); return; }
+    if (t.dataset.log) { S.open = { log: true }; render(); const f = $('#lTitle'); if (f) f.focus(); lfReviewNote(); return; }
     if (t.dataset.logsave) {
       const title = $('#lTitle').value.trim();
-      if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = L('Write what you decided', 'Escribe qué habéis decidido'); return; }
-      const metric = buildMetric($('#lMetric').value);
-      const day = $('#lDate').value ? Math.min(IC.fromIso($('#lDate').value), S.ds.asOf) : S.ds.asOf;
-      const expV = chipVal('lexp'), exp = expV === '' ? null : Number(expV);
+      if (!title) { $('#lTitle').focus(); $('#lTitle').placeholder = L('Write what you are going to decide', 'Escribe qué vais a decidir'); return; }
+      if (chipVal('lreview') === 'date' && !$('#lReviewDate').value) { $('#lReviewDate').focus(); return; }
+      const expectText = $('#lExpect').value.trim(), measureText = $('#lMeasure').value.trim(), all = title + ' ' + expectText + ' ' + measureText;
+      const kind = guessKind(all) || 'general', metric = buildMetric(guessMetric(kind, all)), exp = null;
+      const day = lfDay();
+      let executor = $('#lExec').value; if (executor === '__other') executor = $('#lExecOther').value.trim();
       const d = {
-        recId: null, manual: true, kind: chipVal('lkind') || guessKind(title) || 'line', title, action: title, decision: 'Accepted',
-        note: $('#lWhy').value.trim(), owner: chipVal('lowner'),
-        decidedOn: IC.iso(day), reviewDay: IC.iso(day + Number(chipVal('lreview') || 61)), decidedAt: new Date().toISOString(),
+        recId: null, manual: true, kind, title, action: title, decision: 'Accepted', expectText, measureText, executor,
+        note: $('#lWhy').value.trim(), owner: $('#lOwner').value,
+        decidedOn: IC.iso(day), reviewDay: IC.iso(day + reviewDays(day)), decidedAt: new Date().toISOString(),
         metric, expected: exp == null || isNaN(exp) ? null : { pct: exp }, baseline: { value: baselineFor(metric, IC.iso(day)), asOf: IC.iso(S.ds.asOf) },
         outcome: null, dataLabel: S.ds.label, source: S.ds.source
       };
       t.disabled = true;
-      try { await Store.add(d); S.open = null; render(); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
+      try { const id = await Store.add(d); S.open = null; render(); aiClassify(id, d); } catch (err) { t.disabled = false; alertInline(t, couldNotSave(err)); }
       return;
     }
     if (t.dataset.cancel) { S.open = null; render(); return; }
@@ -1232,20 +1266,10 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     }
   });
   // Call results on follow-up lists: one change saves one result.
-  // Quick log: as the manager types, the type and metric follow the words (until they pick them by hand).
-  $('#view').addEventListener('input', (e) => {
-    if (e.target.id !== 'lTitle') return;
-    const text = e.target.value;
-    if (!S.lfKindPicked) {
-      const k = guessKind(text), g = document.querySelector('[data-group="lkind"]');
-      if (k && g) { g.querySelectorAll('[data-chip]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.chip === k))); }
-      if (k && !S.lfMetricPicked) lfSetMetric(guessMetric(k, text));
-    } else if (!S.lfMetricPicked) lfSetMetric(guessMetric(chipVal('lkind'), text));
-    lfPreview();
-  });
   $('#view').addEventListener('change', async (e) => {
-    if (e.target.id === 'lMetric') { S.lfMetricPicked = true; lfSetMetric(e.target.value); lfPreview(); return; }
-    if (e.target.id === 'lDate') { lfPreview(); return; }
+    // Decision log: review date and "another person" field.
+    if (e.target.id === 'lDate' || e.target.id === 'lReviewDate') { lfReviewNote(); return; }
+    if (e.target.id === 'lExec') { const o = $('#lExecOther'); o.hidden = e.target.value !== '__other'; if (!o.hidden) o.focus(); return; }
     // A person confirms the line of a free text: the clinic's dictionary remembers it on this computer.
     const dsel = e.target.closest('.dict-sel');
     if (dsel) { const k = dsel.dataset.key; if (dsel.value) S.dict[k] = { line: dsel.value, by: 'person', at: new Date().toISOString() }; else delete S.dict[k]; setPref('ic-dict', S.dict); render(); return; }
