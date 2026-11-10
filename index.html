@@ -1418,18 +1418,13 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   const VOLATILE = new Set(['estado', 'status', 'fecha realizacion', 'fecha realizado', 'realizado el', 'done date', 'realizada', 'actuacion realizada', 'rzd', 'f realizacion', 'cobrado', 'estado cobro', 'color', 'colour', 'color cita', 'cancelada', 'sms', 'fecha modificacion', 'pendiente', 'importe pendiente']);
   const colKey = (k) => nrm(k).replace(/[^a-z0-9]+/g, ' ').trim();
   const rowId = (r) => JSON.stringify(Object.keys(r).filter((k) => !VOLATILE.has(colKey(k))).sort().map((k) => [colKey(k), r[k]]));
+  // Adds a new import to the data already there. Every file keeps its own table (with its source and its kind of
+  // export); a row the new import brings again replaces the old copy, so a record that changed is not counted twice.
   function mergeTables(a, b) {
-    const kinds = new Map();
-    const add = (t, fresh) => {
-      let x = kinds.get(t.kind); if (!x) { x = { kind: t.kind, old: [], fresh: [], from: [] }; kinds.set(t.kind, x); }
-      for (const r of t.rows) (fresh ? x.fresh : x.old).push(r);
-      if (!x.from.includes(t.from)) x.from.push(t.from);
-    };
-    a.forEach((t) => add(t, false)); b.forEach((t) => add(t, true));
-    return Array.from(kinds.values()).map((x) => {
-      const ids = new Set(x.fresh.map(rowId));
-      return { kind: x.kind, rows: x.old.filter((r) => !ids.has(rowId(r))).concat(x.fresh), from: x.from.slice(-3).join(', ') };
-    });
+    const fresh = new Map();
+    b.forEach((t) => { const s = fresh.get(t.kind) || new Set(); t.rows.forEach((r) => s.add(rowId(r))); fresh.set(t.kind, s); });
+    const old = a.map((t) => { const s = fresh.get(t.kind); return s ? Object.assign({}, t, { rows: t.rows.filter((r) => !s.has(rowId(r))) }) : t; }).filter((t) => t.rows.length);
+    return old.concat(b);
   }
   const importedLabel = () => L('Imported data', 'Datos importados');
   function useSaved() {
@@ -1449,7 +1444,10 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   function showSaveOptions() {
     const box = $('#impSave'); box.hidden = !Vault.ok; if (!Vault.ok) return;
     const open = !!Vault.pass, locked = Vault.exists && !open;
-    $('#impMode').innerHTML = Vault.exists ? '<label><input type="radio" name="impMode" value="add" checked> ' + L('Add to the saved data (monthly update)', 'Añadir a los datos guardados (actualización mensual)') + '</label><label><input type="radio" name="impMode" value="replace"> ' + L('Replace the saved data', 'Sustituir los datos guardados') + '</label>' : '';
+    // Once data is loaded (saved or only in this session), a new import adds to it by default: daily sheets and MN
+    // exports can come in several rounds.
+    $('#impMode').innerHTML = Vault.exists ? '<label><input type="radio" name="impMode" value="add" checked> ' + L('Add to the saved data (monthly update)', 'Añadir a los datos guardados (actualización mensual)') + '</label><label><input type="radio" name="impMode" value="replace"> ' + L('Replace the saved data', 'Sustituir los datos guardados') + '</label>'
+      : S.sessionTables ? '<label><input type="radio" name="impMode" value="add" checked> ' + L('Add to the data already loaded', 'Añadir a los datos ya cargados') + '</label><label><input type="radio" name="impMode" value="replace"> ' + L('Replace them', 'Sustituirlos') + '</label>' : '';
     $('#passRow').hidden = open;
     $('#savePass').placeholder = locked ? L('Password of the saved data', 'Contraseña de los datos guardados') : L('New password (8 characters or more)', 'Nueva contraseña (8 caracteres o más)');
     $('#savePass2').hidden = locked; $('#savePass2').placeholder = L('Repeat the password', 'Repite la contraseña');
@@ -1534,7 +1532,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     if (!parsed) return;
     const msg = (t) => { $('#impResult').insertAdjacentHTML('beforeend', '<p class="note bad">' + esc(t) + '</p>'); };
     const save = Vault.ok && $('#saveChk').checked;
-    const modeEl = document.querySelector('input[name="impMode"]:checked'), add = Vault.exists && (!modeEl || modeEl.value === 'add');
+    const modeEl = document.querySelector('input[name="impMode"]:checked'), add = (Vault.exists || !!S.sessionTables) && (!modeEl || modeEl.value === 'add');
     try {
       if (Vault.exists && !Vault.pass && (save || add)) {
         try { await Vault.open($('#savePass').value); } catch (e) { msg(L('Wrong password for the saved data.', 'Contraseña incorrecta para los datos guardados.')); return; }
@@ -1544,8 +1542,10 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
         if (p1 !== p2) { msg(L('The two passwords do not match.', 'Las dos contraseñas no coinciden.')); return; }
         Vault.pass = p1;
       }
-      const tables = add && Vault.tables ? mergeTables(Vault.tables, parsedTables) : parsedTables;
-      S.imported = add && Vault.tables ? IC.fromTables(tables, importedLabel()) : parsed;
+      const base = Vault.exists ? Vault.tables : S.sessionTables;
+      const tables = add && base ? mergeTables(base, parsedTables) : parsedTables;
+      S.imported = add && base ? IC.fromTables(tables, importedLabel()) : parsed;
+      S.sessionTables = tables;
       // Names from the daily sheets join the names key (memory, and the encrypted copy if the data is saved).
       if (Vault.key && !(KEY.map && !KEY.sample)) { KEY.map = new Map(Vault.key); KEY.sample = false; KEY.show = true; }
       if (parsedNames && parsedNames.size) { const k = KEY.map && !KEY.sample ? new Map(KEY.map) : new Map(); parsedNames.forEach((v, id) => k.set(id, v)); KEY.map = k; KEY.sample = false; KEY.idx = null; }
