@@ -170,7 +170,7 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .modal-card ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
 .modal-card p { margin: 0; }
 
-/* Daily sheets, cleaning, pending production, digital sheet, feedback */
+/* Daily sheets, cleaning, pending production, feedback */
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .seg button { border: 0; background: none; padding: 7px 12px; font-weight: 600; color: var(--ink-2); }
@@ -187,10 +187,6 @@ details.more p { margin: 8px 0 0; max-width: 75ch; }
 .txt { font-family: var(--mono); font-size: 13px; }
 .scroll { max-height: 420px; overflow-y: auto; }
 tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
-.pd-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.pd-grid label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.pd-grid input, .pd-grid select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); font-weight: 400; min-width: 0; }
-.pd-grid .wide { grid-column: span 2; }
 .btn-fb { position: relative; }
 .btn-fb .badge { position: absolute; top: -6px; right: -6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--brand-teal); color: var(--brand); font-size: 11px; line-height: 18px; text-align: center; }
 .fb-list { display: grid; gap: 10px; }
@@ -201,7 +197,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
 .minibars span { background: var(--bar); border-radius: 2px 2px 0 0; display: block; }
 .minibars span.cur { background: var(--accent); }
 
-@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: minmax(0, 1fr); } .pd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) {
   .tiles { grid-template-columns: minmax(0, 1fr); }
   .tabs { order: 3; flex-basis: 100%; overflow-x: auto; }
@@ -1706,7 +1702,7 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   const SNAPS = [IC.dn(2026, 11, 3), IC.dn(2026, 12, 3), IC.dn(2027, 1, 4)];
   const snapLabel = (i) => L('Sample · ', 'Ejemplo · ') + IC.dayLabel(SNAPS[i]);
   const S = { full: null, ds: null, model: null, risk: [], dormant: null, recs: [], learned: null, k: 0, tab: 'overview', decisions: [], store: 'local', imported: null, sampleIdx: 0, open: null, openCalls: new Set(), chat: [], busy: false,
-    partesFrom: 'data', cleanFilter: 'all', aiSuggest: new Map(), aiBusy: false, aiMsg: '' };
+    cleanFilter: 'all', aiSuggest: new Map(), aiBusy: false, aiMsg: '' };
   // Settings kept in this browser: the dentist's share used on the daily sheets, and the clinic's dictionary
   // of free-text descriptions a person has confirmed (text pattern -> treatment line; no patient data).
   const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -1873,14 +1869,14 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   let pendingRender = false;
   function renderSoon() { if (S.open) { pendingRender = true; return; } render(); }
 
-  // ---------- Suggestions (feedback): staff and managers ask for changes; the team that builds the app sees them ----------
+  // ---------- Suggestions (feedback): managers ask for changes; the team that builds the app sees them ----------
   // Saved in the app's shared database (collection "feedback"), next to the decision log: everyone who opens the
   // app sees the requests and their status; editors (the app's builders) change the status. Outside claude.ai
   // they stay in this browser. Patient names typed by mistake are replaced by their number before saving.
   const FB = { db: null, user: null, items: [], canEdit: false, myId: null };
   const FB_TYPES = () => [['improvement', L('Improvement', 'Mejora')], ['bug', L('Something does not work', 'Algo no funciona')], ['idea', L('New idea', 'Idea nueva')], ['comment', L('Comment', 'Comentario')]];
   const FB_STATUS = () => [['new', L('New', 'Nueva')], ['doing', L('In progress', 'En curso')], ['done', L('Done', 'Hecha')]];
-  const tabName = (t) => ({ overview: L('Overview', 'Resumen'), partes: L('Daily sheets', 'Partes diarios'), parte: L('Digital sheet', 'Parte digital'), pending: L('Pending production', 'Producción pendiente'), recs: L('Recommendations', 'Recomendaciones'), decisions: L('Decisions', 'Decisiones') })[t] || t;
+  const tabName = (t) => ({ overview: L('Overview', 'Resumen'), partes: L('Daily sheets', 'Partes diarios'), pending: L('Pending production', 'Producción pendiente'), recs: L('Recommendations', 'Recomendaciones'), decisions: L('Decisions', 'Decisiones') })[t] || t;
   const fbLocal = () => { FB.items = pref('ic-feedback', []); };
   function fbBadge() {
     const n = FB.items.filter((x) => (x.status || 'new') === 'new').length, b = $('#fbBadge');
@@ -2057,16 +2053,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     '</div>';
   }
 
-  // ---------- Daily sheets (partes diarios), cleaning of their free text, and the digital sheet ----------
-  const PD_KEY = 'ic-parte-digital';
-  const PD = { lines: pref(PD_KEY, []) };
-  const savePD = () => setPref(PD_KEY, PD.lines);
-  // The digital sheet in the same shape as an imported one: structured lines, so nothing needs cleaning.
-  const digitalPartes = () => ({ lines: PD.lines.map((l) => ({ day: IC.fromIso(l.date), doctor: l.doctor, pid: l.pid, desc: l.desc, cobrado: l.paid || 0, fp: l.fp || '', realizada: l.done || 0, valoracion: l.done || 0, especial: l.special || 0, seguro: 0, line: l.line, act: l.act, src: 'doctor' })), pays: [] });
-  const partesSource = () => (S.partesFrom === 'digital' ? Object.assign({}, S.ds, { partes: digitalPartes() }) : S.ds);
-  const partesReportNow = () => (S.ds ? IC.partesReport(partesSource(), { rate: S.rate, dict: S.dict }) : null);
-  // Names on the digital sheet come from the real names key whatever data is loaded.
-  const patAny = (id) => { const n = KEY.map && KEY.show && !KEY.sample ? KEY.map.get(Number(id)) : null; return (n ? '<span class="pname">' + esc(n) + '</span>' : '') + '<span class="pid">Nº ' + esc(id) + '</span>'; };
+  // ---------- Daily sheets (partes diarios) and cleaning of their free text ----------
+  const partesReportNow = () => (S.ds ? IC.partesReport(S.ds, { rate: S.rate, dict: S.dict }) : null);
   const codePill = (c, title) => c ? '<span class="code" title="' + esc(title || IC.lineName(c)) + '">' + esc(c) + '</span>' : '<span class="code q">?</span>';
   const CLEAN_ST = () => ({ form: L('Form (no free text)', 'Formulario (sin texto libre)'), dict: L('Clinic dictionary', 'Diccionario de la clínica'), rules: L('Rules', 'Reglas'), context: L('Same patient\'s other work', 'Resto del trabajo del paciente'), event: L('Event, no treatment', 'Suceso, sin tratamiento'), queue: L('To review', 'Por revisar') });
   const tile = (lbl, val, cmp) => '<div class="tile"><span class="lbl">' + esc(lbl) + '</span><span class="val">' + esc(val) + '</span><span class="cmp">' + esc(cmp) + '</span></div>';
@@ -2075,11 +2063,9 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   const isImplantOrProsthesis = (x) => ['IM', 'PF', 'PR'].includes(x.line) || /DEFINITIV|ENTREG|PRUEBA/.test(IC.up(x.desc));
 
   function viewPartes() {
-    const R = partesReportNow(), digital = S.partesFrom === 'digital', P = digital ? patAny : pat, nDig = PD.lines.length;
-    const seg = '<div class="seg" role="group" aria-label="' + esc(L('Which sheets', 'Qué partes')) + '"><button data-pfrom="data" aria-pressed="' + !digital + '">' + L('Imported sheets', 'Partes importados') + '</button><button data-pfrom="digital" aria-pressed="' + digital + '">' + L('Digital sheet', 'Parte digital') + (nDig ? ' (' + nDig + ')' : '') + '</button></div>';
-    const head = '<div class="page-head"><div><h1>' + L('Daily sheets', 'Partes diarios') + '</h1><p class="sub">' + (R ? esc(L('Days: ', 'Días: ') + R.days.map((d) => IC.dayLabel(d)).join(', ')) + ' · ' : '') + esc(digital ? L('Digital sheet on this computer', 'Parte digital de este ordenador') : S.ds.label) + '</p></div><div class="toolbar">' + seg + '<button class="btn" data-go="parte">' + L('Fill in today\'s sheet', 'Rellenar el parte de hoy') + '</button></div></div>';
+    const R = partesReportNow(), P = pat;
+    const head = '<div class="page-head"><div><h1>' + L('Daily sheets', 'Partes diarios') + '</h1><p class="sub">' + (R ? esc(L('Days: ', 'Días: ') + R.days.map((d) => IC.dayLabel(d)).join(', ')) + ' · ' : '') + esc(S.ds.label) + '</p></div></div>';
     if (!R) {
-      if (digital) return head + '<div class="empty">' + L('The digital sheet is empty. Fill in today\'s sheet to see it here.', 'El parte digital está vacío. Rellena el parte de hoy para verlo aquí.') + '</div>';
       return head + emptyImport(S.ds.source === 'sample' ? L('The sample data has no daily sheets. Import reception\'s Excel sheets (one tab per doctor) to see production, collections and each dentist\'s share, the check against the PRODUCCION tab and the cleaning of the free text.', 'Los datos de ejemplo no traen partes diarios. Importa los Excel de recepción (una pestaña por doctor) para ver la producción, los cobros y lo que corresponde a cada doctor, la comprobación con la pestaña PRODUCCION y la limpieza del texto libre.') : L('The imported data has no daily sheets. Import reception\'s Excel sheets to see them here.', 'Los datos importados no traen partes diarios. Importa los Excel de recepción para verlos aquí.'));
     }
     const T = R.totals, cov = R.coverage, st = CLEAN_ST();
@@ -2148,78 +2134,6 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     return head + tiles + docTbl + check + clean + '<div class="grid2">' + lines + events + '</div>';
   }
 
-  // The digital sheet: reception picks the treatment from a list instead of typing free text. It stays on this
-  // computer and downloads as the same Excel reception uses today.
-  function viewParteDigital() {
-    const now = new Date(), today = IC.iso(IC.dn(now.getFullYear(), now.getMonth() + 1, now.getDate()));
-    const known = PD.lines.map((l) => l.doctor).concat(S.ds && S.ds.partes ? S.ds.partes.lines.filter((l) => l.src !== 'produccion').map((l) => l.doctor) : []);
-    const docs = Array.from(new Set(known.filter(Boolean))).sort();
-    const catalogue = IC.ACTS.filter((a) => a.line).map((a) => '<option value="' + a.key + '"' + (S.pdAct === a.key ? ' selected' : '') + '>' + esc(IC.actLabel(a.key)) + ' · ' + a.line + '</option>').join('');
-    const head = '<div class="page-head"><div><h1>' + L('Digital daily sheet', 'Parte digital') + ' <span class="pill medium">' + L('Prototype', 'Prototipo') + '</span></h1><p class="sub">' + L('Replaces reception\'s daily Excel: one line per patient and doctor, with the treatment chosen from a list. It is kept on this computer only and downloads as the usual Excel (one tab per doctor and the PRODUCCION tab). Payments are still recorded in MN.', 'Sustituye al Excel diario de recepción: una línea por paciente y doctor, con el tratamiento elegido de una lista. Se guarda solo en este ordenador y se descarga como el Excel de siempre (una pestaña por doctor y la pestaña PRODUCCION). Los cobros se siguen registrando en MN.') + '</p></div><div class="toolbar"><button class="btn" data-go="partes">' + L('Back to daily sheets', 'Volver a partes diarios') + '</button></div></div>';
-    const form = '<section class="card"><h2>' + L('New line', 'Nueva línea') + '</h2><div class="pd-grid">' +
-      '<label>' + L('Date', 'Fecha') + '<input id="pdDate" type="date" value="' + esc(S.pdDate || today) + '"></label>' +
-      '<label>' + L('Doctor', 'Doctor') + '<input id="pdDoctor" list="pdDocs" value="' + esc(S.pdDoctor || '') + '" autocomplete="off"><datalist id="pdDocs">' + docs.map((d) => '<option value="' + esc(d) + '">').join('') + '</datalist></label>' +
-      '<label>' + L('Patient number', 'Nº de paciente') + '<input id="pdPid" type="number" min="1" inputmode="numeric"></label>' +
-      '<label class="wide">' + L('Treatment', 'Tratamiento') + '<select id="pdAct">' + catalogue + '</select></label>' +
-      '<label class="wide">' + L('Detail (teeth, note)', 'Detalle (dientes, nota)') + '<input id="pdDetail" placeholder="' + esc(L('e.g. 36 and 37', 'p. ej. 36 y 37')) + '"></label>' +
-      '<label>' + L('Done today (€)', 'Realizado hoy (€)') + '<input id="pdDone" type="number" min="0" step="0.01"></label>' +
-      '<label>' + L('Paid today (€)', 'Cobrado hoy (€)') + '<input id="pdPaid" type="number" min="0" step="0.01"></label>' +
-      '<label>' + L('Payment method', 'Forma de pago') + '<select id="pdFp"><option value="">—</option><option value="T">' + L('Card (T)', 'Tarjeta (T)') + '</option><option value="E">' + L('Cash (E)', 'Efectivo (E)') + '</option><option value="TRF">' + L('Transfer', 'Transferencia') + '</option><option value="FIN">' + L('Financing', 'Financiación') + '</option></select></label>' +
-      '<label>' + L('Special (€)', 'Especial (€)') + '<input id="pdSpecial" type="number" min="0" step="0.01"></label>' +
-      '</div><div class="actions"><button class="btn primary" data-pdadd="1">' + L('Add line', 'Añadir línea') + '</button><span id="pdMsg" class="note"></span></div></section>';
-    let list;
-    if (!PD.lines.length) list = '<div class="empty">' + L('No lines yet. Each line added here appears in the daily sheets view, already classified.', 'Aún no hay líneas. Cada línea que añadas aparece en la vista de partes diarios, ya clasificada.') + '</div>';
-    else {
-      const groups = new Map();
-      PD.lines.forEach((l, i) => { const k = l.date + '|' + l.doctor; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(Object.assign({ i }, l)); });
-      const body = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, ls]) => {
-        const done = ls.reduce((a, l) => a + (l.done || 0), 0), paid = ls.reduce((a, l) => a + (l.paid || 0), 0), sp = ls.reduce((a, l) => a + (l.special || 0), 0);
-        return '<tr><th colspan="7">' + esc(IC.dayLabel(IC.fromIso(ls[0].date)) + ' · ' + ls[0].doctor) + '</th></tr>' + ls.map((l) => '<tr><td>' + patAny(l.pid) + '</td><td class="txt">' + esc(l.desc) + '</td><td>' + codePill(l.line) + '</td><td class="r">' + eur(l.done || 0) + '</td><td class="r">' + eur(l.paid || 0) + (l.fp ? ' <small class="note">' + esc(l.fp) + '</small>' : '') + '</td><td class="r">' + eur(l.special || 0) + '</td><td class="r"><button class="btn quiet" data-pddel="' + l.i + '" aria-label="' + esc(L('Delete line', 'Borrar línea')) + '">×</button></td></tr>').join('') +
-          '<tr><td colspan="3" class="note">' + esc(L('Share at ', 'A percibir al ') + Math.round(S.rate * 100) + '%: ' + eur(S.rate * done + sp)) + '</td><td class="r"><b>' + eur(done) + '</b></td><td class="r"><b>' + eur(paid) + '</b></td><td class="r"><b>' + eur(sp) + '</b></td><td></td></tr>';
-      }).join('');
-      list = '<section class="card"><h2>' + L('Lines on this computer', 'Líneas en este ordenador') + ' (' + PD.lines.length + ')</h2><div class="tbl-wrap"><table><thead><tr><th>' + L('Patient', 'Paciente') + '</th><th>' + L('Treatment', 'Tratamiento') + '</th><th>' + L('Line', 'Línea') + '</th><th class="r">' + L('Done', 'Realizado') + '</th><th class="r">' + L('Paid', 'Cobrado') + '</th><th class="r">' + L('Special', 'Especial') + '</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div>' +
-        '<div class="actions"><button class="btn primary" data-pdxlsx="1">' + L('Download the day\'s Excel', 'Descargar el Excel del día') + '</button><button class="btn" data-pdview="1">' + L('See it in daily sheets', 'Verlo en partes diarios') + '</button><button class="btn quiet" data-pdclear="1">' + L('Empty the sheet', 'Vaciar el parte') + '</button><span id="pdOut" class="note"></span></div></section>';
-    }
-    return head + form + list;
-  }
-  function addDigitalLine() {
-    const msg = (t) => { const el = $('#pdMsg'); if (el) el.textContent = t; };
-    const date = $('#pdDate').value, doctor = $('#pdDoctor').value.trim(), pid = parseInt($('#pdPid').value, 10), act = IC.ACTS.find((a) => a.key === $('#pdAct').value);
-    if (!date) { msg(L('Choose the date.', 'Elige la fecha.')); $('#pdDate').focus(); return; }
-    if (!doctor) { msg(L('Write the doctor.', 'Escribe el doctor.')); $('#pdDoctor').focus(); return; }
-    if (isNaN(pid) || pid <= 0) { msg(L('Write the patient number.', 'Escribe el número de paciente.')); $('#pdPid').focus(); return; }
-    const detail = $('#pdDetail').value.trim(), num = (id) => { const v = parseFloat($(id).value); return isNaN(v) ? 0 : v; };
-    PD.lines.push({ date, doctor, pid, act: act.key, line: act.line, desc: act.text + (detail ? ' ' + detail : ''), done: num('#pdDone'), paid: num('#pdPaid'), fp: $('#pdFp').value, special: num('#pdSpecial') });
-    savePD(); S.pdDate = date; S.pdDoctor = doctor; S.pdAct = act.key;
-    render(); const f = $('#pdPid'); if (f) f.focus();
-  }
-  // The day's Excel in the clinic's own layout, so it fits the current process and imports back into the app.
-  async function downloadParte() {
-    await loadXlsx();
-    const lines = PD.lines; if (!lines.length) return '';
-    const H = ['Fecha Actuación', 'Clientes.Número Cliente', 'Nombre', 'Usuario', 'Descripción', 'Cobrado', 'F.P.', 'Realizada', 'Pte. Cobr', 'T  Costes', 'Valoración', 'Especial', 'Seguro', 'Notas'];
-    const nm = (pid) => (KEY.map && !KEY.sample ? KEY.map.get(Number(pid)) || '' : '');
-    const row = (l) => [l.date.split('-').reverse().join('/'), l.pid, nm(l.pid), l.doctor, l.desc, l.paid || 0, l.fp || '', l.done || 0, 0, 0, l.done || 0, l.special || 0, '', ''];
-    const wb = XLSX.utils.book_new(), safe = (s) => String(s).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || 'Doctor';
-    const docs = Array.from(new Set(lines.map((l) => l.doctor)));
-    for (const d of docs) {
-      const ls = lines.filter((l) => l.doctor === d), prod = ls.reduce((a, l) => a + (l.done || 0), 0), sp = ls.reduce((a, l) => a + (l.special || 0), 0);
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([H].concat(ls.map(row), [[], ['', '', '', '', 'TOTAL PRODUCIDO HOY', '', '', prod], ['', '', '', '', S.rate, '', '', Math.round(S.rate * prod * 100) / 100], ['', '', '', '', 'A PERCIBIR', '', '', Math.round((S.rate * prod + sp) * 100) / 100]])), safe(d));
-    }
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([H].concat(lines.filter((l) => l.done || l.paid).map(row))), 'PRODUCCION');
-    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const [y, m, dd] = lines.map((l) => l.date).sort().pop().split('-');
-    const filename = 'Parte diario ' + dd + '.' + m + '.' + y.slice(2) + '.xlsx';
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
-    if (dl) {
-      try { await dl.save({ filename, data: blob }); return L('Saved: ', 'Guardado: ') + filename; }
-      catch (err) { if (err && err.code === 'declined') return L('Download cancelled.', 'Descarga cancelada.'); if (err && err.code === 'rate_limited') return L('Another download is waiting for your answer.', 'Hay otra descarga esperando tu respuesta.'); }
-    }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-    return L('Downloaded: ', 'Descargado: ') + filename;
-  }
   // AI suggestion for the review queue: only the texts travel (no patient numbers, names or dates); a person accepts.
   async function suggestQueue() {
     const R = partesReportNow(); if (!R || !R.queue.length || S.aiBusy) return;
@@ -2434,10 +2348,10 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   function render() {
     if (!S.ds) return;
     pendingRender = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-current', t.dataset.tab === S.tab || (S.tab === 'parte' && t.dataset.tab === 'partes') ? 'page' : 'false'));
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-current', t.dataset.tab === S.tab ? 'page' : 'false'));
     const undecided = S.recs.filter((r) => !decisionFor(r)).length;
     const b = $('#recBadge'); b.hidden = !undecided; b.textContent = undecided;
-    const V = { recs: viewRecs, decisions: viewDecisions, partes: viewPartes, parte: viewParteDigital, pending: viewPending }[S.tab] || viewOverview;
+    const V = { recs: viewRecs, decisions: viewDecisions, partes: viewPartes, pending: viewPending }[S.tab] || viewOverview;
     $('#view').innerHTML = V();
   }
 
@@ -2447,22 +2361,12 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
   $('#view').addEventListener('click', async (e) => {
     const t = e.target.closest('button, rect.b');
     if (!t) return;
-    // Daily sheets, digital sheet, pending production
+    // Daily sheets, pending production
     if (t.dataset.import) { $('#importBtn').click(); return; }
-    if (t.dataset.pfrom) { S.partesFrom = t.dataset.pfrom; render(); return; }
     if (t.dataset.cfilter) { S.cleanFilter = t.dataset.cfilter; render(); return; }
     if (t.dataset.ai) { suggestQueue(); return; }
     if (t.dataset.aiok) { const s = S.aiSuggest.get(t.dataset.aiok); if (s && s.line && s.line !== '?') { S.dict[t.dataset.aiok] = { line: s.line, by: 'ai', at: new Date().toISOString() }; setPref('ic-dict', S.dict); } render(); return; }
     if (t.dataset.dictclear) { if (window.confirm(L('Clear the clinic dictionary on this computer? The texts will go back to the review queue.', '¿Borrar el diccionario de la clínica de este ordenador? Los textos volverán a la cola de revisión.'))) { S.dict = {}; setPref('ic-dict', S.dict); render(); } return; }
-    if (t.dataset.pdadd) { addDigitalLine(); return; }
-    if (t.dataset.pddel) { PD.lines.splice(Number(t.dataset.pddel), 1); savePD(); render(); return; }
-    if (t.dataset.pdclear) { if (window.confirm(L('Empty the digital sheet on this computer? Download its Excel first if you need it.', '¿Vaciar el parte digital de este ordenador? Descarga antes su Excel si lo necesitas.'))) { PD.lines = []; savePD(); render(); } return; }
-    if (t.dataset.pdview) { S.partesFrom = 'digital'; S.tab = 'partes'; render(); window.scrollTo(0, 0); return; }
-    if (t.dataset.pdxlsx) {
-      t.disabled = true;
-      let m; try { m = await downloadParte(); } catch (err) { m = L('The Excel could not be made: ', 'No se pudo generar el Excel: ') + ((err && err.message) || ''); }
-      t.disabled = false; const out = $('#pdOut'); if (out) out.textContent = m; return;
-    }
     if (t.dataset.logpending) { S.tab = 'decisions'; S.open = { log: true, preset: { title: L('Reconcile the pending list older than 6 months', 'Cuadrar la lista de pendiente con más de 6 meses'), kind: 'risk', metric: 'pending_old' } }; render(); window.scrollTo(0, 0); const f = $('#lOwner'); if (f) f.focus(); return; }
     if (t.dataset.month) { S.k = Math.min(S.ds.lastMonth, Math.max(S.ds.lastMonth - 11, S.k + Number(t.dataset.month))); render(); return; }
     if (t.matches('rect.b')) { S.k = Number(t.dataset.k); render(); return; }
@@ -2530,10 +2434,6 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     sel.disabled = true;
     try { await Store.update(d.id, { calls }); } catch (err) { alertInline(sel, couldNotSave(err)); }
     sel.disabled = false;
-  });
-  // Enter in the digital sheet's fields adds the line, so reception can type without the mouse.
-  $('#view').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.closest('.pd-grid') && e.target.tagName === 'INPUT') { e.preventDefault(); addDigitalLine(); }
   });
   $('#view').addEventListener('toggle', (e) => {
     const el = e.target; if (!el.dataset || !el.dataset.calls) return;
@@ -2770,8 +2670,8 @@ tr.flag td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
     { name: 'get_recommendations', description: 'Current recommendations with evidence, suggested action, expected effect and whether a decision was taken.', inputSchema: { type: 'object', properties: {} }, execute: () => S.recs.map((r) => { const d = decisionFor(r); return { title: r.title, evidence: r.evidence, action: r.action, expectedEffect: r.impact, measuredBy: IC.metricLabel(r.metric), decision: d ? d.decision : 'Not decided yet' }; }) },
     { name: 'get_decisions', description: 'The decision log: decisions taken (from recommendations or logged by managers), owners, dates, the metric used, its average in the three months before and the months after, the expected change, the change in the same months a year earlier, and recorded results.', inputSchema: { type: 'object', properties: {} }, execute: () => round(relevant().map((d) => { const ev = d.decision === 'Rejected' ? null : IC.evalDecision(S.ds, d); return { title: d.title, type: kindLabel(d.kind), loggedByManager: !!d.manual, decision: d.decision, owner: d.owner, decidedOn: d.decidedOn, reviewDay: d.reviewDay, metric: IC.metricLabel(d.metric), before: ev && ev.before, after: ev && ev.after, monthsAfter: ev && ev.afterMonths, change: ev && ev.change, expectedChange: d.expected ? d.expected.pct : null, sameMonthsLastYearChange: ev && ev.changeLastYear, result: d.outcome ? d.outcome.verdict : null }; })) },
     { name: 'get_learning', description: 'What the app has learned from the decision log: follow-up call results and how many called patients continued treatment, track record per recommendation kind, and whether the risk model or the simple rule is in use.', inputSchema: { type: 'object', properties: {} }, execute: () => { const m = S.model; return round({ followUp: S.learned && S.learned.followUp, byKind: S.learned && Object.fromEntries(Object.entries(S.learned.byKind).map(([k, s]) => [k, { decided: s.decided, rejected: s.rejected, reviewed: s.reviewed, worked: s.worked, partly: s.partly, avgImprovement: s.avgImprovement }])), model: m ? { usingSimpleRule: m.useRule, aucModel: m.aucModel, aucRule: m.aucRule, calibration: m.calibration, trainingCasesWithCall: m.calls.trainingCases } : null }); } },
-    { name: 'get_daily_sheets', description: 'Reception\'s daily sheets loaded in the app (or the digital sheet, if that is the view selected): days covered; per doctor the clinic production (PRODUCCION tab where there is one), the base of the dentist\'s share (doctor\'s tab plus insurance fees), fixed specials, the dentist\'s share at the current rate and collections by card or cash; the check against the PRODUCCION tab; how much free text the cleaning layer understood; clinic production by treatment line (G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants); payments on account by line letter; events written in the text (no-shows, rescheduled, urgencies, complaints).', inputSchema: { type: 'object', properties: {} },
-      execute: () => { const R = partesReportNow(); if (!R) return { available: false, note: 'No daily sheets loaded.' }; const C = R.check; return round({ view: S.partesFrom, days: R.days.map(IC.iso), dentistShareRate: R.rate, totals: R.totals, doctors: R.doctors.map((d) => ({ doctor: d.doctor, days: d.days, lines: d.lines, clinicProduction: d.production, shareBase: d.base, insuranceFees: d.insurance, specials: d.special, share: d.share, collected: d.collected, card: d.card, cash: d.cash })), checkAgainstProduccion: { hasProduccionTab: R.hasProd, linesWithDifferentAmount: C.different.length, ofWhichImplantOrProsthesis: C.diffImplantProsthesis, doctorTabsAmount: C.different.reduce((a, x) => a + x.sheet, 0), produccionAmount: C.different.reduce((a, x) => a + x.prod, 0), linesMissingInProduccion: C.missing.length, linesOnlyInProduccion: C.extra.length }, freeTextCleaning: Object.assign({ distinctTexts: R.distinct, linesWithSeveralTreatments: R.multiRows, linesWithTeeth: R.teethRows }, R.coverage), productionByLine: R.byLine, paymentsOnAccountByLine: R.paysByCode, eventsWritten: R.events, paymentMethodWrittenAs: R.fpWritten }); } },
+    { name: 'get_daily_sheets', description: 'Reception\'s daily sheets loaded in the app:days covered; per doctor the clinic production (PRODUCCION tab where there is one), the base of the dentist\'s share (doctor\'s tab plus insurance fees), fixed specials, the dentist\'s share at the current rate and collections by card or cash; the check against the PRODUCCION tab; how much free text the cleaning layer understood; clinic production by treatment line (G general, O orthodontics, PF fixed prosthesis, PR removable prosthesis, IM implants); payments on account by line letter; events written in the text (no-shows, rescheduled, urgencies, complaints).', inputSchema: { type: 'object', properties: {} },
+      execute: () => { const R = partesReportNow(); if (!R) return { available: false, note: 'No daily sheets loaded.' }; const C = R.check; return round({ days: R.days.map(IC.iso), dentistShareRate: R.rate, totals: R.totals, doctors: R.doctors.map((d) => ({ doctor: d.doctor, days: d.days, lines: d.lines, clinicProduction: d.production, shareBase: d.base, insuranceFees: d.insurance, specials: d.special, share: d.share, collected: d.collected, card: d.card, cash: d.cash })), checkAgainstProduccion: { hasProduccionTab: R.hasProd, linesWithDifferentAmount: C.different.length, ofWhichImplantOrProsthesis: C.diffImplantProsthesis, doctorTabsAmount: C.different.reduce((a, x) => a + x.sheet, 0), produccionAmount: C.different.reduce((a, x) => a + x.prod, 0), linesMissingInProduccion: C.missing.length, linesOnlyInProduccion: C.extra.length }, freeTextCleaning: Object.assign({ distinctTexts: R.distinct, linesWithSeveralTreatments: R.multiRows, linesWithTeeth: R.teethRows }, R.coverage), productionByLine: R.byLine, paymentsOnAccountByLine: R.paysByCode, eventsWritten: R.events, paymentMethodWrittenAs: R.fpWritten }); } },
     { name: 'get_pending_production', description: 'MN list "Presupuestos aceptados no realizados" (treatment planned and paid, not recorded as done): total, lines, quotes, amount by age (0-3, 3-6, 6-12, over 12 months), by treatment line, the amount older than 6 months (the list to reconcile), share of the 20 largest quotes, the largest quotes, the oldest lines, and how often MN records the acceptance tick, the doctor, a linked payment and how the patient found the clinic.', inputSchema: { type: 'object', properties: {} },
       execute: () => { const Q = IC.pendingReport(S.ds); if (!Q) return { available: false, note: 'No pending list loaded.' }; return round({ asOf: IC.iso(Q.asOf), total: Q.total, lines: Q.n, quotes: Q.budgets, olderThan6Months: Q.oldAmount, linesOlderThan6Months: Q.old.length, byAgeMonths: Q.buckets.map((b, i) => ({ band: ['0-3', '3-6', '6-12', '12+'][i], lines: b.n, amount: b.amount })), byLine: Q.byLine, top20QuotesShare: Q.top20Share, topQuotes: Q.topBudgets.map((b) => ({ quote: b.budget, lines: b.n, amount: b.amount, since: IC.iso(b.first) })), oldestLargest: Q.old.slice(0, 10).map((x) => ({ date: IC.iso(x.day), treatment: x.desc, quote: x.budget, amount: x.amount })), recordedInMN: { acceptedTickShareOfAmount: Q.flags.acceptedShare, doctorShareOfLines: Q.flags.userShare, linkedPaymentShareOfLines: Q.flags.collectedShare, contactSourceShareOfLines: Q.flags.sourceShare } }); } },
     { name: 'get_patient_base', description: 'Patient files: how many, seen in the last 12 and 24 months, with no visit recorded, with a next appointment, due a recall (seen in 12 months without an appointment), discharged, and new files per month with this year to date against the same months a year earlier.', inputSchema: { type: 'object', properties: {} },
