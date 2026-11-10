@@ -10,6 +10,7 @@
   const toDate = (n) => new Date(n * DAY);
   const mk = (n) => { const t = toDate(n); return t.getUTCFullYear() * 12 + t.getUTCMonth(); };
   const mkStart = (k) => dn(Math.floor(k / 12), (k % 12) + 1, 1);
+  const todayDn = () => { const t = new Date(); return dn(t.getFullYear(), t.getMonth() + 1, t.getDate()); };
   const mkEnd = (k) => mkStart(k + 1) - 1;
   const weekday = (n) => (toDate(n).getUTCDay() + 6) % 7; // 0 = Monday
   const iso = (n) => toDate(n).toISOString().slice(0, 10);
@@ -265,7 +266,7 @@
     const get = (pid) => { let x = by.get(pid); if (!x) { x = { appts: [], lines: [], pays: [] }; by.set(pid, x); } return x; };
     ds.appts.forEach((a) => get(a.pid).appts.push(a));
     ds.lines.forEach((l) => get(l.pid).lines.push(l));
-    ds.pays.forEach((p) => get(p.pid).pays.push(p));
+    ds.pays.forEach((p) => { if (p.pid != null) get(p.pid).pays.push(p); });
     by.forEach((x) => { x.appts.sort((a, b) => a.day - b.day); x.pays.sort((a, b) => a.day - b.day); });
     ds.by = by;
     ds.hasPatientDates = ds.patients.some((p) => p.first != null);
@@ -895,7 +896,15 @@
   function fromTables(tables, label) {
     const ds = { source: 'import', label: label || L('Imported data', 'Datos importados'), patients: [], appts: [], lines: [], pays: [], partes: { lines: [], pays: [] }, pending: [] };
     const warn = [];
-    const pid = (r) => { const v = pick(r, COLS.patient); const n = parseInt(String(v == null ? '' : v).replace(/\.0+$/, '').replace(/\D/g, ''), 10); return isNaN(n) ? null : n; };
+    // The first patient column that holds a number (an export may carry an empty or a name "Paciente" column too).
+    const pid = (r) => {
+      for (const k of Object.keys(r)) {
+        if (!COLS.patient.includes(norm(k))) continue;
+        const n = parseInt(String(r[k] == null ? '' : r[k]).replace(/\.0+$/, '').replace(/\D/g, ''), 10);
+        if (!isNaN(n)) return n;
+      }
+      return null;
+    };
     const txt = (v) => String(v == null ? '' : v).trim();
     for (const t of tables) {
       if (t.kind === 'patients') t.rows.forEach((r) => {
@@ -923,13 +932,19 @@
         const acc = norm(pick(r, ['presupuesto aceptado'])), src = pick(r, ['fuente de contacto']), b = txt(pick(r, ['n presupuesto', 'presupuesto']));
         ds.pending.push({ day, desc: txt(pick(r, ['descripcion'])), amount: parseNum(pick(r, ['importe'])), price: parseNum(pick(r, ['precio'])), discount: parseNum(pick(r, ['descuento'])),
           budget: b.replace(/\.0+$/, ''), accepted: acc ? (acc === 'si' || acc === 'yes' || acc === 's') : null, user: txt(pick(r, ['usuario'])), origin: txt(pick(r, ['origen'])),
-          collected: parseNum(pick(r, ['importe cobrado'])), source: src === undefined ? undefined : txt(src), pid: pid(r) });
+          collected: parseNum(pick(r, ['importe cobrado'])), source: src === undefined ? undefined : txt(src), pid: pid(r), from: t.from.split(' · ')[0] });
       });
       if (t.kind === 'appts') t.rows.forEach((r) => {
-        const id = pid(r), day = parseDay(pick(r, COLS.date)); if (id == null || day == null) return;
+        const id = pid(r), day = parseDay(pick(r, COLS.date.concat(['fecha actuacion']))); if (id == null || day == null) return;
         const desc = String(pick(r, ['descripcion', 'description', 'motivo']) || '');
         const tipo = norm(pick(r, ['tipo', 'tipo cita', 'type']) || ''), nd = norm(desc);
-        const status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
+        let status = apptStatus(pick(r, COLS.status), pick(r, ['color', 'colour', 'color cita']));
+        // MN's own agenda export has no state or colour, only the "Cancelada" and "Actuación Realizada" flags,
+        // which reception rarely uses: a past appointment not flagged as cancelled counts as attended.
+        if (t.mnAgenda) {
+          const canc = norm(pick(r, ['cancelada'])), done = norm(pick(r, ['actuacion realizada']));
+          status = ['true', 'si', 's', 'verdadero', '1'].includes(canc) ? ST.CANCEL : day <= todayDn() || done === 'si' || done === 's' ? ST.DONE : ST.FUTURE;
+        }
         // MN marks first visits as "1 consulta".
         const type = tipo.includes('primera') || nd.includes('primera visita') || /(^| )1 consulta/.test(nd) ? 'Primera visita' : tipo.includes('revision') ? 'Revisión' : 'Tratamiento';
         ds.appts.push({ pid: id, day, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet', 'sala']) || ''), desc, type, status });
@@ -940,24 +955,37 @@
         const st = norm(pick(r, COLS.status) || (done != null ? 'realizado' : 'pendiente'));
         ds.lines.push({ pid: id, plan: pick(r, ['presupuesto', 'n presupuesto', 'plan']) || i, accept: parseDay(pick(r, ['fecha aceptacion', 'fecha presupuesto', 'fecha'])) || done, name: String(pick(r, COLS.treatment) || '').toUpperCase(), cat: String(pick(r, ['categoria', 'especialidad', 'category']) || ''), price: parseNum(pick(r, ['importe', 'total', 'precio', 'amount'])), status: st.includes('cancel') ? 'Cancelado' : (st.includes('realiz') && done != null) ? 'Realizado' : 'Pendiente', done: st.includes('realiz') ? done : null, prof: String(pick(r, ['profesional', 'doctor', 'usuario']) || ''), cab: String(pick(r, ['gabinete', 'cabinet']) || '') || null });
       });
+      // A payment without a patient number (MN's payment export has none) still counts in the clinic's totals.
       if (t.kind === 'pays') t.rows.forEach((r) => {
-        const id = pid(r), day = parseDay(pick(r, ['fecha cobro', 'fecha', 'date'])); if (id == null || day == null) return;
-        ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept']) || '') });
+        const id = pid(r), day = parseDay(pick(r, ['fecha cobro', 'fecha', 'date'])); if (day == null) return;
+        ds.pays.push({ pid: id, day, amount: parseNum(pick(r, ['importe', 'total', 'amount'])), method: String(pick(r, ['forma de cobro', 'forma cobro', 'metodo de pago']) || ''), concept: String(pick(r, ['concepto', 'concept', 'descripcion']) || '') });
       });
+    }
+    // The same pending line exported in two files (the full list and a monthly one) is counted once. Identical
+    // lines inside one file are real (two units of the same quote) and all stay: per line, the most any one
+    // file holds is kept.
+    {
+      const key = (x) => [x.day, x.desc, x.amount, x.budget, x.pid].join('|'), most = new Map(), per = new Map();
+      ds.pending.forEach((x) => { const k = key(x), f = k + '#' + x.from; per.set(f, (per.get(f) || 0) + 1); most.set(k, Math.max(most.get(k) || 0, per.get(f))); });
+      const kept = new Map();
+      ds.pending = ds.pending.filter((x) => { const k = key(x), n = (kept.get(k) || 0) + 1; kept.set(k, n); return n <= most.get(k); });
     }
     // Without an MN treatment export, the daily sheets are the production record: each doctor-tab line with an
     // amount becomes treatment done (by that doctor, in its cleaned treatment line) and what was paid that day a
     // payment. With an MN treatment export loaded, the sheets are only checked, never counted twice.
     const P = ds.partes;
+    // Payments are recorded in MN: on the days MN's payment export covers, the sheets' payments are not added again.
+    const mnPayDays = ds.pays.length ? [Math.min.apply(null, ds.pays.map((p) => p.day)), Math.max.apply(null, ds.pays.map((p) => p.day))] : null;
+    const inMN = (day) => !!mnPayDays && day >= mnPayDays[0] && day <= mnPayDays[1];
     if (!ds.lines.length && P.lines.length) {
       const M = matchPartes(P);
       const asLine = (l, value) => { const c = l.line || cleanText(l.desc).line; ds.lines.push({ pid: l.pid, plan: 'parte', accept: l.day, name: up(l.desc), cat: c ? LINE_ES[c] : 'Sin clasificar', price: value, cost: null, status: 'Realizado', done: l.day, prof: l.doctor, cab: null }); };
       for (const l of M.doc) {
         const v = M.clinicValue(l); if (v > 0) asLine(l, v);
-        if (l.cobrado > 0) ds.pays.push({ pid: l.pid, day: l.day, amount: l.cobrado, method: l.fp, concept: l.desc });
+        if (l.cobrado > 0 && !inMN(l.day)) ds.pays.push({ pid: l.pid, day: l.day, amount: l.cobrado, method: l.fp, concept: l.desc });
       }
       for (const l of M.extra) if (l.realizada > 0) asLine(l, l.realizada);
-      for (const p of P.pays) if (p.pid != null && p.total > 0) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
+      for (const p of P.pays) if (p.pid != null && p.total > 0 && !inMN(p.day)) ds.pays.push({ pid: p.pid, day: p.day, amount: p.total, method: p.method, concept: p.concept });
       ds.fromPartes = true;
     }
     if (!ds.appts.length && !P.lines.length) warn.push(L('No appointments table found: lost visits and first visits will be empty.', 'No hay tabla de agenda: las citas perdidas y las primeras visitas saldrán vacías.'));
@@ -1334,6 +1362,11 @@
       // Daily sheet: reception's own summary tab (not needed: the app recomputes it)
       if (has('cobrado en el dia') || (norm(sh.name) === 'resumen' && has('a pagar'))) { ignored.push(from); continue; }
       const objs = body.filter((r) => r.some((v) => v !== '' && v != null)).map((r) => { const o = {}; hdr.forEach((h, i) => { if (h) o[h] = r[i] == null ? '' : r[i]; }); return o; });
+      // MN agenda export ("Fecha Actuación", "Hora Inicio Actuación", "Clientes.Número Cliente"): appointments
+      if (has('fecha actuacion') && has('hora inicio actuacion') && col('clientes numero cliente', 'numero cliente') >= 0) {
+        objs.forEach((o) => { Object.keys(o).forEach((k) => { if (['paciente', 'nombre', 'nif', 'movil paciente', 'telefono paciente'].includes(norm(k))) delete o[k]; }); });
+        tables.push({ kind: 'appts', rows: objs, from, mnAgenda: true }); continue;
+      }
       // MN "Presupuestos aceptados no realizados": patient name and NIF columns are dropped
       if (has('fecha tratamiento') && (has('presupuesto aceptado') || has('n presupuesto'))) {
         objs.forEach((o) => { Object.keys(o).forEach((k) => { if (['paciente', 'nif', 'nombre', 'movil paciente', 'telefono paciente', 'domicilio', 'codigo postal'].includes(norm(k))) delete o[k]; }); });
